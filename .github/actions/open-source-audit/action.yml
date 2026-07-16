@@ -1,0 +1,8 @@
+name: Open-source policy audit
+description: Enforce ElevenID public repository licensing, isolation, runner, and workflow policy
+runs:
+  using: composite
+  steps:
+    - name: Audit public repository policy
+      shell: bash
+      run: python "${{ github.action_path }}/audit.py" --repo-root "$GITHUB_WORKSPACE"
