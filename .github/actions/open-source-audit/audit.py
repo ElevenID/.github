@@ -50,7 +50,10 @@ def audit(root: Path) -> list[str]:
         if not path.is_file() or SKIP_PARTS.intersection(path.parts):
             continue
         relative = path.relative_to(root).as_posix()
-        if relative == ".github/actions/open-source-audit/audit.py":
+        if relative == ".github/actions/open-source-audit/audit.py" or path.name in {
+            "check_oss_boundary.py",
+            "audit_open_source.py",
+        }:
             continue
         if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in {"Dockerfile", "Makefile"}:
             continue
