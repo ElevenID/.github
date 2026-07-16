@@ -29,6 +29,10 @@ PRIVATE_MARKERS = (
 )
 STALE_MARKERS = ("github.com/burdettadam", "github.com/adamburdett", "github.com/your-org")
 LARGER_RUNNER = re.compile(r"runs-on:\s*[^\n]*(?:xlarge|larger|(?:4|8|16|32|64)-core)", re.I)
+ACTION_USE = re.compile(
+    r"^\s*-?\s*uses:\s*(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./-]+)?)@(?P<ref>[^\s#]+)",
+    re.M,
+)
 
 
 def tracked_files(root: Path) -> list[Path]:
@@ -71,6 +75,11 @@ def audit(root: Path) -> list[str]:
                 findings.append(f"stale repository marker {marker!r}: {relative}")
 
         if relative.startswith(".github/workflows/"):
+            for match in ACTION_USE.finditer(content):
+                if not re.fullmatch(r"[0-9a-f]{40}", match.group("ref")):
+                    findings.append(
+                        f"action is not pinned by full commit SHA ({match.group('action')}): {relative}"
+                    )
             if re.search(r"^\s*pull_request_target\s*:", content, re.M):
                 findings.append(f"pull_request_target is prohibited: {relative}")
             if LARGER_RUNNER.search(content):
