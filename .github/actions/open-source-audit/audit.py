@@ -33,7 +33,10 @@ LARGER_RUNNER = re.compile(r"runs-on:\s*[^\n]*(?:xlarge|larger|(?:4|8|16|32|64)-
 
 def tracked_files(root: Path) -> list[Path]:
     result = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=root, check=True, capture_output=True
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=root,
+        check=True,
+        capture_output=True,
     )
     return [root / item.decode() for item in result.stdout.split(b"\0") if item]
 
