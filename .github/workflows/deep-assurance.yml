@@ -1,0 +1,124 @@
+name: Reusable deep assurance
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: nightly or release
+        type: string
+        required: true
+      fuzz-command:
+        type: string
+        default: ""
+      mutation-command:
+        type: string
+        default: ""
+      sanitizer-command:
+        type: string
+        default: ""
+      dast-command:
+        type: string
+        default: ""
+      accessibility-command:
+        type: string
+        default: ""
+      performance-command:
+        type: string
+        default: ""
+      image-scan-command:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deep-assurance-${{ github.repository }}-${{ inputs.mode }}-${{ github.ref }}
+  cancel-in-progress: ${{ inputs.mode == 'nightly' }}
+
+jobs:
+  validate-mode:
+    name: Deep Assurance Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate execution mode and configured checks
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          FUZZ: ${{ inputs.fuzz-command }}
+          MUTATION: ${{ inputs.mutation-command }}
+          SANITIZER: ${{ inputs.sanitizer-command }}
+          DAST: ${{ inputs.dast-command }}
+          ACCESSIBILITY: ${{ inputs.accessibility-command }}
+          PERFORMANCE: ${{ inputs.performance-command }}
+          IMAGE_SCAN: ${{ inputs.image-scan-command }}
+        run: |
+          case "$MODE" in nightly|release) ;; *) echo "mode must be nightly or release" >&2; exit 1 ;; esac
+          if [ -z "$FUZZ$MUTATION$SANITIZER$DAST$ACCESSIBILITY$PERFORMANCE$IMAGE_SCAN" ]; then
+            echo "At least one deep assurance command is required" >&2
+            exit 1
+          fi
+  deep-assurance:
+    name: Deep Assurance
+    needs: validate-mode
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.mode == 'release' && 360 || 120 }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fuzzing
+        if: inputs.fuzz-command != ''
+        shell: bash
+        env:
+          ELEVENID_FUZZ_SECONDS: ${{ inputs.mode == 'release' && '3600' || '900' }}
+          COMMAND: ${{ inputs.fuzz-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Mutation testing
+        if: inputs.mutation-command != ''
+        shell: bash
+        env:
+          ELEVENID_MUTATION_MINIMUM: "70"
+          COMMAND: ${{ inputs.mutation-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Miri and sanitizers
+        if: inputs.sanitizer-command != ''
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.sanitizer-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Dynamic application security
+        if: inputs.dast-command != ''
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.dast-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Accessibility
+        if: inputs.accessibility-command != ''
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.accessibility-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Performance and bundle budgets
+        if: inputs.performance-command != ''
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.performance-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Release image security
+        if: inputs.image-scan-command != ''
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.image-scan-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Upload deep-assurance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deep-assurance-${{ inputs.mode }}
+          path: |
+            artifacts/deep-assurance/
+            coverage/
+          if-no-files-found: ignore
+          retention-days: 14

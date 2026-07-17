@@ -1,0 +1,68 @@
+name: Reusable Flutter quality
+
+on:
+  workflow_call:
+    inputs:
+      flutter-version:
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+      test-command:
+        type: string
+        default: "flutter test --coverage"
+      build-command:
+        description: Non-Apple debug build command
+        type: string
+        default: "flutter build web --debug"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-quality-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-quality:
+    name: Flutter Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ inputs.flutter-version }}
+          channel: stable
+          cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: flutter pub get --enforce-lockfile
+      - name: Check formatting
+        shell: bash
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Static analysis
+        shell: bash
+        run: flutter analyze --fatal-infos
+      - name: Tests and coverage
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.test-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Enforce line coverage
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lcov
+          rate="$(lcov --summary coverage/lcov.info 2>&1 | awk '/lines/ {gsub("%", "", $2); print $2}')"
+          awk -v rate="$rate" 'BEGIN { if (rate + 0 < 90) exit 1 }'
+      - name: Non-Apple debug build
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.build-command }}
+        run: bash -euo pipefail -c "$COMMAND"

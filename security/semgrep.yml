@@ -1,0 +1,35 @@
+rules:
+  - id: elevenid-python-unsafe-yaml-load
+    languages: [python]
+    severity: ERROR
+    message: Use yaml.safe_load for untrusted YAML input.
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+  - id: elevenid-python-subprocess-shell
+    languages: [python]
+    severity: ERROR
+    message: shell=True creates a command-injection boundary; use an argument vector.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$FUNC(..., shell=True, ...)
+          - pattern: os.system(...)
+  - id: elevenid-python-disabled-tls-verification
+    languages: [python]
+    severity: ERROR
+    message: TLS verification must not be disabled.
+    pattern: requests.$METHOD(..., verify=False, ...)
+  - id: elevenid-python-weak-hash-security
+    languages: [python]
+    severity: ERROR
+    message: MD5 and SHA-1 must not protect credentials, signatures, or security decisions.
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+  - id: elevenid-typescript-dynamic-code
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Dynamic code execution is prohibited.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)

@@ -1,0 +1,84 @@
+name: Reusable Rust quality
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        type: string
+        default: "."
+      test-command:
+        type: string
+        default: "cargo test --locked --workspace --all-targets"
+      clippy-command:
+        type: string
+        default: "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
+      coverage-command:
+        type: string
+        default: "cargo llvm-cov --locked --workspace --all-features --fail-under-lines 90 --fail-under-branches 80"
+      semver-check:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-quality-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-quality:
+    name: Rust Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Rust quality components
+        shell: bash
+        run: rustup component add clippy rustfmt llvm-tools-preview
+      - name: Require a locked dependency graph
+        shell: bash
+        run: cargo metadata --locked --format-version 1 >/dev/null
+      - name: Check formatting
+        shell: bash
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.clippy-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Tests
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.test-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Install pinned assurance tools
+        shell: bash
+        run: |
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo install cargo-deny --locked --version 0.20.2
+          cargo install cargo-llvm-cov --locked --version 0.8.7
+      - name: RustSec audit
+        shell: bash
+        run: cargo audit
+      - name: License and dependency policy
+        shell: bash
+        run: cargo deny check
+      - name: Coverage
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.coverage-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Install SemVer checker
+        if: inputs.semver-check
+        shell: bash
+        run: cargo install cargo-semver-checks --locked --version 0.48.0
+      - name: Public API compatibility
+        if: inputs.semver-check
+        shell: bash
+        run: cargo semver-checks check-release

@@ -1,0 +1,126 @@
+name: Reusable Python quality
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.12"
+      working-directory:
+        type: string
+        default: "."
+      install-command:
+        type: string
+        required: true
+      source-paths:
+        type: string
+        required: true
+      test-command:
+        type: string
+        required: true
+      type-command:
+        type: string
+        default: "pyright"
+      audit-command:
+        type: string
+        default: "pip-audit"
+      semgrep-config:
+        type: string
+        default: ".elevenid-quality/security/semgrep.yml"
+      policy-ref:
+        description: Full ElevenID/.github commit containing the policy files
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-quality-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-quality:
+    name: Python Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ElevenID/.github
+          ref: ${{ inputs.policy-ref }}
+          path: ${{ inputs.working-directory }}/.elevenid-quality
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+      - name: Install pinned quality tools
+        shell: bash
+        run: >-
+          python -m pip install --disable-pip-version-check
+          "ruff==0.15.22" "bandit[sarif,toml]==1.9.4" "semgrep==1.170.0"
+          "pip-audit==2.10.1" "pytest==9.1.1" "pytest-cov==7.1.0"
+          "pyright==1.1.411" "mypy==2.3.0"
+      - name: Install project dependencies
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.install-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Ruff lint
+        shell: bash
+        env:
+          SOURCE_PATHS: ${{ inputs.source-paths }}
+        run: ruff check $SOURCE_PATHS
+      - name: Ruff format
+        shell: bash
+        env:
+          SOURCE_PATHS: ${{ inputs.source-paths }}
+        run: ruff format --check $SOURCE_PATHS
+      - name: Static type checking
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.type-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Tests and coverage
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.test-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Bandit SAST
+        shell: bash
+        env:
+          SOURCE_PATHS: ${{ inputs.source-paths }}
+        run: >-
+          bandit -r $SOURCE_PATHS -ll -ii
+          -x "*/tests/*,*/test/*,*/migrations/*,*/generated/*,*/vendor/*"
+          -f sarif -o bandit.sarif
+      - name: ElevenID Semgrep policy
+        shell: bash
+        env:
+          SEMGREP_CONFIG: ${{ inputs.semgrep-config }}
+          SOURCE_PATHS: ${{ inputs.source-paths }}
+        run: >-
+          semgrep scan --error --strict
+          --config "$SEMGREP_CONFIG"
+          --sarif --output semgrep.sarif $SOURCE_PATHS
+      - name: Dependency vulnerability audit
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.audit-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Upload security results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-security-results
+          path: |
+            ${{ inputs.working-directory }}/bandit.sarif
+            ${{ inputs.working-directory }}/semgrep.sarif
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,0 +1,70 @@
+name: Reusable C++ quality
+
+on:
+  workflow_call:
+    inputs:
+      configure-command:
+        type: string
+        default: "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+      build-command:
+        type: string
+        default: "cmake --build build --parallel 2"
+      test-command:
+        type: string
+        default: "ctest --test-dir build --output-on-failure"
+      format-paths:
+        type: string
+        default: "src include tests"
+      coverage-command:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpp-quality-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpp-quality:
+    name: C++ Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install analysis tools
+        run: sudo apt-get update && sudo apt-get install --yes clang clang-format clang-tidy llvm lcov
+      - name: Check formatting
+        shell: bash
+        env:
+          FORMAT_PATHS: ${{ inputs.format-paths }}
+        run: >-
+          find $FORMAT_PATHS -type f
+          \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+          -print0 | xargs -0 --no-run-if-empty clang-format --dry-run --Werror
+      - name: Configure
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.configure-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Build
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.build-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Tests
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.test-command }}
+        run: bash -euo pipefail -c "$COMMAND"
+      - name: Clang tidy
+        shell: bash
+        run: run-clang-tidy -p build
+      - name: Coverage
+        shell: bash
+        env:
+          COMMAND: ${{ inputs.coverage-command }}
+        run: bash -euo pipefail -c "$COMMAND"

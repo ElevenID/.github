@@ -1,0 +1,42 @@
+name: Reusable release readiness
+
+on:
+  workflow_call:
+    inputs:
+      fuzz-command:
+        type: string
+        default: ""
+      mutation-command:
+        type: string
+        default: ""
+      sanitizer-command:
+        type: string
+        default: ""
+      dast-command:
+        type: string
+        default: ""
+      accessibility-command:
+        type: string
+        default: ""
+      performance-command:
+        type: string
+        default: ""
+      image-scan-command:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  deep-assurance:
+    uses: ./.github/workflows/deep-assurance.yml
+    with:
+      mode: release
+      fuzz-command: ${{ inputs.fuzz-command }}
+      mutation-command: ${{ inputs.mutation-command }}
+      sanitizer-command: ${{ inputs.sanitizer-command }}
+      dast-command: ${{ inputs.dast-command }}
+      accessibility-command: ${{ inputs.accessibility-command }}
+      performance-command: ${{ inputs.performance-command }}
+      image-scan-command: ${{ inputs.image-scan-command }}
