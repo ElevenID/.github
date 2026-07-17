@@ -34,6 +34,9 @@ jobs:
           python-version: "3.12"
       - name: Validate GitHub Actions syntax
         shell: bash
+        env:
+          # Gate actionable ShellCheck warnings/errors; info/style findings remain advisory.
+          SHELLCHECK_OPTS: --severity=warning
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Audit GitHub Actions security
         shell: bash
