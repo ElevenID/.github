@@ -50,4 +50,6 @@ jobs:
           python .elevenid-quality/scripts/workflow_policy.py .github/workflows
       - name: Test workflow policy fixtures
         shell: bash
+        env:
+          PYTHONPATH: .elevenid-quality
         run: python -m unittest discover -s .elevenid-quality/tests -p 'test_*.py'
