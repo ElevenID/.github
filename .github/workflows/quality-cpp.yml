@@ -41,10 +41,11 @@ jobs:
         shell: bash
         env:
           FORMAT_PATHS: ${{ inputs.format-paths }}
-        run: >-
-          find $FORMAT_PATHS -type f
-          \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-          -print0 | xargs -0 --no-run-if-empty clang-format --dry-run --Werror
+        run: |
+          read -r -a format_paths <<< "$FORMAT_PATHS"
+          find "${format_paths[@]}" -type f \
+            \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) \
+            -print0 | xargs -0 --no-run-if-empty clang-format --dry-run --Werror
       - name: Configure
         shell: bash
         env:

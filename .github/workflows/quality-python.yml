@@ -76,12 +76,16 @@ jobs:
         shell: bash
         env:
           SOURCE_PATHS: ${{ inputs.source-paths }}
-        run: ruff check $SOURCE_PATHS
+        run: |
+          read -r -a source_paths <<< "$SOURCE_PATHS"
+          ruff check "${source_paths[@]}"
       - name: Ruff format
         shell: bash
         env:
           SOURCE_PATHS: ${{ inputs.source-paths }}
-        run: ruff format --check $SOURCE_PATHS
+        run: |
+          read -r -a source_paths <<< "$SOURCE_PATHS"
+          ruff format --check "${source_paths[@]}"
       - name: Static type checking
         shell: bash
         env:
@@ -96,19 +100,21 @@ jobs:
         shell: bash
         env:
           SOURCE_PATHS: ${{ inputs.source-paths }}
-        run: >-
-          bandit -r $SOURCE_PATHS -ll -ii
-          -x "*/tests/*,*/test/*,*/migrations/*,*/generated/*,*/vendor/*"
-          -f sarif -o bandit.sarif
+        run: |
+          read -r -a source_paths <<< "$SOURCE_PATHS"
+          bandit -r "${source_paths[@]}" -ll -ii \
+            -x "*/tests/*,*/test/*,*/migrations/*,*/generated/*,*/vendor/*" \
+            -f sarif -o bandit.sarif
       - name: ElevenID Semgrep policy
         shell: bash
         env:
           SEMGREP_CONFIG: ${{ inputs.semgrep-config }}
           SOURCE_PATHS: ${{ inputs.source-paths }}
-        run: >-
-          semgrep scan --error --strict
-          --config "$SEMGREP_CONFIG"
-          --sarif --output semgrep.sarif $SOURCE_PATHS
+        run: |
+          read -r -a source_paths <<< "$SOURCE_PATHS"
+          semgrep scan --error --strict \
+            --config "$SEMGREP_CONFIG" \
+            --sarif --output semgrep.sarif "${source_paths[@]}"
       - name: Dependency vulnerability audit
         shell: bash
         env:
