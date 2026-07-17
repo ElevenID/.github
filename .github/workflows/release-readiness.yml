@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   deep-assurance:
-    uses: ./.github/workflows/deep-assurance.yml
+    uses: ElevenID/.github/.github/workflows/deep-assurance.yml@ab4f076c029a6a0c0cbaebd9a088858c2a6c0c26
     with:
       mode: release
       fuzz-command: ${{ inputs.fuzz-command }}
