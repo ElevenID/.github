@@ -54,13 +54,35 @@ jobs:
         env:
           COMMAND: ${{ inputs.test-command }}
         run: bash -euo pipefail -c "$COMMAND"
-      - name: Enforce line coverage
+      - name: Enforce coverage
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes lcov
-          rate="$(lcov --summary coverage/lcov.info 2>&1 | awk '/lines/ {gsub("%", "", $2); print $2}')"
-          awk -v rate="$rate" 'BEGIN { if (rate + 0 < 90) exit 1 }'
+          awk -F: '
+            $1 == "LF"  { lines_found += $2 }
+            $1 == "LH"  { lines_hit += $2 }
+            $1 == "BRF" { branches_found += $2 }
+            $1 == "BRH" { branches_hit += $2 }
+            END {
+              if (lines_found == 0) {
+                print "coverage/lcov.info contains no line coverage records" > "/dev/stderr"
+                exit 2
+              }
+
+              line_rate = 100 * lines_hit / lines_found
+              printf "Line coverage: %.2f%% (%d/%d); required: 90.00%%\n", line_rate, lines_hit, lines_found
+              failed = line_rate + 0.000001 < 90
+
+              if (branches_found > 0) {
+                branch_rate = 100 * branches_hit / branches_found
+                printf "Branch coverage: %.2f%% (%d/%d); required: 80.00%%\n", branch_rate, branches_hit, branches_found
+                if (branch_rate + 0.000001 < 80) failed = 1
+              } else {
+                print "Branch coverage: unsupported (no BRF/BRH records emitted by Flutter)"
+              }
+
+              exit failed
+            }
+          ' coverage/lcov.info
       - name: Non-Apple debug build
         shell: bash
         env:
