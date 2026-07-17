@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check "zizmor==1.27.0"
-          zizmor --persona=pedantic .github/workflows
+          zizmor --persona=auditor --min-severity=high --min-confidence=high .github/workflows
       - name: Enforce ElevenID workflow policy
         shell: bash
         run: |

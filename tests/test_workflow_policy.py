@@ -38,6 +38,7 @@ jobs:
         failures = self.check(
             """
 name: Unsafe
+# elevenid:required
 on:
   pull_request_target:
 permissions: write-all
