@@ -5,7 +5,7 @@ on:
     inputs:
       node-version:
         type: string
-        default: "22"
+        default: "24"
       working-directory:
         type: string
         default: "."

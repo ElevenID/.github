@@ -9,6 +9,15 @@ from collections.abc import Iterable
 import yaml
 
 SHA = re.compile(r"^[^\s@]+@[0-9a-f]{40}$")
+EOL_NODE_VERSION = re.compile(
+    r"(?m)^\s*node-version\s*:\s*['\"]?(?:18|20|22)(?:\.[0-9x.*-]+)?['\"]?\s*(?:#.*)?$"
+)
+
+# actions/checkout v4 runs on Node 20. Keep known obsolete SHAs explicit so
+# callers receive a useful failure even though every Action is SHA-pinned.
+EOL_ACTION_REVISIONS = {
+    "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5": "actions/checkout v4",
+}
 
 
 class ActionsLoader(yaml.SafeLoader):
@@ -62,6 +71,13 @@ def check_workflow(workflow: pathlib.Path) -> list[str]:
         checks[r"(?m)^\s*runs-on\s*:\s*(?:self-hosted|\[.*self-hosted.*\])\s*$"] = (
             "self-hosted runner is prohibited for pull requests"
         )
+    if EOL_NODE_VERSION.search(text):
+        failures.append(f"{workflow}: Node 18, 20, and 22 are unsupported; use Node 24")
+    for revision, label in EOL_ACTION_REVISIONS.items():
+        if revision in text:
+            failures.append(
+                f"{workflow}: {label} uses the unsupported Node 20 Action runtime"
+            )
     for pattern, message in checks.items():
         if re.search(pattern, text):
             failures.append(f"{workflow}: {message}")

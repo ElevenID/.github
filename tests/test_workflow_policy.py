@@ -29,10 +29,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 """
         )
         self.assertEqual([], failures)
+
+    def test_rejects_eol_node_and_node20_action_runtime(self) -> None:
+        failures = self.check(
+            """
+name: Stale Node
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "20"
+"""
+        )
+        joined = "\n".join(failures)
+        self.assertIn("unsupported Node 20 Action runtime", joined)
+        self.assertIn("use Node 24", joined)
 
     def test_rejects_all_high_risk_constructs(self) -> None:
         failures = self.check(
