@@ -1,0 +1,86 @@
+name: Reusable monthly Node maintenance
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node major version approved by ElevenID policy.
+        required: false
+        default: "24"
+        type: string
+      pr-labels:
+        description: Comma-separated labels added to the maintenance pull request.
+        required: false
+        default: "dependencies,automated"
+        type: string
+
+concurrency:
+  group: monthly-node-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Monthly Node 24 maintenance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Refresh Node patch selectors and npm lockfiles
+        shell: bash
+        env:
+          APPROVED_NODE_MAJOR: ${{ inputs.node-version }}
+        run: |
+          set -euo pipefail
+
+          resolved_node="$(node --version | sed 's/^v//')"
+          case "$resolved_node" in
+            "$APPROVED_NODE_MAJOR".*) ;;
+            *)
+              echo "Resolved Node $resolved_node is not in approved major $APPROVED_NODE_MAJOR" >&2
+              exit 1
+              ;;
+          esac
+
+          while IFS= read -r -d '' version_file; do
+            printf '%s\n' "$resolved_node" > "$version_file"
+          done < <(find . -type f -name .node-version -not -path './.git/*' -print0)
+
+          while IFS= read -r -d '' lockfile; do
+            directory="$(dirname "$lockfile")"
+            echo "Refreshing $directory/package-lock.json"
+            (
+              cd "$directory"
+              npm update --package-lock-only --ignore-scripts
+              npm ci --ignore-scripts
+              npm audit --audit-level=moderate
+            )
+          done < <(find . -type f -name package-lock.json -not -path './node_modules/*' -not -path './.git/*' -print0)
+
+      - name: Create monthly maintenance pull request
+        id: create-pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: automation/monthly-node-toolchains
+          delete-branch: true
+          commit-message: "chore: refresh monthly Node toolchains"
+          title: "chore: refresh monthly Node toolchains"
+          body: |
+            Automated monthly Node maintenance.
+
+            - aligns `.node-version` files to the current Node 24 patch;
+            - refreshes npm lockfiles within declared SemVer ranges;
+            - validates each refreshed npm project with a frozen install and moderate-or-higher audit.
+
+            Existing repository CI remains the release gate after merge.
+          labels: ${{ inputs.pr-labels }}
+          signoff: true
+          draft: true
