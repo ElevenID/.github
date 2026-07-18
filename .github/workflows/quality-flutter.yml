@@ -58,16 +58,21 @@ jobs:
         shell: bash
         run: |
           awk -F: '
-            $1 == "LF"  { lines_found += $2 }
-            $1 == "LH"  { lines_hit += $2 }
-            $1 == "BRF" { branches_found += $2 }
-            $1 == "BRH" { branches_hit += $2 }
+            $1 == "SF" {
+              generated = ($2 ~ /\/l10n\/app_localizations(_[a-z]+)?\.dart$/ || $2 ~ /\.(g|freezed)\.dart$/)
+              if (generated) excluded_files++
+            }
+            !generated && $1 == "LF"  { lines_found += $2 }
+            !generated && $1 == "LH"  { lines_hit += $2 }
+            !generated && $1 == "BRF" { branches_found += $2 }
+            !generated && $1 == "BRH" { branches_hit += $2 }
             END {
               if (lines_found == 0) {
                 print "coverage/lcov.info contains no line coverage records" > "/dev/stderr"
                 exit 2
               }
 
+              printf "Excluded generated coverage files: %d\n", excluded_files
               line_rate = 100 * lines_hit / lines_found
               printf "Line coverage: %.2f%% (%d/%d); required: 90.00%%\n", line_rate, lines_hit, lines_found
               failed = line_rate + 0.000001 < 90
