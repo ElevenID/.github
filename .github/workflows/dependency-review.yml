@@ -24,5 +24,18 @@ jobs:
             AGPL-1.0-only, AGPL-1.0-or-later,
             AGPL-3.0-only, AGPL-3.0-or-later,
             SSPL-1.0, BUSL-1.1
+          # GitHub's Pub dependency snapshots currently emit lowercase SPDX
+          # identifiers for these packages. Limit the exception to their exact
+          # package URLs; vulnerability and denied-license checks still apply.
+          # Owner: ElevenID security. Review/remove by 2026-11-01.
+          allow-dependencies-licenses: >-
+            pkg:pub/listen,
+            pkg:pub/permission_handler,
+            pkg:pub/permission_handler_android,
+            pkg:pub/permission_handler_apple,
+            pkg:pub/permission_handler_html,
+            pkg:pub/permission_handler_platform_interface,
+            pkg:pub/permission_handler_windows,
+            pkg:pub/win32
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
