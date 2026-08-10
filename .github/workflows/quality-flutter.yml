@@ -16,6 +16,10 @@ on:
         description: Non-Apple debug build command
         type: string
         default: "flutter build web --debug"
+      android-api-level:
+        description: Android SDK platform installed when the build targets Android
+        type: string
+        default: "37"
 
 permissions:
   contents: read
@@ -40,6 +44,12 @@ jobs:
           flutter-version: ${{ inputs.flutter-version }}
           channel: stable
           cache: true
+      - name: Install Android SDK platform
+        if: contains(inputs.build-command, 'flutter build apk') || contains(inputs.build-command, 'flutter build appbundle')
+        shell: bash
+        env:
+          ANDROID_API_LEVEL: ${{ inputs.android-api-level }}
+        run: sdkmanager "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_API_LEVEL}.0.0"
       - name: Install locked dependencies
         shell: bash
         run: flutter pub get --enforce-lockfile
