@@ -49,7 +49,14 @@ jobs:
         shell: bash
         env:
           ANDROID_API_LEVEL: ${{ inputs.android-api-level }}
-        run: sdkmanager "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_API_LEVEL}.0.0"
+        run: |
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          sdkmanager_path="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_path" ]]; then
+            sdkmanager_path="$(find "$sdk_root/cmdline-tools" -path '*/bin/sdkmanager' -type f -perm -u+x | sort -V | tail -n 1)"
+          fi
+          test -n "$sdkmanager_path" && test -x "$sdkmanager_path"
+          "$sdkmanager_path" "platforms;android-${ANDROID_API_LEVEL}" "build-tools;${ANDROID_API_LEVEL}.0.0"
       - name: Install locked dependencies
         shell: bash
         run: flutter pub get --enforce-lockfile
