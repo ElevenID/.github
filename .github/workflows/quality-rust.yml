@@ -41,6 +41,14 @@ jobs:
       - name: Install Rust quality components
         shell: bash
         run: rustup component add clippy rustfmt llvm-tools-preview
+      - name: Cache Rust dependencies and build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ inputs.working-directory }}/target
+          key: rust-quality-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain', '**/rust-toolchain.toml') }}
       - name: Require a locked dependency graph
         shell: bash
         run: cargo metadata --locked --format-version 1 >/dev/null
@@ -57,7 +65,17 @@ jobs:
         env:
           COMMAND: ${{ inputs.test-command }}
         run: bash -euo pipefail -c "$COMMAND"
+      - name: Restore pinned assurance tools
+        id: assurance-tools-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-deny
+            ~/.cargo/bin/cargo-llvm-cov
+          key: rust-assurance-tools-v1-${{ runner.os }}-${{ runner.arch }}-audit-0.22.2-deny-0.20.2-llvm-cov-0.8.7
       - name: Install pinned assurance tools
+        if: ${{ steps.assurance-tools-cache.outputs.cache-hit != 'true' }}
         shell: bash
         run: |
           cargo install cargo-audit --locked --version 0.22.2
@@ -74,10 +92,20 @@ jobs:
         env:
           COMMAND: ${{ inputs.coverage-command }}
         run: bash -euo pipefail -c "$COMMAND"
+      - name: Restore pinned SemVer checker
+        if: inputs.semver-check
+        id: semver-tool-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-semver-checks
+          key: rust-semver-tool-v1-${{ runner.os }}-${{ runner.arch }}-0.48.0
       - name: Install SemVer checker
         if: inputs.semver-check
         shell: bash
-        run: cargo install cargo-semver-checks --locked --version 0.48.0
+        run: |
+          if ! command -v cargo-semver-checks >/dev/null 2>&1; then
+            cargo install cargo-semver-checks --locked --version 0.48.0
+          fi
       - name: Public API compatibility
         if: inputs.semver-check
         shell: bash

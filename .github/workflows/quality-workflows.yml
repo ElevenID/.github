@@ -32,6 +32,14 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+      - name: Cache workflow quality tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/pip
+          key: workflow-quality-tools-v1-${{ runner.os }}-${{ runner.arch }}-actionlint-1.7.12-zizmor-1.27.0-pyyaml-6.0.3
       - name: Validate GitHub Actions syntax
         shell: bash
         env:
