@@ -60,6 +60,7 @@ def check_workflow(workflow: pathlib.Path) -> list[str]:
     }
     required = "# elevenid:required" in text
     pull_request = bool(re.search(r"(?m)^\s*pull_request(?:_target)?\s*:", text))
+    merge_group = bool(re.search(r"(?m)^\s*merge_group\s*:", text))
     if required:
         checks.update(
             {
@@ -70,6 +71,10 @@ def check_workflow(workflow: pathlib.Path) -> list[str]:
     if pull_request:
         checks[r"(?m)^\s*runs-on\s*:\s*(?:self-hosted|\[.*self-hosted.*\])\s*$"] = (
             "self-hosted runner is prohibited for pull requests"
+        )
+    if required and pull_request and not merge_group:
+        failures.append(
+            f"{workflow}: required pull-request workflows must handle merge_group"
         )
     if EOL_NODE_VERSION.search(text):
         failures.append(f"{workflow}: Node 18, 20, and 22 are unsupported; use Node 24")

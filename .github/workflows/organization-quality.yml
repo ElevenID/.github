@@ -1,16 +1,16 @@
 name: Organization Quality
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: "23 7 * * 1"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
       policy-ref: 758fce1cd36f6f6bde12fed80921b86f19c2916b
 
   dependency-review:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     uses: ElevenID/.github/.github/workflows/dependency-review.yml@758fce1cd36f6f6bde12fed80921b86f19c2916b
 
   scorecard:

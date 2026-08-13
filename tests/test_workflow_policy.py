@@ -78,8 +78,29 @@ jobs:
             "ignore failures",
             "failure-masking",
             "self-hosted",
+            "merge_group",
         ):
             self.assertIn(expected, joined)
+
+    def test_accepts_required_merge_queue_workflow(self) -> None:
+        failures = self.check(
+            """
+name: Merge queue safe
+# elevenid:required
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+"""
+        )
+        self.assertEqual([], failures)
 
 
 if __name__ == "__main__":
