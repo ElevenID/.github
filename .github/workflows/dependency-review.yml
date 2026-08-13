@@ -42,7 +42,11 @@ jobs:
       - name: Confirm dependency review was enforced before merge grouping
         if: github.event_name == 'merge_group'
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
         run: |
-          test "${{ github.event_name }}" = "merge_group"
-          test -n "${{ github.event.merge_group.base_sha }}"
-          test -n "${{ github.event.merge_group.head_sha }}"
+          test "$EVENT_NAME" = "merge_group"
+          test -n "$MERGE_GROUP_BASE_SHA"
+          test -n "$MERGE_GROUP_HEAD_SHA"
