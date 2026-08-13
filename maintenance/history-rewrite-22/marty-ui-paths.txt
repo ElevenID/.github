@@ -1,0 +1,7 @@
+.selfhost-state/
+tests/artifacts/canvas-employer-demo/
+tests/demo-recordings/
+tests/demo-recordings-report/
+ui/node_modules/
+ui/build/
+ui/dist-selfhost/
