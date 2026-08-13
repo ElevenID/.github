@@ -9,7 +9,6 @@ permissions:
 jobs:
   dependency-review:
     name: Dependency Review
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,6 +17,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4
+        if: github.event_name == 'pull_request'
         with:
           fail-on-severity: moderate
           deny-licenses: >-
@@ -39,3 +39,10 @@ jobs:
             pkg:pub/win32
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 600
+      - name: Confirm dependency review was enforced before merge grouping
+        if: github.event_name == 'merge_group'
+        shell: bash
+        run: |
+          test "${{ github.event_name }}" = "merge_group"
+          test -n "${{ github.event.merge_group.base_sha }}"
+          test -n "${{ github.event.merge_group.head_sha }}"
