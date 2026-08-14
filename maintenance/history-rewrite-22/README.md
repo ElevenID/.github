@@ -17,7 +17,7 @@ All filtered UI paths are generated/ignored and absent from current `main`. The 
 
 | Repository | Baseline pack | Filtered pack | Reduction |
 | --- | ---: | ---: | ---: |
-| `marty-ui` | 101.69 MiB | 34.34 MiB | 66.2% |
+| `marty-ui` | 100.56 MiB | 34.02 MiB | 66.2% |
 | `marty-microservices-framework` | 33.66 MiB | 7.94 MiB | 76.4% |
 
 Two independent filter runs passed strict `git fsck`, removed every targeted path from reachable history, preserved ref names, and left each current `main` tree unchanged. Full bundles passed `git bundle verify`; restoration clones matched all original refs and `main` trees.
@@ -50,10 +50,10 @@ After an independent approval, the owner-recorded `GO` authorizes the maintenanc
 
 The refreshed owner-authorized maintenance window froze UI `main` at `ff7b5286a50b6e271e2b60dbde93f56cd32cc1d1` and MMF `main` at `46773c48814f3eb263b207ef5ee64bcd0deebc48`.
 
-- UI rollback bundle SHA-256: `B9024211F8FE6B425F116791A59A6B43E0C5FE9B53A160348547FB5512964501`
+- UI rollback bundle SHA-256: `F0F394C3DA58C117B65EBBB5B0BB08A6C2A09A98636A1D5DDF23E313163774B7`
 - MMF rollback bundle SHA-256: `A8DE9E22446A3B000C3A00492A1FF3B11C4DBD36DDA2D19E27FCFBE67FA8C6FE`
-- UI commit map SHA-256: `3156FE59873F27FB72DF97E52A6F42D499CCC0C4BBA204387DFAC402BA225F58`
-- UI ref map SHA-256: `7A0A1AA5D5464EA7C402670A26D50119B6E34E71EB6991CEF35F1B721D84A95A`
+- UI commit map SHA-256: `9DB61D53D2BB738A914C293DF50F2D6DBD9B4A8AF53C90DEA6E4BE009F762722`
+- UI ref map SHA-256: `5F830593DEFA67C871685F4EBB04C0466A1EDF5E5350343FE84E70D9F36B73CF`
 - MMF commit map SHA-256: `8F27961FC51CD75FDCE05ED6169BEB93FC1CAA3B218773B0B438EC6DB5207208`
 - MMF ref map SHA-256: `4CE3A8ADC45E7131845242E5FC99689D6F7DE3058D472F15770DDAAC1EBFD3B8`
 
