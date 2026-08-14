@@ -58,3 +58,11 @@ The refreshed owner-authorized maintenance window froze UI `main` at `ff7b5286a5
 - MMF ref map SHA-256: `4CE3A8ADC45E7131845242E5FC99689D6F7DE3058D472F15770DDAAC1EBFD3B8`
 
 The files under `maps/` are the unmodified `git-filter-repo` outputs from the final frozen candidates. A zero new object ID means the corresponding payload-only commit was pruned because it became empty.
+
+## Production outcome
+
+The MMF rewrite was published on 2026-08-13. All three branches and `v1.0.0` exactly match the validated candidate, `main` moved from `46773c48814f3eb263b207ef5ee64bcd0deebc48` to `df9dbf58e1bd2be9e770109c24d67e9fa318fb0b`, and its tree remained `25dc2415c876a69f52e6781e81da05f7ce2bc15f`. A fresh standard GitHub clone is 7.60 MiB and has zero reachable hits for the removed Istio binary. GitHub-owned pull refs can retain old objects and are outside repository-owner ref control.
+
+The UI candidate was **not published**. GitHub permanently locks the tag of every immutable release; disabling repository-level release immutability does not unlock existing releases. Deleting an immutable release would permanently prevent reuse of its tag name, so no lossless rewrite of the 143-release UI tag namespace is available. UI remains at `ff7b5286a50b6e271e2b60dbde93f56cd32cc1d1`; its maps and bundle above are retained only as validated, unpublished recovery/research artifacts.
+
+After the operation, temporary freeze rules were deleted and permanent rulesets, required checks, one-review approval, last-pusher approval, linear-history, conversation-resolution, administrator enforcement, force-push prohibition, and UI release immutability were restored.
