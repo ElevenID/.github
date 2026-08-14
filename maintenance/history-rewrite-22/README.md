@@ -45,3 +45,16 @@ Approval means the reviewer independently confirms that:
 - the SHA translation, protection restoration, verification, contributor, and rollback controls above are adequate.
 
 After an independent approval, the owner-recorded `GO` authorizes the maintenance-window rewrite subject to every invariant above.
+
+## Final frozen artifacts
+
+The owner-authorized maintenance window froze UI `main` at `e8599a2658b48e43880859e9aebdefb1d169eae5` and MMF `main` at `46773c48814f3eb263b207ef5ee64bcd0deebc48`.
+
+- UI rollback bundle SHA-256: `7B0173798FE6A985BF839B5E7321EF6EC813B4FC0F2E4CA8B76ECE289F756991`
+- MMF rollback bundle SHA-256: `A8DE9E22446A3B000C3A00492A1FF3B11C4DBD36DDA2D19E27FCFBE67FA8C6FE`
+- UI commit map SHA-256: `2CC3F065B31C01B0353008E90978D6EDE4677C6006A16C6ABCD95CC2A6016083`
+- UI ref map SHA-256: `A2B3623149D581702CA9E0901E54C0519B80744549B365E4B735F4E65BA68DC0`
+- MMF commit map SHA-256: `8F27961FC51CD75FDCE05ED6169BEB93FC1CAA3B218773B0B438EC6DB5207208`
+- MMF ref map SHA-256: `4CE3A8ADC45E7131845242E5FC99689D6F7DE3058D472F15770DDAAC1EBFD3B8`
+
+The files under `maps/` are the unmodified `git-filter-repo` outputs from the final frozen candidates. A zero new object ID means the corresponding payload-only commit was pruned because it became empty.
