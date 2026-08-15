@@ -76,11 +76,7 @@ jobs:
         run: |
           awk -F: '
             $1 == "SF" {
-              generated = (
-                $2 ~ /\/l10n\/app_localizations(_[a-z]+)?\.dart$/ ||
-                $2 ~ /\.(g|freezed)\.dart$/ ||
-                $2 ~ /\/lib\/rust\/.*\.dart$/
-              )
+              generated = ($2 ~ /\/l10n\/app_localizations(_[a-z]+)?\.dart$/ || $2 ~ /\.(g|freezed)\.dart$/ || $2 ~ /\/lib\/rust\/.*\.dart$/)
               if (generated) excluded_files++
             }
             !generated && $1 == "LF"  { lines_found += $2 }
