@@ -66,6 +66,12 @@ the following governed changes:
   removes obsolete nested-framework ignore entries, and labels the final three
   live-looking Python MMF guides as historical. The Rust trust-profile and
   signing-keys services retain supported CSCA registry and signing behavior.
+  The complete history of that Python directory contains only the Dockerfile
+  and placeholder README: no Python module, API, certificate issuer, DSC signer,
+  or test ever existed behind its four README claims. The retirement therefore
+  removes no executable CSCA capability. A focused Rust follow-up nevertheless
+  records the intended boundary and tests CSCA-specific key isolation, signing,
+  and trust-registry behavior so the supported surface cannot silently regress.
 - [marty-microservices-framework#94](https://github.com/ElevenID/marty-microservices-framework/pull/94)
   freezes the legacy Python distribution, disables future Python release/tag
   workflows, marks its package inactive, and names the 18-crate Rust workspace
@@ -87,16 +93,15 @@ the following governed changes:
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
 
-Pull requests 201, 250, 391, 94, 612, 613, and this governed document are
-configured for automatic merge but still require one independent reviewer under
-protected-branch rules. `burdettadam` cannot self-approve, and the only other
-cross-repository write-capable identity is the explicitly disallowed historical
-account. Two other current organization members have read access across the
-governed repositories; one also has write access to only the framework
-repository and has been requested for pull request 94. Selecting or granting a
-reviewer for the other repositories remains an explicit governance decision.
-Branch protections remain intact. All seven pull requests have passing required
-checks.
+Pull requests 201, 250, 391, 94, 612, 613, and this governed document use an
+explicit solo-maintainer model. Required review counts are removed rather than
+manufacturing approvals through an alternate identity. Strict required status
+checks, up-to-date branches, admin enforcement, linear history, resolved
+conversations, automatic merge, and post-merge verification remain intact.
+All seven pull requests passed their required checks before this transition.
+The three release environments retain a deliberate reviewer checkpoint with
+`burdettadam`, disabled administrator bypass, and explicit branch/tag policies;
+self-review is permitted and documented because there is one active maintainer.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -198,7 +203,11 @@ reported by GitHub, and pass the release's `SHA256SUMS`. The GitHub release and
 tag are now deleted. The obsolete `marty` image and `charts/marty` OCI packages
 remain only because the current CLI credential lacks `delete:packages`; GitHub
 rejected the request before deleting either package. Their exact version IDs
-and digests are retained in both archives for a scoped retry.
+and digests are retained in both archives for a scoped retry. `charts/marty` is
+the single Helm OCI chart `ghcr.io/elevenid/charts/marty:1.0.0`, not a source
+directory or branch; it packaged the retired Marty MMF plugin deployment. Its
+only version is ID `1039128958`, digest
+`sha256:d7d3570fa8663ef5aefa30e1b982f2aad19e51c626359f6056b4a3e2e3983a88`.
 
 A separate 22-repository tag audit classified 289 hosted tags against each
 default branch. Of those, 288 were valid default-history release refs. The sole
@@ -273,11 +282,11 @@ Pull request 613 restores that gate. The live environments now disallow
 administrator bypass and use explicit custom policies: `v*` tags for
 `stack-release`, and `main` for `beta-lifecycle` and the newly created
 `wallet-conformance` environment. The beta secret and variable inventories were
-unchanged by that update. All three environments now fail the audit only because
-no required reviewer is configured and self-review therefore cannot yet be
-disabled. Selecting a new approved independent reviewer is an external
-governance prerequisite and must not use a self-reviewing or explicitly retired
-identity.
+unchanged by that update. All three environments now require `burdettadam` as
+the deployment reviewer, prohibit administrator bypass, and preserve those
+custom policies. The tracked preflight encodes the same transparent
+solo-maintainer posture and passed both its focused contract suite and a live
+input/protection audit.
 
 Local reference-clone reconciliation removed eight clean exact duplicates
 under the workspace `work` directory and ten under `C:\w` only after matching
@@ -313,11 +322,11 @@ all 26 primary worktrees and the pull-request 613 auxiliary worktree clean,
 with zero stashes.
 
 The latest hosted gate audit reports 117 completed, passing checks across the
-seven open cleanup pull requests. All seven retain automatic merge and are
-blocked only by the required independent approval. The restored live
-release-environment validator also has no branch-policy or administrator-bypass
-failure; for each of the three environments it reports only the missing
-required reviewer and consequently unavailable self-review prohibition.
+seven open cleanup pull requests. All seven retain automatic merge and required
+CI under the explicit solo-maintainer policy. The restored live
+release-environment validator passes for all three environments, including
+reviewer, administrator-bypass, deployment-policy, revision-variable, secret,
+and environment-variable inventory checks.
 
 Metadata-free partial shells that do not exactly match an authoritative commit
 remain retained evidence for at least one release cycle. They will be archived
@@ -443,8 +452,8 @@ Every code or repository retirement change must satisfy all applicable gates:
    parity tests appropriate to the capability.
 4. Prove all intended consumers use the replacement artifact.
 5. Preserve rollback evidence and verify it can be restored.
-6. Land the change from a clean worktree through a focused branch, reviewed
-   pull request, required CI, merge queue, and post-merge verification.
+6. Land the change from a clean worktree through a focused branch, maintainer
+   audit, pull request, required CI, merge queue, and post-merge verification.
 7. Delete obsolete code or archive the retired repository only after the prior
    gates pass.
 
