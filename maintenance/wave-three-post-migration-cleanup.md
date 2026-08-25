@@ -140,10 +140,18 @@ snapshot-local PostgreSQL/Redis state, virtual environments, cargo homes, and
 pytest caches. It retained acceptance reports, release evidence, wheels,
 conformance checkouts, snapshot source, and all recovery bundles.
 
-The refreshed Git inventory covers 24 canonical ElevenID repositories. Every
-primary worktree is clean, with no stashes or special recovery refs. Its six
-unmerged local branches correspond exactly to active protected pull requests
-35, 94, 201, 250, 391, and 612; no orphan local branch remains.
+The refreshed Git inventory covers 26 primary repositories, including 22 under
+ElevenID. Every primary worktree and the one auxiliary worktree is clean, with
+no stashes or special recovery refs. Its seven unmerged local branches
+correspond exactly to active protected pull requests 35, 94, 201, 250, 391,
+612, and 613; no orphan local branch remains.
+
+The hosted branch audit likewise found no disposable branch: the 22 ElevenID
+repositories have 22 default branches, the seven active pull-request heads, and
+one unique `longfellow-zk/gh-pages` branch. That branch was generated today by
+the pinned documentation workflow and contains the current published site, so
+it is retained as an active publication artifact rather than misclassified as
+stale history.
 
 Recovery evidence currently includes 41 verified Git bundles totaling
 1,466,067,451 bytes. Every bundle passed `git bundle verify` again after local
