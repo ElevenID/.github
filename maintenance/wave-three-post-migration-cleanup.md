@@ -66,15 +66,20 @@ the following governed changes:
 - [marty-ui#612](https://github.com/ElevenID/marty-ui/pull/612) labels the sole
   remaining tracked `marty-ui` Python MMF snippet as a superseded historical
   migration record, not a supported runbook.
+- [marty-ui#613](https://github.com/ElevenID/marty-ui/pull/613) restores the
+  shared fail-closed release-environment preflight that an open-source release
+  rewrite had accidentally disconnected. It gates stack release, beta
+  lifecycle, and wallet conformance using only read-only workflow-token access.
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
 
-Pull requests 201, 250, 391, 94, 612, and this governed document are configured
-for automatic merge but still require one independent approving reviewer under
+Pull requests 201, 250, 391, 94, 612, 613, and this governed document are
+configured for automatic merge but still require one independent reviewer under
 protected-branch rules. `burdettadam` cannot self-approve, and the only other
 write-capable identity discovered is the explicitly disallowed historical
 account. Branch protections remain intact while an approved independent
-reviewer is arranged. All six pull requests have passing required checks.
+reviewer is arranged. The first six pull requests have passing required checks;
+pull request 613 is running its protected CI matrix.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -208,11 +213,15 @@ a replacement stack release completes the final beta-only gate.
 The live GitHub release-environment audit also found a protection regression:
 the environment-policy validator and manifest remain tracked, but the
 open-source release rewrite removed the validator's only workflow invocation.
-The live `beta-lifecycle` environment consequently has no reviewer or branch
-rule and permits administrator bypass, contrary to the tracked fail-closed
-policy. Restoring the workflow gate is code cleanup; configuring a new approved
-independent reviewer is an external governance prerequisite and must not use a
-self-reviewing or explicitly retired identity.
+Pull request 613 restores that gate. The live environments now disallow
+administrator bypass and use explicit custom policies: `v*` tags for
+`stack-release`, and `main` for `beta-lifecycle` and the newly created
+`wallet-conformance` environment. The beta secret and variable inventories were
+unchanged by that update. All three environments now fail the audit only because
+no required reviewer is configured and self-review therefore cannot yet be
+disabled. Selecting a new approved independent reviewer is an external
+governance prerequisite and must not use a self-reviewing or explicitly retired
+identity.
 
 Local reference-clone reconciliation removed eight clean exact duplicates
 under the workspace `work` directory and ten under `C:\w` only after matching
