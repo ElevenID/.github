@@ -1,5 +1,8 @@
 # Wave-three post-migration cleanup
 
+<!-- cspell:ignore burdettadam worktree worktrees pytest basetemp eudi -->
+<!-- cspell:ignore OIDF zstd Sigstore mypy Clippy venv -->
+
 Status: Active  
 Opened: 2026-08-25  
 Production posture: No production deployment or production-state mutation
@@ -274,6 +277,26 @@ objects and one pack, reclaiming approximately 257 MiB without changing an
 active branch, worktree, or stash. The auxiliary worktree for pull request 613
 was also moved from synchronized storage to `C:\w`; primary clones remain under
 the synchronized workspace, so the broader relocation item remains open.
+
+A final workspace-root cache audit classified and removed seven generated-only
+tool locations: `.pytest_cache`, `.ruff_cache`, `.pytest-basetemp-eudi-lane`,
+`.pytest-tmp`, `.uv-cache`, root `node_modules`, and
+`.tmp-workflow-policy`. They contained only pytest, Ruff, uv, Vite, and temporary
+workflow-policy output; no source, Git metadata, acceptance result, or recovery
+evidence was present. Exact resolved paths were constrained to the workspace
+root before deletion. A follow-up repository-local sweep removed 17 more exact
+generated locations totaling 89,157,496 bytes: pytest, Ruff, and mypy caches;
+four empty pytest temporary roots; two reproducible virtual environments; and
+one frontend `node_modules` tree. The subsequent repository audit still reports
+all 26 primary worktrees and the pull-request 613 auxiliary worktree clean,
+with zero stashes.
+
+The latest hosted gate audit reports 117 completed, passing checks across the
+seven open cleanup pull requests. All seven retain automatic merge and are
+blocked only by the required independent approval. The restored live
+release-environment validator also has no branch-policy or administrator-bypass
+failure; for each of the three environments it reports only the missing
+required reviewer and consequently unavailable self-review prohibition.
 
 Metadata-free partial shells that do not exactly match an authoritative commit
 remain retained evidence for at least one release cycle. They will be archived
