@@ -74,8 +74,7 @@ for automatic merge but still require one independent approving reviewer under
 protected-branch rules. `burdettadam` cannot self-approve, and the only other
 write-capable identity discovered is the explicitly disallowed historical
 account. Branch protections remain intact while an approved independent
-reviewer is arranged. Pull request 612 is still completing its full repository
-CI suite; the other five have no failing checks.
+reviewer is arranged. All six pull requests have passing required checks.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -142,8 +141,15 @@ primary worktree is clean, with no stashes or special recovery refs. Its six
 unmerged local branches correspond exactly to active protected pull requests
 35, 94, 201, 250, 391, and 612; no orphan local branch remains.
 
-Recovery evidence currently includes 40 verified Git bundles totaling about
-1.46 GB. Those bundles are retained evidence, not disposable cache.
+Recovery evidence currently includes 41 verified Git bundles totaling
+1,466,067,451 bytes. Every bundle passed `git bundle verify` again after local
+cleanup. Those bundles are retained evidence, not disposable cache. The 41st
+bundle preserves a unique OIDF 5.2.2 shell discovered after its linked
+worktree owner had been removed. It records commit
+`84179cb6a380b90505876c6c5636023bb24cb883`, tree
+`31a90af0fb324ae894dfeb5c89240de23f39ce1a`, and SHA-256
+`E50EFB932C18B760C536FAF0A65B4B8B8CE40C6D9E0AA25927BE857607EDC992`.
+The original dead worktree pointer is retained beside the bundle.
 
 The Marty recovery bundle was reverified before hosted release cleanup. Its
 SHA-256 is
@@ -162,6 +168,38 @@ SBOMs, security results, beta bundles, wheel matrices, Docker build records,
 and reproducible compiler/image caches. Pruning therefore requires name,
 workflow, age, and release-evidence classification rather than a bulk delete.
 
+The first governed hosted-artifact cleanup removed 219 exact-name
+`rust-db-test-bundle-1` records from `marty-ui`: 183 expired metadata records
+and 36 completed-workflow intermediates totaling 34,734,864,000 live bytes
+(32.35 GiB). The producer-to-consumer transfer now uses a zstd archive in
+pull request 612. Its protected CI producer, download, extraction, database
+contract, and service-test gates passed; the replacement artifact was
+186,614,682 bytes, about 80 percent smaller than the previous transfer. That
+completed-run intermediate was then deleted, leaving zero live artifacts with
+the exact transient name. Release assets, beta evidence, wheels, SBOMs,
+attestations, checksums, security results, and acceptance evidence were not
+targeted. Current compiler and image caches are recent and remain useful to
+the active pull requests, so they were retained.
+
+Local reference-clone reconciliation removed eight clean exact duplicates
+under the workspace `work` directory and ten under `C:\w` only after matching
+origin, commit, tree, and cleanliness. A remaining staged W3C checkout was
+excluded from that deletion, traced to
+[W3C PR 174](https://github.com/w3c/vc-data-model-2.0-test-suite/pull/174),
+and removed only after its staged tree exactly matched hosted head
+`ee3f93ce939161c889afd32591396473435c5ae7`; the clean canonical clone remains.
+Fresh audits now report zero same-origin, same-commit, same-tree duplicate
+groups in both roots. The duplicate reference cleanup reclaimed more than
+3.7 GB, and removal of temporary tree-comparison repositories and indexes
+reclaimed another 193,838,848 bytes. Together with the generated-output
+tranche, confirmed local reclamation is more than 19 GB.
+
+Metadata-free partial shells that do not exactly match an authoritative commit
+remain retained evidence for at least one release cycle. They will be archived
+individually before any later deletion. Recovery bundles, snapshots, and
+conformance fixtures are treated as access-controlled internal artifacts
+because they can contain historical configuration and test-key material.
+
 ## Execution backlog
 
 ### 1. Classify legacy references
@@ -170,7 +208,7 @@ workflow, age, and release-evidence classification rather than a bulk delete.
   dependency, import, build context, workspace mount, test, and product claim.
 - [x] Mark each tracked-source reference as supported runtime, supported
   compatibility, test-only, historical documentation, or obsolete.
-- [ ] Identify the owning Rust crate and language-neutral behavior contract for
+- [x] Identify the owning Rust crate and language-neutral behavior contract for
   every supported runtime or compatibility capability.
 - [ ] Confirm published artifacts and deployment manifests do not introduce
   additional consumers that source search misses.
@@ -228,16 +266,16 @@ Current `Marty` path classification:
 
 - [ ] Verify the 40 recovery bundles again, copy them to a second
   access-controlled location, and record checksums and restore instructions.
-- [ ] Define a retention period of at least one release cycle before pruning
+- [x] Define a retention period of at least one release cycle before pruning
   rollback bundles or release evidence.
-- [ ] Compare metadata-free worktree shells with authoritative commits,
+- [x] Compare metadata-free worktree shells with authoritative commits,
   manifests, and bundles before deleting any shell; preserve unique work first.
 - [x] Remove the classified reproducible `.target`, virtual-environment,
   dependency, runtime-state, and test-cache tranche
   output after confirming it is not the only copy of acceptance evidence.
-- [ ] Keep one canonical reference clone for each required origin and commit;
+- [x] Keep one canonical reference clone for each required origin and commit;
   remove exact duplicates only after origin, commit, and cleanliness checks.
-- [ ] Treat bundles and archived snapshots as internal artifacts when they
+- [x] Treat bundles and archived snapshots as internal artifacts when they
   contain test keys, fixtures, historical configuration, or other sensitive
   material.
 
