@@ -180,6 +180,15 @@ remain only because the current CLI credential lacks `delete:packages`; GitHub
 rejected the request before deleting either package. Their exact version IDs
 and digests are retained in both archives for a scoped retry.
 
+A separate 22-repository tag audit classified 289 hosted tags against each
+default branch. Of those, 288 were valid default-history release refs. The sole
+outlier was `ElevenID/sd-jwt-rust@v0.0.1`, an off-history 2023 tag with no
+GitHub release or assets. Both verified `sd-jwt-rust` bundles contain that exact
+ref at `79c3a8c1bce3c9c88ce0142164cc1f4469729926` and share SHA-256
+`5AB2BA885B296F8B03BC223D6BC8262D24CCF91BDC25C69AC195720DD0B0BF25`.
+The hosted and local tag are now deleted; all remaining hosted tags are on
+their repositories' current default-branch histories.
+
 A read-only hosted CI inventory found substantial artifact and cache metadata:
 Marty 431/72, marty-core 2,795/11,675, marty-credentials 2,518/14,078,
 marty-integration-tests 2,165/8, marty-ui 8,051/1,833,
