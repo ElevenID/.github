@@ -181,6 +181,20 @@ attestations, checksums, security results, and acceptance evidence were not
 targeted. Current compiler and image caches are recent and remain useful to
 the active pull requests, so they were retained.
 
+The published-artifact scan found one live dependency that tracked-source
+search could not close by itself. The latest `marty-credentials` release,
+v0.1.68, declares the immutable `marty-msf` 1.0.2 wheel in its source archive,
+and both its issuance and verification image SPDX inventories contain the
+installed distribution. Pull request 201 removes the build input and now also
+adds a normalized release-SBOM denylist validator. Its focused contract,
+workflow, and startup suite passes 63 tests, and the validator rejects the
+v0.1.68 SBOM as expected. A replacement credentials release must pass that
+gate before v0.1.68 is historical and the Python framework can be archived.
+No standalone MMF container package exists in the organization package
+inventory, and the public PyPI JSON endpoints for `marty-msf` and
+`marty-credentials` return 404; the GitHub release and credential images are
+therefore the known published surfaces.
+
 Local reference-clone reconciliation removed eight clean exact duplicates
 under the workspace `work` directory and ten under `C:\w` only after matching
 origin, commit, tree, and cleanliness. A remaining staged W3C checkout was
@@ -212,6 +226,11 @@ because they can contain historical configuration and test-key material.
   every supported runtime or compatibility capability.
 - [ ] Confirm published artifacts and deployment manifests do not introduce
   additional consumers that source search misses.
+
+  Current result: v0.1.68 credentials source and both service images are the
+  final known published consumers. Pull request 201 removes and gates that
+  dependency for the next release; this item remains open until the replacement
+  release SBOMs pass and deployment inputs select those digests.
 
 Current `Marty` path classification:
 
