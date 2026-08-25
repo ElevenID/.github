@@ -10,3 +10,8 @@ The workflow policy requires Node 24 for JavaScript tooling and rejects known
 Node-20-based Action revisions. Repositories containing code manifests also
 provide `dependency-health.yml`; temporary dependency exceptions expire and
 must link to their owner, upstream project, decision, and public tracking work.
+
+## Maintenance records
+
+- [Repository history rewrite review contract](maintenance/history-rewrite-22/README.md)
+- [Wave-three post-migration cleanup](maintenance/wave-three-post-migration-cleanup.md)
