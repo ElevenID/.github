@@ -22,17 +22,48 @@ The 2026-08-25 inventory found several repositories whose current metadata can
 still make retired Python MMF paths appear supported:
 
 - `marty-credentials` declares the released `marty-msf` wheel and retains an
-  MMF migration-adapter import.
+  MMF migration-adapter import. Pull request
+  [marty-credentials#201](https://github.com/ElevenID/marty-credentials/pull/201)
+  removes both while preserving the adapter behavior through the released
+  shared `marty-common` implementation.
 - `Marty` declares the same wheel and retains MMF plugin, notification,
   configuration, and Docker build paths.
 - `marty-integration-tests` retains MMF-specific integration coverage.
-- the Hermes workspace configuration still mounts the MMF repository.
 - product catalog data still describes MMF as a current offering.
-- `Marty`, `marty-credentials`, and `marty-microservices-framework` are not
-  archived on GitHub.
+- `Marty` and `marty-credentials` are active mixed-language repositories and
+  are not archive candidates while they own supported artifacts.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
+
+## Initial reference classification
+
+- `marty-microservices-framework` is the active canonical Rust crate
+  repository. Keep the repository and Rust releases; retire only its Python
+  package after consumer proof.
+- `marty-ui` is an active Rust consumer. Keep its Cargo pins, release inputs,
+  and source references to the Rust `mmf-*` crates.
+- `marty-subscriptions` is an active self-host build consumer. Keep the
+  canonical repository input while the build consumes its Rust crates.
+- the Hermes workspace is a development and audit consumer. Keep the mount
+  because it exposes the active Rust crate source.
+- `marty-credentials` owns supported Python service images with Rust-backed
+  domain operations. Remove the Python MMF wheel while preserving required
+  adapter behavior; this is tracked by `marty-credentials#201`.
+- `Marty` is the remaining mixed-source Python MMF consumer. Trace released
+  consumers, add parity evidence, then remove or replace each live import.
+- `marty-integration-tests` has one direct Python MMF biometric test plus
+  historical rewrite evidence. Replace the test with the Rust biometric
+  contract or classify it as intentionally retired.
+- product catalog data has stale positioning. Describe the Rust crate platform
+  and mark the Python distribution retired.
+- history and migration documents are evidence. Retain accurate records and
+  label them historical instead of treating them as live dependencies.
+
+Repository-name matches alone are not evidence of a Python dependency. The
+consumer gate must distinguish Python package/import tokens (`marty-msf`,
+`marty_msf`, and `mmf.*`) from valid Git and build references to the Rust crate
+repository.
 
 The operator-local inventory also found approximately:
 
