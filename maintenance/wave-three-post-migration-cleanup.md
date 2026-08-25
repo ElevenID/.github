@@ -160,9 +160,18 @@ The Marty recovery bundle was reverified before hosted release cleanup. Its
 SHA-256 is
 `BD460B770D24A92ECDAD535222854C5D512E93E4EE4A3B4E433FD15B73976A6B`, it
 contains complete history, and it contains `refs/tags/v1.0.0` at
-`d79ea0598982940d0720d81c2d6ed794b3bca046`. The hosted tag, release assets,
-and OCI versions remain in place until this bundle has a verified second
-access-controlled copy.
+`d79ea0598982940d0720d81c2d6ed794b3bca046`. All 41 bundles now have a verified
+second copy on physical disk 0 under an inheritance-disabled ACL limited to the
+operator, local administrators, and SYSTEM. Every copied size and SHA-256
+matches its manifest, and all 41 copies pass `git bundle verify`.
+
+Before the approved hosted cleanup, all 11 Marty v1.0.0 release assets were
+downloaded to both archives. They total 1,403,920 bytes, match the digests
+reported by GitHub, and pass the release's `SHA256SUMS`. The GitHub release and
+tag are now deleted. The obsolete `marty` image and `charts/marty` OCI packages
+remain only because the current CLI credential lacks `delete:packages`; GitHub
+rejected the request before deleting either package. Their exact version IDs
+and digests are retained in both archives for a scoped retry.
 
 A read-only hosted CI inventory found substantial artifact and cache metadata:
 Marty 431/72, marty-core 2,795/11,675, marty-credentials 2,518/14,078,
@@ -313,7 +322,8 @@ Current `Marty` path classification:
 
 - [x] Verify all 41 recovery bundles again and record checksums and restore
   instructions.
-- [ ] Copy the recovery bundles to a second access-controlled location.
+- [x] Copy the recovery bundles to a second access-controlled location and
+  verify every size, SHA-256, bundle, restore instruction, and ACL.
 - [x] Define a retention period of at least one release cycle before pruning
   rollback bundles or release evidence.
 - [x] Compare metadata-free worktree shells with authoritative commits,
