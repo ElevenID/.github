@@ -46,11 +46,17 @@ the following governed changes:
   the unreachable 5,562-line Python notifications package after the canonical
   `mmf-push`, Rust notification, and Rust device-registration contract suites
   passed.
-- [Marty#65](https://github.com/ElevenID/Marty/pull/65) retires the unconsumed
+- [Marty#65](https://github.com/ElevenID/Marty/pull/65) is merged and retires
+  the unconsumed
   root Python MMF plugin entry point and health-only artifact. It removes the
   root image/release pipeline and exact Docker, Compose, Helm, Kubernetes,
   demo, and stale documentation surfaces while retaining `marty-common` and
   compatibility code still under audit.
+- [Marty#66](https://github.com/ElevenID/Marty/pull/66) removes the remaining
+  consumer-zero Python configuration and observability adapters that import
+  the old top-level `framework` package. AST policy gates now prevent imports
+  rooted at `framework`, `mmf`, or `marty_msf` from returning in Marty source
+  or the released `marty-common` package.
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
 
@@ -115,6 +121,23 @@ The operator-local inventory also found approximately:
 Recovery evidence currently includes 40 verified Git bundles totaling about
 1.46 GB. Those bundles are retained evidence, not disposable cache.
 
+The Marty recovery bundle was reverified before hosted release cleanup. Its
+SHA-256 is
+`BD460B770D24A92ECDAD535222854C5D512E93E4EE4A3B4E433FD15B73976A6B`, it
+contains complete history, and it contains `refs/tags/v1.0.0` at
+`d79ea0598982940d0720d81c2d6ed794b3bca046`. The hosted tag, release assets,
+and OCI versions remain in place until this bundle has a verified second
+access-controlled copy.
+
+A read-only hosted CI inventory found substantial artifact and cache metadata:
+Marty 431/72, marty-core 2,795/11,675, marty-credentials 2,518/14,078,
+marty-integration-tests 2,165/8, marty-ui 8,051/1,833,
+marty-microservices-framework 136/16, and `.github` 8/4
+(artifact records/cache records). The latest pages include release evidence,
+SBOMs, security results, beta bundles, wheel matrices, Docker build records,
+and reproducible compiler/image caches. Pruning therefore requires name,
+workflow, age, and release-evidence classification rather than a bulk delete.
+
 ## Execution backlog
 
 ### 1. Classify legacy references
@@ -136,15 +159,15 @@ Current `Marty` path classification:
   request 64 after Rust contract and parity gates passed.
 - the root `mmf.plugins` entry point, `MartyPlugin`,
   `modern_trust_anchor.py`, health-only image, and its release/deployment
-  contexts are obsolete and are removed by pull request 65.
+  contexts were obsolete and were removed by merged pull request 65.
 - `src/digital_identity` is retained compatibility source, not an MMF plugin or
   deployment owner. Pull request 65 removes its unused MMF-specific Redis
   factory and false production/migration documentation while keeping its
   generic cache and FastAPI registration behavior.
-- hidden legacy framework imports remain in configuration and observability
-  modules under `marty-common` and `marty_plugin`. Each needs a consumer search
-  and either Rust ownership/parity evidence or consumer-zero proof before
-  removal.
+- hidden legacy framework imports in configuration and observability modules
+  under `marty-common` and `marty_plugin` were consumer-zero and are removed by
+  pull request 66. The inlined Alembic migration adapter retains only an
+  explicit historical attribution and has no Python MMF dependency.
 - `packages/marty-common`, excluding classified compatibility paths, is an
   active released shared library and must be retained.
 
