@@ -19,17 +19,26 @@ proof that the production path still uses it.
 ## Current evidence
 
 The 2026-08-25 inventory found several repositories whose current metadata can
-still make retired Python MMF paths appear supported:
+still make retired Python MMF paths appear supported. Cleanup is now tracked by
+the following governed changes:
 
 - `marty-credentials` declares the released `marty-msf` wheel and retains an
   MMF migration-adapter import. Pull request
   [marty-credentials#201](https://github.com/ElevenID/marty-credentials/pull/201)
   removes both while preserving the adapter behavior through the released
-  shared `marty-common` implementation.
-- `Marty` declares the same wheel and retains MMF plugin, notification,
-  configuration, and Docker build paths.
-- `marty-integration-tests` retains MMF-specific integration coverage.
-- product catalog data still describes MMF as a current offering.
+  shared `marty-common` implementation. Its full Python gate exposed and then
+  verified the newly explicit `python-multipart` dependency that had previously
+  arrived transitively through `marty-msf`.
+- [marty-core#250](https://github.com/ElevenID/marty-core/pull/250) adds a
+  language-neutral biometric behavior contract and passing Rust parity tests.
+- [marty-integration-tests#391](https://github.com/ElevenID/marty-integration-tests/pull/391)
+  deletes the direct Python MMF biometric test after that Rust gate passed and
+  adds a negative policy test preventing the dependency from returning.
+- [product-catalog#6](https://github.com/ElevenID/product-catalog/pull/6) is
+  merged and now describes the Rust crate platform as current and the Python
+  distribution as retired compatibility history.
+- `Marty` declares the Python wheel and retains MMF plugin, notification,
+  configuration, KMS-compatibility, and Docker build paths.
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
 
@@ -52,11 +61,23 @@ They must be classified before a repository is archived or a path is deleted.
   adapter behavior; this is tracked by `marty-credentials#201`.
 - `Marty` is the remaining mixed-source Python MMF consumer. Trace released
   consumers, add parity evidence, then remove or replace each live import.
-- `marty-integration-tests` has one direct Python MMF biometric test plus
-  historical rewrite evidence. Replace the test with the Rust biometric
-  contract or classify it as intentionally retired.
-- product catalog data has stale positioning. Describe the Rust crate platform
-  and mark the Python distribution retired.
+- `Marty/packages/marty-common/marty_common/crypto/credential_kms.py` is an
+  active released-package compatibility surface, not root-plugin-only code. It
+  imports the legacy KMS port while canonical Rust ownership exists in
+  `mmf-security::KmsProvider`. Preserve the Python behavior until the Rust
+  contract covers its algorithm, key-identity, expiration, HSM, rotation,
+  listing, deletion, and failure semantics and the adapter has parity tests.
+- `Marty/src/marty_plugin` is the root plugin entry point and directly depends
+  on the legacy plugin lifecycle and configuration APIs. Its release image has
+  no known deployment-manifest consumer, but consumer absence alone is not a
+  parity gate; map its trust-anchor, PKD, document-signer, and CSCA surfaces
+  before retiring the artifact.
+- `Marty/src/notifications` retains Python MMF push-provider imports. Classify
+  its challenge delivery, token lifecycle, FCM, and SSE behavior against the
+  canonical `mmf-push` crate before changing it.
+- `marty-integration-tests` has removed its direct Python MMF biometric test in
+  pull request 391. Historical rewrite evidence remains intentionally retained.
+- product catalog positioning is corrected by merged pull request 6.
 - history and migration documents are evidence. Retain accurate records and
   label them historical instead of treating them as live dependencies.
 
@@ -87,6 +108,26 @@ Recovery evidence currently includes 40 verified Git bundles totaling about
   every supported runtime or compatibility capability.
 - [ ] Confirm published artifacts and deployment manifests do not introduce
   additional consumers that source search misses.
+
+Current `Marty` path classification:
+
+- `packages/marty-common/.../credential_kms.py` is supported compatibility.
+  Port and parity-test it against `mmf-security`; do not delete it yet.
+- `src/marty_plugin` and its entry point form a published root artifact with no
+  known stack consumer. Prove Rust ownership for its four exposed services,
+  then retire it.
+- `src/notifications` is packaged compatibility behavior. Contract-test it
+  against `mmf-push`, then remove the Python imports.
+- `src/marty_plugin/trust_anchor/modern_trust_anchor.py` is a packaged legacy
+  configuration and observability adapter. Replace it with shared Rust runtime,
+  configuration, and observability composition.
+- `src/digital_identity` contains mixed historical documentation and optional
+  adapter code. Separate documentation from reachable package code and test
+  each live path.
+- `k8s`, Helm, Docker, and the root release workflow deliver only the root
+  plugin. Remove them with that artifact after parity and consumer gates.
+- `packages/marty-common`, excluding classified compatibility paths, is an
+  active released shared library and must be retained.
 
 ### 2. Preserve behavior and remove obsolete code
 
