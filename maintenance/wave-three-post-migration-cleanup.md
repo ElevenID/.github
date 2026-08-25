@@ -195,6 +195,25 @@ inventory, and the public PyPI JSON endpoints for `marty-msf` and
 `marty-credentials` return 404; the GitHub release and credential images are
 therefore the known published surfaces.
 
+The last accepted beta rollback remains recoverable even though the approved
+history rewrite intentionally removed the old `v1.1.194` tag and GitHub release
+record. The four immutable OCI manifests recorded by the acceptance evidence
+are still retrievable by digest. The archived release-evidence set contains the
+stack manifest, three SBOMs, four Sigstore bundles, and `SHA256SUMS`; all nine
+files passed a fresh checksum verification. Beta lifecycle run `31916804935`
+and its 7,533,450-byte `mip-03-beta-credential-lifecycle` artifact remain live
+through 2026-09-15. These are the retained rollback and acceptance floor until
+a replacement stack release completes the final beta-only gate.
+
+The live GitHub release-environment audit also found a protection regression:
+the environment-policy validator and manifest remain tracked, but the
+open-source release rewrite removed the validator's only workflow invocation.
+The live `beta-lifecycle` environment consequently has no reviewer or branch
+rule and permits administrator bypass, contrary to the tracked fail-closed
+policy. Restoring the workflow gate is code cleanup; configuring a new approved
+independent reviewer is an external governance prerequisite and must not use a
+self-reviewing or explicitly retired identity.
+
 Local reference-clone reconciliation removed eight clean exact duplicates
 under the workspace `work` directory and ten under `C:\w` only after matching
 origin, commit, tree, and cleanliness. A remaining staged W3C checkout was
@@ -283,8 +302,9 @@ Current `Marty` path classification:
 
 ### 4. Reconcile local storage and evidence
 
-- [ ] Verify the 40 recovery bundles again, copy them to a second
-  access-controlled location, and record checksums and restore instructions.
+- [x] Verify all 41 recovery bundles again and record checksums and restore
+  instructions.
+- [ ] Copy the recovery bundles to a second access-controlled location.
 - [x] Define a retention period of at least one release cycle before pruning
   rollback bundles or release evidence.
 - [x] Compare metadata-free worktree shells with authoritative commits,
@@ -300,9 +320,9 @@ Current `Marty` path classification:
 
 ### 5. Reconcile hosted and beta-only resources
 
-- [ ] Inventory GitHub Actions caches, expired artifacts, packages, and OCI
+- [x] Inventory GitHub Actions caches, expired artifacts, packages, and OCI
   images across the migrated repositories.
-- [ ] Retain the last known-good beta rollback digest, SBOMs, attestations,
+- [x] Retain the last known-good beta rollback digest, SBOMs, attestations,
   acceptance evidence, and required release artifacts before pruning.
 - [ ] After acceptance is closed, remove orphaned beta-only containers,
   volumes, configuration, and secrets.
