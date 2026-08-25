@@ -1,7 +1,7 @@
 # Wave-three post-migration cleanup
 
 <!-- cspell:ignore burdettadam worktree worktrees pytest basetemp eudi -->
-<!-- cspell:ignore OIDF zstd Sigstore mypy Clippy venv -->
+<!-- cspell:ignore OIDF CSCA zstd Sigstore mypy Clippy venv -->
 
 Status: Active  
 Opened: 2026-08-25  
@@ -61,6 +61,11 @@ the following governed changes:
   the old top-level `framework` package. AST policy gates now prevent imports
   rooted at `framework`, `mmf`, or `marty_msf` from returning in Marty source
   or the released `marty-common` package.
+- [Marty#67](https://github.com/ElevenID/Marty/pull/67) is merged. It removes
+  an unreachable CSCA Docker context that invoked a nonexistent Python module,
+  removes obsolete nested-framework ignore entries, and labels the final three
+  live-looking Python MMF guides as historical. The Rust trust-profile and
+  signing-keys services retain supported CSCA registry and signing behavior.
 - [marty-microservices-framework#94](https://github.com/ElevenID/marty-microservices-framework/pull/94)
   freezes the legacy Python distribution, disables future Python release/tag
   workflows, marks its package inactive, and names the 18-crate Rust workspace
@@ -68,7 +73,10 @@ the following governed changes:
   consumer and backup gates pass.
 - [marty-ui#612](https://github.com/ElevenID/marty-ui/pull/612) labels the sole
   remaining tracked `marty-ui` Python MMF snippet as a superseded historical
-  migration record, not a supported runbook.
+  migration record, not a supported runbook. A refreshed audit also replaced
+  its obsolete per-repository Python-wheel beta guide with the immutable
+  aggregate Rust release sequence, deleted the dead beta-trigger script, and
+  removed false sibling-source mount claims under regression tests.
 - [marty-ui#613](https://github.com/ElevenID/marty-ui/pull/613) restores the
   shared fail-closed release-environment preflight that an open-source release
   rewrite had accidentally disconnected. It gates stack release, beta
@@ -100,7 +108,9 @@ They must be classified before a repository is archived or a path is deleted.
   because it exposes the active Rust crate source.
 - `marty-credentials` owns supported Python service images with Rust-backed
   domain operations. Remove the Python MMF wheel while preserving required
-  adapter behavior; this is tracked by `marty-credentials#201`.
+  adapter behavior; this is tracked by `marty-credentials#201`. Its two retained
+  reports containing Python MMF examples are now explicitly labeled historical
+  and protected by a documentation-classification test.
 - `Marty` remains an active mixed-source compatibility repository, but its
   credential KMS and notifications paths are now retired by merged pull
   requests 63 and 64.
@@ -345,8 +355,9 @@ Current `Marty` path classification:
   request 612 adds an explicit historical warning without changing runtime
   behavior.
 - outside the canonical framework repository, current tracked-source matches
-  are now limited to negative gates, changelog/history, inlined attribution,
-  the frozen-wheel catalog record, and the two explicitly historical guides.
+  are now limited to active Rust repository/crate inputs, negative gates,
+  changelog/history, inlined attribution, the frozen-wheel catalog record, and
+  explicitly classified historical guides.
 
 ### 2. Preserve behavior and remove obsolete code
 
