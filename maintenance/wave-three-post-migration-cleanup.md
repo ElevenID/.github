@@ -37,10 +37,28 @@ the following governed changes:
 - [product-catalog#6](https://github.com/ElevenID/product-catalog/pull/6) is
   merged and now describes the Rust crate platform as current and the Python
   distribution as retired compatibility history.
-- `Marty` declares the Python wheel and retains MMF plugin, notification,
-  configuration, KMS-compatibility, and Docker build paths.
+- [Marty#63](https://github.com/ElevenID/Marty/pull/63) is merged. An
+  organization-wide symbol search proved that the released credential KMS
+  adapter had no consumer, while current signing-key behavior is owned and
+  tested by the Rust signing-keys service and shared crates. The pull request
+  removed 786 lines and added a negative source-ownership gate.
+- [Marty#64](https://github.com/ElevenID/Marty/pull/64) is merged. It removed
+  the unreachable 5,562-line Python notifications package after the canonical
+  `mmf-push`, Rust notification, and Rust device-registration contract suites
+  passed.
+- [Marty#65](https://github.com/ElevenID/Marty/pull/65) retires the unconsumed
+  root Python MMF plugin entry point and health-only artifact. It removes the
+  root image/release pipeline and exact Docker, Compose, Helm, Kubernetes,
+  demo, and stale documentation surfaces while retaining `marty-common` and
+  compatibility code still under audit.
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
+
+Pull requests 201, 250, 391, and this governed document are technically green
+but still require one independent approving reviewer under protected-branch
+rules. `burdettadam` cannot self-approve, and the only other write-capable
+identity discovered is the explicitly disallowed historical account. Branch
+protections remain intact while an approved independent reviewer is arranged.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -59,22 +77,23 @@ They must be classified before a repository is archived or a path is deleted.
 - `marty-credentials` owns supported Python service images with Rust-backed
   domain operations. Remove the Python MMF wheel while preserving required
   adapter behavior; this is tracked by `marty-credentials#201`.
-- `Marty` is the remaining mixed-source Python MMF consumer. Trace released
-  consumers, add parity evidence, then remove or replace each live import.
-- `Marty/packages/marty-common/marty_common/crypto/credential_kms.py` is an
-  active released-package compatibility surface, not root-plugin-only code. It
-  imports the legacy KMS port while canonical Rust ownership exists in
-  `mmf-security::KmsProvider`. Preserve the Python behavior until the Rust
-  contract covers its algorithm, key-identity, expiration, HSM, rotation,
-  listing, deletion, and failure semantics and the adapter has parity tests.
-- `Marty/src/marty_plugin` is the root plugin entry point and directly depends
-  on the legacy plugin lifecycle and configuration APIs. Its release image has
-  no known deployment-manifest consumer, but consumer absence alone is not a
-  parity gate; map its trust-anchor, PKD, document-signer, and CSCA surfaces
-  before retiring the artifact.
-- `Marty/src/notifications` retains Python MMF push-provider imports. Classify
-  its challenge delivery, token lifecycle, FCM, and SSE behavior against the
-  canonical `mmf-push` crate before changing it.
+- `Marty` remains an active mixed-source compatibility repository, but its
+  credential KMS and notifications paths are now retired by merged pull
+  requests 63 and 64.
+- `Marty/packages/marty-common/marty_common/crypto/credential_kms.py` was not a
+  supported compatibility surface: no source or release consumer imported it,
+  and `marty_common.crypto` did not export it. It was removed by pull request
+  63 after confirming Rust signing-key ownership and passing package gates.
+- `Marty/src/notifications` was isolated, never mounted by a runtime, and had
+  no organization consumer. Its reachable behavior was already covered by
+  language-neutral `mmf-push`, notification-service, and
+  device-registration-service contracts. Pull request 64 removed it after all
+  three Rust suites passed.
+- `Marty/src/marty_plugin` still contains compatibility modules, but its
+  package entry point and deployment artifact had no current consumer. The
+  released image exposed only health/readiness endpoints and never mounted the
+  four advertised service definitions. Pull request 65 retires that exact
+  delivery surface without deleting retained passport-chip or identity code.
 - `marty-integration-tests` has removed its direct Python MMF biometric test in
   pull request 391. Historical rewrite evidence remains intentionally retained.
 - product catalog positioning is corrected by merged pull request 6.
@@ -111,21 +130,21 @@ Recovery evidence currently includes 40 verified Git bundles totaling about
 
 Current `Marty` path classification:
 
-- `packages/marty-common/.../credential_kms.py` is supported compatibility.
-  Port and parity-test it against `mmf-security`; do not delete it yet.
-- `src/marty_plugin` and its entry point form a published root artifact with no
-  known stack consumer. Prove Rust ownership for its four exposed services,
-  then retire it.
-- `src/notifications` is packaged compatibility behavior. Contract-test it
-  against `mmf-push`, then remove the Python imports.
-- `src/marty_plugin/trust_anchor/modern_trust_anchor.py` is a packaged legacy
-  configuration and observability adapter. Replace it with shared Rust runtime,
-  configuration, and observability composition.
-- `src/digital_identity` contains mixed historical documentation and optional
-  adapter code. Separate documentation from reachable package code and test
-  each live path.
-- `k8s`, Helm, Docker, and the root release workflow deliver only the root
-  plugin. Remove them with that artifact after parity and consumer gates.
+- `packages/marty-common/.../credential_kms.py` is consumer-zero obsolete code
+  removed by merged pull request 63.
+- `src/notifications` is consumer-zero obsolete code removed by merged pull
+  request 64 after Rust contract and parity gates passed.
+- the root `mmf.plugins` entry point, `MartyPlugin`,
+  `modern_trust_anchor.py`, health-only image, and its release/deployment
+  contexts are obsolete and are removed by pull request 65.
+- `src/digital_identity` is retained compatibility source, not an MMF plugin or
+  deployment owner. Pull request 65 removes its unused MMF-specific Redis
+  factory and false production/migration documentation while keeping its
+  generic cache and FastAPI registration behavior.
+- hidden legacy framework imports remain in configuration and observability
+  modules under `marty-common` and `marty_plugin`. Each needs a consumer search
+  and either Rust ownership/parity evidence or consumer-zero proof before
+  removal.
 - `packages/marty-common`, excluding classified compatibility paths, is an
   active released shared library and must be retained.
 
