@@ -52,19 +52,30 @@ the following governed changes:
   root image/release pipeline and exact Docker, Compose, Helm, Kubernetes,
   demo, and stale documentation surfaces while retaining `marty-common` and
   compatibility code still under audit.
-- [Marty#66](https://github.com/ElevenID/Marty/pull/66) removes the remaining
+- [Marty#66](https://github.com/ElevenID/Marty/pull/66) is merged and removes
+  the remaining
   consumer-zero Python configuration and observability adapters that import
   the old top-level `framework` package. AST policy gates now prevent imports
   rooted at `framework`, `mmf`, or `marty_msf` from returning in Marty source
   or the released `marty-common` package.
+- [marty-microservices-framework#94](https://github.com/ElevenID/marty-microservices-framework/pull/94)
+  freezes the legacy Python distribution, disables future Python release/tag
+  workflows, marks its package inactive, and names the 18-crate Rust workspace
+  as canonical. The Python source and `v1.0.2` evidence remain until the final
+  consumer and backup gates pass.
+- [marty-ui#612](https://github.com/ElevenID/marty-ui/pull/612) labels the sole
+  remaining tracked `marty-ui` Python MMF snippet as a superseded historical
+  migration record, not a supported runbook.
 - `Marty` and `marty-credentials` are active mixed-language repositories and
   are not archive candidates while they own supported artifacts.
 
-Pull requests 201, 250, 391, and this governed document are technically green
-but still require one independent approving reviewer under protected-branch
-rules. `burdettadam` cannot self-approve, and the only other write-capable
-identity discovered is the explicitly disallowed historical account. Branch
-protections remain intact while an approved independent reviewer is arranged.
+Pull requests 201, 250, 391, 94, 612, and this governed document are configured
+for automatic merge but still require one independent approving reviewer under
+protected-branch rules. `burdettadam` cannot self-approve, and the only other
+write-capable identity discovered is the explicitly disallowed historical
+account. Branch protections remain intact while an approved independent
+reviewer is arranged. Pull request 612 is still completing its full repository
+CI suite; the other five have no failing checks.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -75,7 +86,8 @@ They must be classified before a repository is archived or a path is deleted.
   repository. Keep the repository and Rust releases; retire only its Python
   package after consumer proof.
 - `marty-ui` is an active Rust consumer. Keep its Cargo pins, release inputs,
-  and source references to the Rust `mmf-*` crates.
+  and source references to the Rust `mmf-*` crates. Its one tracked Python MMF
+  snippet is explicitly labeled historical by pull request 612.
 - `marty-subscriptions` is an active self-host build consumer. Keep the
   canonical repository input while the build consumes its Rust crates.
 - the Hermes workspace is a development and audit consumer. Keep the mount
@@ -111,12 +123,24 @@ consumer gate must distinguish Python package/import tokens (`marty-msf`,
 `marty_msf`, and `mmf.*`) from valid Git and build references to the Rust crate
 repository.
 
-The operator-local inventory also found approximately:
+The operator-local inventory initially found approximately:
 
 - 12.0 GiB of reproducible Rust build output under `.target`;
 - 60 metadata-free worktree shells totaling 5.0 GiB;
 - 6.7 GiB under `work`, mixing evidence with reproducible environments; and
 - several same-origin, same-commit reference clones under `C:\w`.
+
+The first generated-only cleanup tranche is complete. Cargo removed 35,948
+files and 12.0 GiB from the verified workspace `.target` tree. A separately
+allow-listed cleanup removed about 3.0 GiB of old snapshot `node_modules`,
+snapshot-local PostgreSQL/Redis state, virtual environments, cargo homes, and
+pytest caches. It retained acceptance reports, release evidence, wheels,
+conformance checkouts, snapshot source, and all recovery bundles.
+
+The refreshed Git inventory covers 24 canonical ElevenID repositories. Every
+primary worktree is clean, with no stashes or special recovery refs. Its six
+unmerged local branches correspond exactly to active protected pull requests
+35, 94, 201, 250, 391, and 612; no orphan local branch remains.
 
 Recovery evidence currently includes 40 verified Git bundles totaling about
 1.46 GB. Those bundles are retained evidence, not disposable cache.
@@ -142,10 +166,10 @@ workflow, age, and release-evidence classification rather than a bulk delete.
 
 ### 1. Classify legacy references
 
-- [ ] Produce a repository-and-path inventory for every remaining Python MMF
+- [x] Produce a repository-and-path inventory for every remaining Python MMF
   dependency, import, build context, workspace mount, test, and product claim.
-- [ ] Mark each reference as supported runtime, supported compatibility,
-  test-only, historical documentation, or obsolete.
+- [x] Mark each tracked-source reference as supported runtime, supported
+  compatibility, test-only, historical documentation, or obsolete.
 - [ ] Identify the owning Rust crate and language-neutral behavior contract for
   every supported runtime or compatibility capability.
 - [ ] Confirm published artifacts and deployment manifests do not introduce
@@ -170,6 +194,12 @@ Current `Marty` path classification:
   explicit historical attribution and has no Python MMF dependency.
 - `packages/marty-common`, excluding classified compatibility paths, is an
   active released shared library and must be retained.
+- the only `marty-ui` Python MMF match is a superseded migration snippet. Pull
+  request 612 adds an explicit historical warning without changing runtime
+  behavior.
+- outside the canonical framework repository, current tracked-source matches
+  are now limited to negative gates, changelog/history, inlined attribution,
+  the frozen-wheel catalog record, and the two explicitly historical guides.
 
 ### 2. Preserve behavior and remove obsolete code
 
@@ -202,7 +232,8 @@ Current `Marty` path classification:
   rollback bundles or release evidence.
 - [ ] Compare metadata-free worktree shells with authoritative commits,
   manifests, and bundles before deleting any shell; preserve unique work first.
-- [ ] Remove reproducible `.target`, virtual-environment, test-cache, and repro
+- [x] Remove the classified reproducible `.target`, virtual-environment,
+  dependency, runtime-state, and test-cache tranche
   output after confirming it is not the only copy of acceptance evidence.
 - [ ] Keep one canonical reference clone for each required origin and commit;
   remove exact duplicates only after origin, commit, and cleanliness checks.
