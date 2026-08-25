@@ -26,11 +26,11 @@ Two independent filter runs passed strict `git fsck`, removed every targeted pat
 
 1. Freeze merges and pushes, drain merge queues, and freshly mirror-clone both authoritative remotes.
 2. Create new complete bundles and SHA-256 checksums; restoration-test them before filtering.
-3. Re-run only the checked-in filters and regenerate complete old-to-new commit/tag maps.
-4. Require strict `git fsck`, zero target-path history hits, identical current `main` trees, exact ref-name inventories, expected release/tag inventories, and fresh-clone measurements.
+3. Re-run only the checked-in filters and regenerate complete old-to-new commit/ref maps.
+4. Require strict `git fsck`, zero target-path history hits, identical current `main` trees, exact candidate ref-name inventories, expected release/tag inventories, and fresh-clone measurements.
 5. Publish the complete maps in this unaffected repository. Update the reviewed literal checkout pin introduced by `marty-integration-tests#339` before making rewritten history available to automation.
 6. Snapshot protections/rulesets. Temporarily allow only the designated administrator's non-fast-forward update; never remove required status checks.
-7. Push only branches and tags, never GitHub pull refs. Immediately restore and compare all protections/rulesets.
+7. For the UI retirement, delete the backed-up releases and tags permanently, then publish only rewritten `main`; do not recreate the retired tag names and never push GitHub pull refs. Immediately restore and compare all protections/rulesets.
 8. Verify remote refs, releases/assets, workflows, merge queues, historical manifest translation, fresh clones, and full required CI.
 9. Instruct contributors to reclone; never allow an old clone or PR branch to restore pre-rewrite commits.
 10. Roll back from the freshly tested bundles through the same controlled window if any invariant fails.
@@ -48,21 +48,23 @@ After an independent approval, the owner-recorded `GO` authorizes the maintenanc
 
 ## Final frozen artifacts
 
-The refreshed owner-authorized maintenance window froze UI `main` at `ff7b5286a50b6e271e2b60dbde93f56cd32cc1d1` and MMF `main` at `46773c48814f3eb263b207ef5ee64bcd0deebc48`.
+The refreshed owner-authorized UI retirement window froze `main` at `45f5739e99fe383444ea16b1d9d1a61642729823`; the validated rewrite maps it to `0f1cd4911a8d7a8bfe0642d131fc7b84d53aacac`. Both commits have tree `2749631b72be8cef2ef72a2ba2718d7e1a0627a9`. The earlier MMF window froze `main` at `46773c48814f3eb263b207ef5ee64bcd0deebc48`.
 
-- UI rollback bundle SHA-256: `F0F394C3DA58C117B65EBBB5B0BB08A6C2A09A98636A1D5DDF23E313163774B7`
+- UI rollback bundle SHA-256: `B23B8FC090E0C18FF4D0FC97CC8A908F89BD5D67470B9CD0CD9009337E02E9BE`
 - MMF rollback bundle SHA-256: `A8DE9E22446A3B000C3A00492A1FF3B11C4DBD36DDA2D19E27FCFBE67FA8C6FE`
-- UI commit map SHA-256: `9DB61D53D2BB738A914C293DF50F2D6DBD9B4A8AF53C90DEA6E4BE009F762722`
-- UI ref map SHA-256: `5F830593DEFA67C871685F4EBB04C0466A1EDF5E5350343FE84E70D9F36B73CF`
+- UI commit map SHA-256: `B015CA9CC0D6F85572929D51F23BD315F27E5296000AC580C427E8D140158DDA`
+- UI ref map SHA-256: `71FA447FA2ABE9B6D441A0414E6DAB71BAC5C5273961413DFDF48E237CFC259D`
 - MMF commit map SHA-256: `8F27961FC51CD75FDCE05ED6169BEB93FC1CAA3B218773B0B438EC6DB5207208`
 - MMF ref map SHA-256: `4CE3A8ADC45E7131845242E5FC99689D6F7DE3058D472F15770DDAAC1EBFD3B8`
 
 The files under `maps/` are the unmodified `git-filter-repo` outputs from the final frozen candidates. A zero new object ID means the corresponding payload-only commit was pruned because it became empty.
 
+Before retirement, the UI inventory contained 178 releases, 201 tags, and 1,605 release assets totaling 1,097,294,475 bytes. Every asset was downloaded and verified under a deterministic path/size/content manifest with SHA-256 `8159945978D1F7C826631CDBD095C6995D73E2C0446FA119B3891B93F952CE96`. The complete release metadata export has SHA-256 `5ECB7F8D0FEB6B4BD66FA3A979BA6EA143576BD8443C3007C483F40DB2CDEB81`; the tag-ref export has SHA-256 `C33CE7E22E18DEE0D29CD7E2BAFE4B001C4749F1801220D7A17557A9DD27FFEB`.
+
 ## Production outcome
 
 The MMF rewrite was published on 2026-08-13. All three branches and `v1.0.0` exactly match the validated candidate, `main` moved from `46773c48814f3eb263b207ef5ee64bcd0deebc48` to `df9dbf58e1bd2be9e770109c24d67e9fa318fb0b`, and its tree remained `25dc2415c876a69f52e6781e81da05f7ce2bc15f`. A fresh standard GitHub clone is 7.60 MiB and has zero reachable hits for the removed Istio binary. GitHub-owned pull refs can retain old objects and are outside repository-owner ref control.
 
-The UI candidate was **not published**. GitHub permanently locks the tag of every immutable release; disabling repository-level release immutability does not unlock existing releases. Deleting an immutable release would permanently prevent reuse of its tag name, so no lossless rewrite of the 143-release UI tag namespace is available. UI was left unchanged at the maintenance boundary (`ff7b5286a50b6e271e2b60dbde93f56cd32cc1d1`) and normal merge-queue development resumed afterward; its maps and bundle above are retained only as validated, unpublished recovery/research artifacts.
+The UI candidate was **not published in the 2026-08-13 window** because immutable releases prevented lossless tag-name reuse. On 2026-08-24, the owner explicitly authorized permanent retirement of the old releases and tags in exchange for clean history. The refreshed candidate above is the only authorized successor: after the compatibility maps merge, all 178 releases and 201 tags are retired and only rewritten `main` is published. The tag names are intentionally not reusable.
 
 After the operation, temporary freeze rules were deleted and permanent rulesets, required checks, one-review approval, last-pusher approval, linear-history, conversation-resolution, administrator enforcement, force-push prohibition, and UI release immutability were restored.
