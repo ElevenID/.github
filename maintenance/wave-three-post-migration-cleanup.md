@@ -78,8 +78,7 @@ configured for automatic merge but still require one independent reviewer under
 protected-branch rules. `burdettadam` cannot self-approve, and the only other
 write-capable identity discovered is the explicitly disallowed historical
 account. Branch protections remain intact while an approved independent
-reviewer is arranged. The first six pull requests have passing required checks;
-pull request 613 is running its protected CI matrix.
+reviewer is arranged. All seven pull requests have passing required checks.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -195,6 +194,13 @@ attestations, checksums, security results, and acceptance evidence were not
 targeted. Current compiler and image caches are recent and remain useful to
 the active pull requests, so they were retained.
 
+Pull request 613 temporarily recreated two pre-compression transfer artifacts
+while its initial and corrected CI runs exercised the current `main` workflow.
+Both consumers completed successfully before artifact IDs `9561580360` and
+`9561982208`, each 965,468,320 bytes, were deleted. The cumulative exact-name
+cleanup is now 221 records and 36,665,800,640 live bytes (34.15 GiB), with zero
+live `rust-db-test-bundle-1` artifacts remaining.
+
 The published-artifact scan found one live dependency that tracked-source
 search could not close by itself. The latest `marty-credentials` release,
 v0.1.68, declares the immutable `marty-msf` 1.0.2 wheel in its source archive,
@@ -244,6 +250,13 @@ groups in both roots. The duplicate reference cleanup reclaimed more than
 3.7 GB, and removal of temporary tree-comparison repositories and indexes
 reclaimed another 193,838,848 bytes. Together with the generated-output
 tranche, confirmed local reclamation is more than 19 GB.
+
+After the second bundle copy passed, threshold-based Git maintenance compacted
+the nine repositories with at least 1,000 loose objects. Each now has zero loose
+objects and one pack, reclaiming approximately 257 MiB without changing an
+active branch, worktree, or stash. The auxiliary worktree for pull request 613
+was also moved from synchronized storage to `C:\w`; primary clones remain under
+the synchronized workspace, so the broader relocation item remains open.
 
 Metadata-free partial shells that do not exactly match an authoritative commit
 remain retained evidence for at least one release cycle. They will be archived
@@ -352,7 +365,7 @@ Current `Marty` path classification:
 - [ ] Move active Git worktrees outside synchronized storage or exclude `.git`
   and reproducible `target`, `node_modules`, and `.venv` directories from file
   synchronization.
-- [ ] Run repository-local Git maintenance only after backups are verified and
+- [x] Run repository-local Git maintenance only after backups are verified and
   each repository is clean.
 - [ ] Re-audit local branches, worktrees, stashes, remote branches, and open
   pull requests after all cleanup changes merge.
