@@ -76,7 +76,10 @@ the following governed changes:
   migration record, not a supported runbook. A refreshed audit also replaced
   its obsolete per-repository Python-wheel beta guide with the immutable
   aggregate Rust release sequence, deleted the dead beta-trigger script, and
-  removed false sibling-source mount claims under regression tests.
+  removed false sibling-source mount claims under regression tests. The main
+  README now names the pinned Rust crate platform, immutable issuance OCI image,
+  and digest-bound compatibility wheels instead of claiming Python source mounts
+  or generic package-registry installation.
 - [marty-ui#613](https://github.com/ElevenID/marty-ui/pull/613) restores the
   shared fail-closed release-environment preflight that an open-source release
   rewrite had accidentally disconnected. It gates stack release, beta
@@ -87,9 +90,13 @@ the following governed changes:
 Pull requests 201, 250, 391, 94, 612, 613, and this governed document are
 configured for automatic merge but still require one independent reviewer under
 protected-branch rules. `burdettadam` cannot self-approve, and the only other
-write-capable identity discovered is the explicitly disallowed historical
-account. Branch protections remain intact while an approved independent
-reviewer is arranged. All seven pull requests have passing required checks.
+cross-repository write-capable identity is the explicitly disallowed historical
+account. Two other current organization members have read access across the
+governed repositories; one also has write access to only the framework
+repository and has been requested for pull request 94. Selecting or granting a
+reviewer for the other repositories remains an explicit governance decision.
+Branch protections remain intact. All seven pull requests have passing required
+checks.
 
 These references may be compatibility, historical, test-only, or obsolete.
 They must be classified before a repository is archived or a path is deleted.
@@ -228,7 +235,11 @@ Pull request 613 temporarily recreated two pre-compression transfer artifacts
 while its initial and corrected CI runs exercised the current `main` workflow.
 Both consumers completed successfully before artifact IDs `9561580360` and
 `9561982208`, each 965,468,320 bytes, were deleted. The cumulative exact-name
-cleanup is now 221 records and 36,665,800,640 live bytes (34.15 GiB), with zero
+cleanup was then extended to the three compressed intermediates created by the
+final documentation-audit reruns. Artifact IDs `9563530488`, `9563774356`, and
+`9564008545` totaled 559,844,028 bytes and were removed only after their database
+consumer succeeded or the superseded producer run was canceled. The cumulative
+cleanup is now 224 records and 37,225,644,668 live bytes (34.67 GiB), with zero
 live `rust-db-test-bundle-1` artifacts remaining.
 
 The published-artifact scan found one live dependency that tracked-source
