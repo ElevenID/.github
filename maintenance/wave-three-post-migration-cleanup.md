@@ -1,478 +1,370 @@
 # Wave-three post-migration cleanup
 
-<!-- cspell:ignore burdettadam worktree worktrees pytest basetemp eudi -->
-<!-- cspell:ignore OIDF CSCA zstd Sigstore mypy Clippy venv -->
+<!-- cspell:ignore burdettadam worktree worktrees elevenid OIDF CSCA Sigstore -->
+<!-- cspell:ignore MRTD cutover -->
+<!-- cspell:ignore Clippy HMAC ECDH HKDF -->
 
-Status: Active  
-Opened: 2026-08-25  
-Production posture: No production deployment or production-state mutation
+Status: Closeout acceptance passed; record awaiting protected merge
+
+Opened: 2026-08-25
+
+Scope: beta and repository hygiene; no production release promotion
 
 ## Objective
 
-Close the remaining retirement and hygiene work after the wave-three Rust
-migration without removing supported behavior. Prefer shared Rust crates and
-DRY implementations. Any supported Python behavior must have a
-language-neutral contract and passing Rust parity tests before its Python path
-is removed.
+Close the remaining retirement and hygiene work after the completed wave-three
+Rust migration without removing supported behavior. Shared Rust crates are the
+canonical implementation. A Python path can be removed only after its behavior
+is classified, an owning Rust implementation and language-neutral contract are
+identified where behavior exists, parity and failure-mode gates pass, consumers
+are proven migrated, and rollback evidence is retained.
 
-This is a cleanup objective, not a reopening of the completed aggregate
-migration. A remaining Python or MMF reference is evidence to classify, not
-proof that the production path still uses it.
+This objective does not reopen the completed migration. It closes release,
+history, artifact, branch, worktree, and documentation loose ends.
 
-## Current evidence
+## Feature-loss review
 
-The 2026-08-25 inventory found several repositories whose current metadata can
-still make retired Python MMF paths appear supported. Cleanup is now tracked by
-the following governed changes:
+The first path-level review found only a Dockerfile and placeholder README in
+`Marty/src/marty_plugin/csca_service`, but a repository-history review found an
+earlier executable `src/services/csca.py` and `src/apps/csca_service.py`. That
+service had seven operations: create, retrieve, renew, revoke, report status,
+list, and find expiring CSCA certificates. It generated RSA-2048 by default,
+also accepted RSA-3072/4096 and ECDSA P-256/P-384/P-521, kept private material
+behind a vault abstraction, persisted public certificates, and wrote issued,
+renewed, and revoked outbox events. It also had defects: list filters and custom
+extensions were ignored, expiry was absent from status, `reuse_key` was
+ignored, and lifecycle hooks were no-ops.
 
-- `marty-credentials` declares the released `marty-msf` wheel and retains an
-  MMF migration-adapter import. Pull request
-  [marty-credentials#201](https://github.com/ElevenID/marty-credentials/pull/201)
-  removes both while preserving the adapter behavior through the released
-  shared `marty-common` implementation. Its full Python gate exposed and then
-  verified the newly explicit `python-multipart` dependency that had previously
-  arrived transitively through `marty-msf`.
-- [marty-core#250](https://github.com/ElevenID/marty-core/pull/250) adds a
-  language-neutral biometric behavior contract and passing Rust parity tests.
-- [marty-integration-tests#391](https://github.com/ElevenID/marty-integration-tests/pull/391)
-  deletes the direct Python MMF biometric test after that Rust gate passed and
-  adds a negative policy test preventing the dependency from returning.
-- [product-catalog#6](https://github.com/ElevenID/product-catalog/pull/6) is
-  merged and now describes the Rust crate platform as current and the Python
-  distribution as retired compatibility history.
-- [Marty#63](https://github.com/ElevenID/Marty/pull/63) is merged. An
-  organization-wide symbol search proved that the released credential KMS
-  adapter had no consumer, while current signing-key behavior is owned and
-  tested by the Rust signing-keys service and shared crates. The pull request
-  removed 786 lines and added a negative source-ownership gate.
-- [Marty#64](https://github.com/ElevenID/Marty/pull/64) is merged. It removed
-  the unreachable 5,562-line Python notifications package after the canonical
-  `mmf-push`, Rust notification, and Rust device-registration contract suites
-  passed.
-- [Marty#65](https://github.com/ElevenID/Marty/pull/65) is merged and retires
-  the unconsumed
-  root Python MMF plugin entry point and health-only artifact. It removes the
-  root image/release pipeline and exact Docker, Compose, Helm, Kubernetes,
-  demo, and stale documentation surfaces while retaining `marty-common` and
-  compatibility code still under audit.
-- [Marty#66](https://github.com/ElevenID/Marty/pull/66) is merged and removes
-  the remaining
-  consumer-zero Python configuration and observability adapters that import
-  the old top-level `framework` package. AST policy gates now prevent imports
-  rooted at `framework`, `mmf`, or `marty_msf` from returning in Marty source
-  or the released `marty-common` package.
-- [Marty#67](https://github.com/ElevenID/Marty/pull/67) is merged. It removes
-  an unreachable CSCA Docker context that invoked a nonexistent Python module,
-  removes obsolete nested-framework ignore entries, and labels the final three
-  live-looking Python MMF guides as historical. The Rust trust-profile and
-  signing-keys services retain supported CSCA registry and signing behavior.
-  The complete history of that Python directory contains only the Dockerfile
-  and placeholder README: no Python module, API, certificate issuer, DSC signer,
-  or test ever existed behind its four README claims. The retirement therefore
-  removes no executable CSCA capability. A focused Rust follow-up nevertheless
-  records the intended boundary and tests CSCA-specific key isolation, signing,
-  and trust-registry behavior so the supported surface cannot silently regress.
-- [marty-microservices-framework#94](https://github.com/ElevenID/marty-microservices-framework/pull/94)
-  freezes the legacy Python distribution, disables future Python release/tag
-  workflows, marks its package inactive, and names the 18-crate Rust workspace
-  as canonical. The Python source and `v1.0.2` evidence remain until the final
-  consumer and backup gates pass.
-- [marty-ui#612](https://github.com/ElevenID/marty-ui/pull/612) labels the sole
-  remaining tracked `marty-ui` Python MMF snippet as a superseded historical
-  migration record, not a supported runbook. A refreshed audit also replaced
-  its obsolete per-repository Python-wheel beta guide with the immutable
-  aggregate Rust release sequence, deleted the dead beta-trigger script, and
-  removed false sibling-source mount claims under regression tests. The main
-  README now names the pinned Rust crate platform, immutable issuance OCI image,
-  and digest-bound compatibility wheels instead of claiming Python source mounts
-  or generic package-registry installation.
-- [marty-ui#613](https://github.com/ElevenID/marty-ui/pull/613) restores the
-  shared fail-closed release-environment preflight that an open-source release
-  rewrite had accidentally disconnected. It gates stack release, beta
-  lifecycle, and wallet conformance using only read-only workflow-token access.
-- `Marty` and `marty-credentials` are active mixed-language repositories and
-  are not archive candidates while they own supported artifacts.
+The missing behavior is now restored and tested through Rust owners:
 
-Pull requests 201, 250, 391, 94, 612, 613, and this governed document use an
-explicit solo-maintainer model. Required review counts are removed rather than
-manufacturing approvals through an alternate identity. Strict required status
-checks, up-to-date branches, admin enforcement, linear history, resolved
-conversations, automatic merge, and post-merge verification remain intact.
-All seven pull requests passed their required checks before this transition.
-The three release environments retain a deliberate reviewer checkpoint with
-`burdettadam`, disabled administrator bypass, and explicit branch/tag policies;
-self-review is permitted and documented because there is one active maintainer.
+- issuance primitives: `marty-verification::issuance`;
+- six-algorithm authority, DSC, EF.SOD, trust, and tamper tests: `marty-core`
+  and `marty-credentials`;
+- managed custody, ES512 signing, lifecycle state, and transactional outbox:
+  `marty-ui` signing keys; and
+- trust anchors, country, and registry: `marty-ui` trust profiles.
 
-These references may be compatibility, historical, test-only, or obsolete.
-They must be classified before a repository is archived or a path is deleted.
+The parity repair preserves all effective operations and improves status,
+filtering, expiry, chain validation, tenant isolation, optimistic concurrency,
+private-material rejection, and idempotent outbox acknowledgement. The
+six-algorithm test issues a P-256 DSC under every supported CSCA algorithm,
+builds EF.SOD, registers the CSCA trust anchor, and verifies the passport
+through the public eMRTD API. Managed OpenBao, cloud KMS, and signature
+normalization surfaces include ES512 so P-521 is not an offline-only claim.
+The old online `CreateCertificate` operation generated an unencrypted root
+private key in service memory and handed it to a vault adapter. Its supported
+replacement deliberately separates offline/bootstrap CSCA creation from the
+deployed managed-custody lifecycle: the shared Rust issuance API creates all
+six key algorithms and issues DSCs for bootstrap or ceremony use, while the
+authenticated signing service binds an imported public certificate to the
+caller-verified managed public key and never accepts private material. This is
+a custody hardening of the same outcome, not removal of CSCA creation.
 
-## Initial reference classification
+History also contained an auxiliary certificate lifecycle manager and monitor
+that advertised automatic rotation, reports, notifications, and history. They
+were not an effective deployed capability: the manager constructed the CSCA
+service without its required dependencies and invoked asynchronous operations
+synchronously; the monitor used insecure synchronous gRPC against TLS-only
+servers and converted failures into empty results. Rotation was disabled in
+the monitor defaults, notification channels were disabled by default, and the
+manager was not deployed as a service. Reproducing unattended root-CSCA
+rotation would also bypass managed-key ceremony and custody controls. The Rust
+replacement preserves the useful outcomes through authenticated explicit
+renewal, expiry queries, transactional outbox history, and verified key reuse
+or rotation. Notification and reporting consumers can subscribe to that
+durable outbox without putting private material or rotation authority in an
+unmanaged background process. The remaining governed monitor, reporting,
+notification, and renewal-work-queue implementation is tracked in
+[marty-ui#623](https://github.com/ElevenID/marty-ui/issues/623), with an
+explicit prohibition on unattended root-CSCA rotation.
 
-- `marty-microservices-framework` is the active canonical Rust crate
-  repository. Keep the repository and Rust releases; retire only its Python
-  package after consumer proof.
-- `marty-ui` is an active Rust consumer. Keep its Cargo pins, release inputs,
-  and source references to the Rust `mmf-*` crates. Its one tracked Python MMF
-  snippet is explicitly labeled historical by pull request 612.
-- `marty-subscriptions` is an active self-host build consumer. Keep the
-  canonical repository input while the build consumes its Rust crates.
-- the Hermes workspace is a development and audit consumer. Keep the mount
-  because it exposes the active Rust crate source.
-- `marty-credentials` owns supported Python service images with Rust-backed
-  domain operations. Remove the Python MMF wheel while preserving required
-  adapter behavior; this is tracked by `marty-credentials#201`. Its two retained
-  reports containing Python MMF examples are now explicitly labeled historical
-  and protected by a documentation-classification test.
-- `Marty` remains an active mixed-source compatibility repository, but its
-  credential KMS and notifications paths are now retired by merged pull
-  requests 63 and 64.
-- `Marty/packages/marty-common/marty_common/crypto/credential_kms.py` was not a
-  supported compatibility surface: no source or release consumer imported it,
-  and `marty_common.crypto` did not export it. It was removed by pull request
-  63 after confirming Rust signing-key ownership and passing package gates.
-- `Marty/src/notifications` was isolated, never mounted by a runtime, and had
-  no organization consumer. Its reachable behavior was already covered by
-  language-neutral `mmf-push`, notification-service, and
-  device-registration-service contracts. Pull request 64 removed it after all
-  three Rust suites passed.
-- `Marty/src/marty_plugin` still contains compatibility modules, but its
-  package entry point and deployment artifact had no current consumer. The
-  released image exposed only health/readiness endpoints and never mounted the
-  four advertised service definitions. Pull request 65 retires that exact
-  delivery surface without deleting retained passport-chip or identity code.
-- `marty-integration-tests` has removed its direct Python MMF biometric test in
-  pull request 391. Historical rewrite evidence remains intentionally retained.
-- product catalog positioning is corrected by merged pull request 6.
-- history and migration documents are evidence. Retain accurate records and
-  label them historical instead of treating them as live dependencies.
+[Marty#67](https://github.com/ElevenID/Marty/pull/67) removed the later
+unreachable context. The algorithm and lifecycle parity repairs landed through
+`marty-core#251`, `marty-core#252`, `marty-credentials#203`, `marty-ui#621`,
+`marty-ui#622`, `marty-ui#624`, and `Marty#72`. A subsequent maintainer pass
+found that the managed-key backend advertised and signed ES512 but omitted
+P-521 JWK inference
+and the two console selection surfaces; `marty-ui#624` repaired those surfaces
+and passed the protected merge queue. No intended CSCA functionality is being
+retired.
 
-Repository-name matches alone are not evidence of a Python dependency. The
-consumer gate must distinguish Python package/import tokens (`marty-msf`,
-`marty_msf`, and `mmf.*`) from valid Git and build references to the Rust crate
-repository.
-
-The operator-local inventory initially found approximately:
-
-- 12.0 GiB of reproducible Rust build output under `.target`;
-- 60 metadata-free worktree shells totaling 5.0 GiB;
-- 6.7 GiB under `work`, mixing evidence with reproducible environments; and
-- several same-origin, same-commit reference clones under `C:\w`.
-
-The first generated-only cleanup tranche is complete. Cargo removed 35,948
-files and 12.0 GiB from the verified workspace `.target` tree. A separately
-allow-listed cleanup removed about 3.0 GiB of old snapshot `node_modules`,
-snapshot-local PostgreSQL/Redis state, virtual environments, cargo homes, and
-pytest caches. It retained acceptance reports, release evidence, wheels,
-conformance checkouts, snapshot source, and all recovery bundles.
-
-The refreshed Git inventory covers 26 primary repositories, including 22 under
-ElevenID. Every primary worktree and the one auxiliary worktree is clean, with
-no stashes or special recovery refs. Its seven unmerged local branches
-correspond exactly to active protected pull requests 35, 94, 201, 250, 391,
-612, and 613; no orphan local branch remains.
-
-The hosted branch audit likewise found no disposable branch: the 22 ElevenID
-repositories have 22 default branches, the seven active pull-request heads, and
-one unique `longfellow-zk/gh-pages` branch. That branch was generated today by
-the pinned documentation workflow and contains the current published site, so
-it is retained as an active publication artifact rather than misclassified as
-stale history.
-
-Recovery evidence currently includes 41 verified Git bundles totaling
-1,466,067,451 bytes. Every bundle passed `git bundle verify` again after local
-cleanup. Those bundles are retained evidence, not disposable cache. The 41st
-bundle preserves a unique OIDF 5.2.2 shell discovered after its linked
-worktree owner had been removed. It records commit
-`84179cb6a380b90505876c6c5636023bb24cb883`, tree
-`31a90af0fb324ae894dfeb5c89240de23f39ce1a`, and SHA-256
-`E50EFB932C18B760C536FAF0A65B4B8B8CE40C6D9E0AA25927BE857607EDC992`.
-The original dead worktree pointer is retained beside the bundle.
-
-The Marty recovery bundle was reverified before hosted release cleanup. Its
-SHA-256 is
-`BD460B770D24A92ECDAD535222854C5D512E93E4EE4A3B4E433FD15B73976A6B`, it
-contains complete history, and it contains `refs/tags/v1.0.0` at
-`d79ea0598982940d0720d81c2d6ed794b3bca046`. All 41 bundles now have a verified
-second copy on physical disk 0 under an inheritance-disabled ACL limited to the
-operator, local administrators, and SYSTEM. Every copied size and SHA-256
-matches its manifest, and all 41 copies pass `git bundle verify`.
-
-Before the approved hosted cleanup, all 11 Marty v1.0.0 release assets were
-downloaded to both archives. They total 1,403,920 bytes, match the digests
-reported by GitHub, and pass the release's `SHA256SUMS`. The GitHub release and
-tag are now deleted. The obsolete `marty` image and `charts/marty` OCI packages
-remain only because the current CLI credential lacks `delete:packages`; GitHub
-rejected the request before deleting either package. Their exact version IDs
-and digests are retained in both archives for a scoped retry. `charts/marty` is
-the single Helm OCI chart `ghcr.io/elevenid/charts/marty:1.0.0`, not a source
-directory or branch; it packaged the retired Marty MMF plugin deployment. Its
-only version is ID `1039128958`, digest
+`charts/marty` was not a source directory or current Rust component. It was the
+single obsolete Helm OCI package
+`ghcr.io/elevenid/charts/marty:1.0.0`, which packaged the retired root Python
+MMF plugin deployment. Its digest was
 `sha256:d7d3570fa8663ef5aefa30e1b982f2aad19e51c626359f6056b4a3e2e3983a88`.
+The package and the related `marty` container package were deleted only after
+dual recovery evidence was verified. API reads now return 404.
 
-A separate 22-repository tag audit classified 289 hosted tags against each
-default branch. Of those, 288 were valid default-history release refs. The sole
-outlier was `ElevenID/sd-jwt-rust@v0.0.1`, an off-history 2023 tag with no
-GitHub release or assets. Both verified `sd-jwt-rust` bundles contain that exact
-ref at `79c3a8c1bce3c9c88ce0142164cc1f4469729926` and share SHA-256
-`5AB2BA885B296F8B03BC223D6BC8262D24CCF91BDC25C69AC195720DD0B0BF25`.
-The hosted and local tag are now deleted; all remaining hosted tags are on
-their repositories' current default-branch histories.
+## Landed migration and retirement changes
 
-A read-only hosted CI inventory found substantial artifact and cache metadata:
-Marty 431/72, marty-core 2,795/11,675, marty-credentials 2,518/14,078,
-marty-integration-tests 2,165/8, marty-ui 8,051/1,833,
-marty-microservices-framework 136/16, and `.github` 8/4
-(artifact records/cache records). The latest pages include release evidence,
-SBOMs, security results, beta bundles, wheel matrices, Docker build records,
-and reproducible compiler/image caches. Pruning therefore requires name,
-workflow, age, and release-evidence classification rather than a bulk delete.
+The consumer and behavior cleanup landed through protected pull requests and
+required checks:
 
-The first governed hosted-artifact cleanup removed 219 exact-name
-`rust-db-test-bundle-1` records from `marty-ui`: 183 expired metadata records
-and 36 completed-workflow intermediates totaling 34,734,864,000 live bytes
-(32.35 GiB). The producer-to-consumer transfer now uses a zstd archive in
-pull request 612. Its protected CI producer, download, extraction, database
-contract, and service-test gates passed; the replacement artifact was
-186,614,682 bytes, about 80 percent smaller than the previous transfer. That
-completed-run intermediate was then deleted, leaving zero live artifacts with
-the exact transient name. Release assets, beta evidence, wheels, SBOMs,
-attestations, checksums, security results, and acceptance evidence were not
-targeted. Current compiler and image caches are recent and remain useful to
-the active pull requests, so they were retained.
+- `marty-credentials#201` removed the released `marty-msf` wheel and preserved
+  the adapter through shared `marty-common`; it also made the previously
+  transitive `python-multipart` dependency explicit.
+- `marty-core#250` added the language-neutral biometric contract and Rust
+  parity tests; `marty-integration-tests#391` then removed the direct Python MMF
+  test and added a negative dependency gate.
+- `Marty#63` through `Marty#67` removed consumer-zero KMS, notification,
+  top-level plugin, configuration, observability, and unreachable CSCA paths
+  after their ownership and parity gates passed.
+- `product-catalog#6` identifies the Rust crate platform as current and Python
+  MMF as retired history.
+- `marty-ui#612` classified the last Python snippet as historical and removed
+  obsolete wheel, mount, and beta-trigger guidance. `marty-ui#613` restored the
+  fail-closed release-environment preflight. `marty-ui#614` strengthened CSCA
+  signing and trust-profile coverage. `marty-ui#620` fixed the beta lifecycle
+  toolchain omission discovered by a real deployment run.
+- `marty-microservices-framework#95` removed 1,550 obsolete tracked Python,
+  packaging, deployment, generated-report, and documentation files while
+  retaining all 18 Rust crates and all 40 language-neutral contract/inventory
+  records. It added exact consumer, beta, recovery, and negative-source gates,
+  plus a Rust-only release channel.
 
-Pull request 613 temporarily recreated two pre-compression transfer artifacts
-while its initial and corrected CI runs exercised the current `main` workflow.
-Both consumers completed successfully before artifact IDs `9561580360` and
-`9561982208`, each 965,468,320 bytes, were deleted. The cumulative exact-name
-cleanup was then extended to the three compressed intermediates created by the
-final documentation-audit reruns. Artifact IDs `9563530488`, `9563774356`, and
-`9564008545` totaled 559,844,028 bytes and were removed only after their database
-consumer succeeded or the superseded producer run was canceled. The cumulative
-cleanup is now 224 records and 37,225,644,668 live bytes (34.67 GiB), with zero
-live `rust-db-test-bundle-1` artifacts remaining.
+The unusually large deletion total in that retirement pull request is not an
+equivalent count of product capabilities. Of its 273,554 deleted lines, the
+largest buckets were the duplicate Python framework (51,698), vendored demo
+material (50,798), old Python tests (35,233), duplicate Python services
+(17,593), example domains (13,552), and generated or vendored artifacts such as
+a 17,536-line Istio CRD, lock files, reports, and import analysis. The smaller
+Marty deletions similarly removed consumer-zero Python delivery surfaces. The
+Rust parity work moved in the other direction: `marty-ui#621` added 2,223 lines
+of lifecycle implementation and tests, while the core, credentials, and strict
+renewal repairs added another 1,491 lines. Diff size is therefore recorded as
+retirement evidence, not used as a feature-parity measure.
 
-The published-artifact scan found one live dependency that tracked-source
-search could not close by itself. The latest `marty-credentials` release,
-v0.1.68, declares the immutable `marty-msf` 1.0.2 wheel in its source archive,
-and both its issuance and verification image SPDX inventories contain the
-installed distribution. Pull request 201 removes the build input and now also
-adds a normalized release-SBOM denylist validator. Its focused contract,
-workflow, and startup suite passes 63 tests, and the validator rejects the
-v0.1.68 SBOM as expected. A replacement credentials release must pass that
-gate before v0.1.68 is historical and the Python framework can be archived.
-No standalone MMF container package exists in the organization package
-inventory, and the public PyPI JSON endpoints for `marty-msf` and
-`marty-credentials` return 404; the GitHub release and credential images are
-therefore the known published surfaces.
+The canonical framework retirement commit is
+`3d9a2b6591318257c3e2ad3f729edc567f4cdc90`. The retirement build
+`local/mmf-rust-retirement:0.1.0` passed a Linux image build and healthy identity
+service smoke test with manifest-list digest
+`sha256:2d6cd463159778a67ab362dfd8ba36515fcafa267552d03cce1459625bb3a112`.
 
-The last accepted beta rollback remains recoverable even though the approved
-history rewrite intentionally removed the old `v1.1.194` tag and GitHub release
-record. The four immutable OCI manifests recorded by the acceptance evidence
-are still retrievable by digest. The archived release-evidence set contains the
-stack manifest, three SBOMs, four Sigstore bundles, and `SHA256SUMS`; all nine
-files passed a fresh checksum verification. Beta lifecycle run `31916804935`
-and its 7,533,450-byte `mip-03-beta-credential-lifecycle` artifact remain live
-through 2026-09-15. These are the retained rollback and acceptance floor until
-a replacement stack release completes the final beta-only gate.
+## Reviewer-discovered corrections
 
-The live GitHub release-environment audit also found a protection regression:
-the environment-policy validator and manifest remain tracked, but the
-open-source release rewrite removed the validator's only workflow invocation.
-Pull request 613 restores that gate. The live environments now disallow
-administrator bypass and use explicit custom policies: `v*` tags for
-`stack-release`, and `main` for `beta-lifecycle` and the newly created
-`wallet-conformance` environment. The beta secret and variable inventories were
-unchanged by that update. All three environments now require `burdettadam` as
-the deployment reviewer, prohibit administrator bypass, and preserve those
-custom policies. The tracked preflight encodes the same transparent
-solo-maintainer posture and passed both its focused contract suite and a live
-input/protection audit.
+The first Rust v0.1.0 release run `32910041555` passed compilation, tests,
+signing, provenance, and publication, but download verification exposed a
+filename-contract defect: `SHA256SUMS` retained nested
+`package-manifests/mmf-*.txt` paths while GitHub published those files by
+basename. The release was preserved in both evidence locations and rejected as
+the closeout release.
 
-Local reference-clone reconciliation removed eight clean exact duplicates
-under the workspace `work` directory and ten under `C:\w` only after matching
-origin, commit, tree, and cleanliness. A remaining staged W3C checkout was
-excluded from that deletion, traced to
-[W3C PR 174](https://github.com/w3c/vc-data-model-2.0-test-suite/pull/174),
-and removed only after its staged tree exactly matched hosted head
-`ee3f93ce939161c889afd32591396473435c5ae7`; the clean canonical clone remains.
-Fresh audits now report zero same-origin, same-commit, same-tree duplicate
-groups in both roots. The duplicate reference cleanup reclaimed more than
-3.7 GB, and removal of temporary tree-comparison repositories and indexes
-reclaimed another 193,838,848 bytes. Together with the generated-output
-tranche, confirmed local reclamation is more than 19 GB.
+[marty-microservices-framework#97](https://github.com/ElevenID/marty-microservices-framework/pull/97)
+fixed that defect, fails before signing if a nested asset could be flattened,
+and adds a Rust regression test. The same review found that the required
+`Rust license metadata` check had path filters and therefore could deadlock
+workflow-only pull requests. The workflow now runs for every protected pull
+request, merge group, and main push, with a cross-platform policy test.
 
-After the second bundle copy passed, threshold-based Git maintenance compacted
-the nine repositories with at least 1,000 loose objects. Each now has zero loose
-objects and one pack, reclaiming approximately 257 MiB without changing an
-active branch, worktree, or stash. The auxiliary worktree for pull request 613
-was also moved from synchronized storage to `C:\w`; primary clones remain under
-the synchronized workspace, so the broader relocation item remains open.
+The dependency review also found a grouped update of fourteen Rust libraries
+that did not compile. The maintainer migration covers rand 0.10 traits, HMAC
+key initialization, elliptic-curve 0.14 secure generation and SEC1 APIs, and
+scrypt 0.12 parameters. Existing HMAC, ECDH/HKDF, malformed-input, and identity
+contracts pass, and an RFC 7914 persisted-hash vector now explicitly protects
+password compatibility across the upgrade.
 
-A final workspace-root cache audit classified and removed seven generated-only
-tool locations: `.pytest_cache`, `.ruff_cache`, `.pytest-basetemp-eudi-lane`,
-`.pytest-tmp`, `.uv-cache`, root `node_modules`, and
-`.tmp-workflow-policy`. They contained only pytest, Ruff, uv, Vite, and temporary
-workflow-policy output; no source, Git metadata, acceptance result, or recovery
-evidence was present. Exact resolved paths were constrained to the workspace
-root before deletion. A follow-up repository-local sweep removed 17 more exact
-generated locations totaling 89,157,496 bytes: pytest, Ruff, and mypy caches;
-four empty pytest temporary roots; two reproducible virtual environments; and
-one frontend `node_modules` tree. The subsequent repository audit still reports
-all 26 primary worktrees and the pull-request 613 auxiliary worktree clean,
-with zero stashes.
+GitHub rejected recreation of the deleted v0.1.0 name under organization-level
+ref-creation policy even while the repository tag ruleset reported disabled.
+The guarded operation restored tag protection after both rejected attempts.
+Rather than weaken organization policy or reuse a release version, the
+workspace and its DRY internal dependency table advance to v0.1.1.
 
-The latest hosted gate audit reports 117 completed, passing checks across the
-seven open cleanup pull requests. All seven retain automatic merge and required
-CI under the explicit solo-maintainer policy. The restored live
-release-environment validator passes for all three environments, including
-reviewer, administrator-bypass, deployment-policy, revision-variable, secret,
-and environment-variable inventory checks.
+The final corrected v0.1.1 release passed the protected merge and immutable-tag
+gate:
 
-Metadata-free partial shells that do not exactly match an authoritative commit
-remain retained evidence for at least one release cycle. They will be archived
-individually before any later deletion. Recovery bundles, snapshots, and
-conformance fixtures are treated as access-controlled internal artifacts
-because they can contain historical configuration and test-key material.
+- commit: `81810cf19702a9574141e3f2082bb5436d4a2e37`
+- workflow run: `32914567459`
+- release assets: 43
+- final dual-copy bundle SHA-256:
+  `70e533a721e1950c6247f966f85fd9637b67ecb6acfe17324e1d9f7e3f6d226b`
 
-## Execution backlog
+Independent download verification resolved all 42 entries in `SHA256SUMS`,
+matched all 43 GitHub release digests, and matched the two evidence copies
+byte-for-byte. All 21 Sigstore bundles verify against the exact repository,
+release workflow, and v0.1.1 tag identity. GitHub provenance verifies for the
+source archive. The 420-package SPDX SBOM contains no legacy Python MMF
+package, and the 264-entry source archive contains no Python source or
+packaging path.
 
-### 1. Classify legacy references
+Public crates.io publication remains deliberately disabled by
+`ENABLE_PUBLIC_REGISTRY_PUBLISHING=false`; the signed GitHub source release is
+the supported release surface.
 
-- [x] Produce a repository-and-path inventory for every remaining Python MMF
-  dependency, import, build context, workspace mount, test, and product claim.
-- [x] Mark each tracked-source reference as supported runtime, supported
-  compatibility, test-only, historical documentation, or obsolete.
-- [x] Identify the owning Rust crate and language-neutral behavior contract for
-  every supported runtime or compatibility capability.
-- [ ] Confirm published artifacts and deployment manifests do not introduce
-  additional consumers that source search misses.
+## Aggregate beta acceptance
 
-  Current result: v0.1.68 credentials source and both service images are the
-  final known published consumers. Pull request 201 removes and gates that
-  dependency for the next release; this item remains open until the replacement
-  release SBOMs pass and deployment inputs select those digests.
+The final review found that the earlier beta candidate did not yet contain the
+complete CSCA parity correction. `marty-core#253` completed parameter-aware
+RSA-PSS verification and the six-algorithm authority/DSC matrix; release
+v0.1.60 was published from exact protected main commit
+`dce4fb99016dfcb3801fbfb9dcab9e8b0f74bd4f`. `marty-credentials#204` then
+updated the consumer, passed the protected merge queue at
+`923ef6d45807e5eca887dc94bb66444f04190e63`, and published signed v0.1.70
+issuance and verification images. Every release asset matched `SHA256SUMS`,
+and the checksum Sigstore bundle verified against the exact release workflow
+identity. `marty-ui#625` atomically pinned those releases and the final P-521
+console repair through its protected merge queue at
+`79ac406f71b62b5ef78c50ea2ce02fc391373b0f`.
 
-Current `Marty` path classification:
+The one final aggregate beta deployment selected marty-ui v1.1.203. Stack
+release run `32946762802` passed and published a ten-component immutable
+manifest, SBOMs, Sigstore bundles, attestations, and checksums. The public beta
+markers report release 1.1.203 and coordinated source snapshot
+`d430cf6d068865b672ac2fb484d10033b6a53776`. The local deployment used clean,
+detached worktrees at every pinned revision, rehearsed PostgreSQL, Redis,
+OpenBao, and Alembic migrations in isolation, then replaced the beta stack as
+one change. It preserved the configured portable Canvas pilot and left the
+production compose project outside the deployment scope.
 
-- `packages/marty-common/.../credential_kms.py` is consumer-zero obsolete code
-  removed by merged pull request 63.
-- `src/notifications` is consumer-zero obsolete code removed by merged pull
-  request 64 after Rust contract and parity gates passed.
-- the root `mmf.plugins` entry point, `MartyPlugin`,
-  `modern_trust_anchor.py`, health-only image, and its release/deployment
-  contexts were obsolete and were removed by merged pull request 65.
-- `src/digital_identity` is retained compatibility source, not an MMF plugin or
-  deployment owner. Pull request 65 removes its unused MMF-specific Redis
-  factory and false production/migration documentation while keeping its
-  generic cache and FastAPI registration behavior.
-- hidden legacy framework imports in configuration and observability modules
-  under `marty-common` and `marty_plugin` were consumer-zero and are removed by
-  pull request 66. The inlined Alembic migration adapter retains only an
-  explicit historical attribution and has no Python MMF dependency.
-- `packages/marty-common`, excluding classified compatibility paths, is an
-  active released shared library and must be retained.
-- the only `marty-ui` Python MMF match is a superseded migration snippet. Pull
-  request 612 adds an explicit historical warning without changing runtime
-  behavior.
-- outside the canonical framework repository, current tracked-source matches
-  are now limited to active Rust repository/crate inputs, negative gates,
-  changelog/history, inlined attribution, the frozen-wheel catalog record, and
-  explicitly classified historical guides.
+The deployment manifest SHA-256 is
+`c00c2b76ce9ba023f0c72df632c608c75437b5454968a736143d960c9ef87494`;
+the published stack manifest SHA-256 is
+`8b2406bf7d69912db98f56aed13759e2f905c8e205dd431d6099a34390ed397a`.
+Two independent Rust operational samples, 7 minutes 10 seconds apart from
+cutover to the latest sample, each passed all 30 fail-closed checks with zero
+container restarts, error or panic markers, event drops, or dependency
+failures. The window verifier accepted both immutable samples for the exact
+release and source. It correctly reports only 0.12 hours of observation and
+does not claim the optional 7-day event-stream or 14-day revocation-profile
+deletion windows.
 
-### 2. Preserve behavior and remove obsolete code
+[Beta lifecycle run 32950631498](https://github.com/ElevenID/marty-ui/actions/runs/32950631498)
+passed the protected environment review and every real-beta gate: immutable
+release/source binding, public markers, dependency readiness, membership and
+organization console paths, credential issuance, browser-wallet login,
+renewal, suspension, reinstatement, revocation, and verification. Its complete
+reports and screenshots were downloaded into the deployment evidence set.
 
-- [ ] Add or strengthen contract and negative-path tests before changing each
-  supported behavior.
-- [ ] Port supported behavior to the shared Rust crate platform, reusing
-  existing abstractions instead of adding consumer-specific copies.
-- [ ] Pass repository tests, cross-platform Rust tests, Clippy, security,
-  dependency, workflow-policy, and relevant integration/conformance gates.
-- [ ] Remove obsolete Python dependencies, imports, adapters, Docker contexts,
-  integration tests, and workspace mounts immediately after their replacement
-  passes its gates.
-- [ ] Run a final consumer and release-artifact scan proving no supported path
-  requires the Python MMF wheel.
+Two stopped, labeled candidate containers were removed without deleting the
+shared beta volume:
 
-### 3. Make retirement explicit
+- `elevenid-beta-presentation-policy-candidate-wave3k`
+- `elevenid-beta-credential-template-candidate-wave3i`
 
-- [ ] Update READMEs, repository descriptions, catalog entries, and workspace
-  metadata to name the replacement Rust crates and supported entry points.
-- [ ] Add unambiguous deprecation notices to retired Python repositories.
-- [ ] Disable unnecessary automation on retired repositories.
-- [ ] Archive retired repositories only after consumer proof, artifact proof,
-  parity gates, and maintainer review pass. Prefer archival to source deletion.
+The protected external-wallet device-lab gate still requires a separately
+produced evidence URL and SHA-256; the repository and organization do not
+contain that external evidence or a substitute secret, and no conformance run
+has been dispatched with invented metadata. It is a release-promotion gate,
+not evidence of a missing code feature. The optional 7-day and 14-day
+operational windows are additional soak evidence and do not block the
+completed parity/deletion gates.
 
-### 4. Reconcile local storage and evidence
+## Production invariant
 
-- [x] Verify all 41 recovery bundles again and record checksums and restore
-  instructions.
-- [x] Copy the recovery bundles to a second access-controlled location and
-  verify every size, SHA-256, bundle, restore instruction, and ACL.
-- [x] Define a retention period of at least one release cycle before pruning
-  rollback bundles or release evidence.
-- [x] Compare metadata-free worktree shells with authoritative commits,
-  manifests, and bundles before deleting any shell; preserve unique work first.
-- [x] Remove the classified reproducible `.target`, virtual-environment,
-  dependency, runtime-state, and test-cache tranche
-  output after confirming it is not the only copy of acceptance evidence.
-- [x] Keep one canonical reference clone for each required origin and commit;
-  remove exact duplicates only after origin, commit, and cleanliness checks.
-- [x] Treat bundles and archived snapshots as internal artifacts when they
-  contain test keys, fixtures, historical configuration, or other sensitive
-  material.
+No production version, configuration, image reference, container identity, or
+data was deliberately changed, and the actual aggregate beta deployment
+recorded the same 26-container production invariant before and after with hash
+`e7509b9fc2be9fc855d0e08b184df32cb5193b7c580f2ab9beaef3719ba16dd3`.
 
-### 5. Reconcile hosted and beta-only resources
+One earlier Docker Desktop recovery restarted the existing production
+containers and therefore changed their start times. It did not promote a
+release or change their versions, configuration, image IDs, container IDs, or
+data. This operational exception is recorded rather than describing production
+as literally untouched.
 
-- [x] Inventory GitHub Actions caches, expired artifacts, packages, and OCI
-  images across the migrated repositories.
-- [x] Retain the last known-good beta rollback digest, SBOMs, attestations,
-  acceptance evidence, and required release artifacts before pruning.
-- [ ] After acceptance is closed, remove orphaned beta-only containers,
-  volumes, configuration, and secrets.
-- [ ] Verify explicitly that no cleanup action targets production resources.
+## Recovery and history disposition
 
-### 6. Improve workspace hygiene
+The legacy Python framework releases and tags v1.0.0, v1.0.1, and v1.0.2 were
+deleted after the user-approved history cleanup and dual verified recovery.
+The pre-cleanup complete framework bundle is 36,626,931 bytes with SHA-256
+`d1994484374e40c9d5a8a10fb315383c55e92a229f0e1d66f2613d0849657ffe`.
+The post-retirement, pre-tag-prune complete bundle is 9,556,795 bytes with
+SHA-256
+`10fc602250fe50c5dc86ad10c1ad0a515da927671c35d8ebd9e2f6c41b0911d9`.
+Both copies verify as complete bundles and retain the old tags and release
+history.
 
-- [ ] Move active Git worktrees outside synchronized storage or exclude `.git`
-  and reproducible `target`, `node_modules`, and `.venv` directories from file
-  synchronization.
-- [x] Run repository-local Git maintenance only after backups are verified and
-  each repository is clean.
-- [ ] Re-audit local branches, worktrees, stashes, remote branches, and open
-  pull requests after all cleanup changes merge.
+All 41 broader recovery bundles were verified, copied to a second
+access-controlled location, checked by size and SHA-256, and retained for at
+least one release cycle. Release assets, SBOMs, Sigstore bundles, attestations,
+checksums, beta acceptance evidence, and rollback digests are retention
+artifacts, not disposable caches.
 
-## Change and deletion gates
+The tag-protection ruleset remains active. The attempted v0.1.0 correction was
+preceded by a complete dual-copy bundle, temporarily disabled only the exact
+repository tag ruleset, and restored it in a `finally` path. The accepted
+v0.1.1 tag is a new immutable release ref and requires no protection bypass.
+The rejected pre-correction bundle is 9,567,874 bytes with SHA-256
+`8d5bbdae577bb80c37831948cb70d8273cd5f6a482ce061a114a323a66ee0e69`.
+The final v0.1.1 bundle is 9,566,703 bytes with SHA-256
+`70e533a721e1950c6247f966f85fd9637b67ecb6acfe17324e1d9f7e3f6d226b`.
+Both have two verified copies; the former preserves the rejected release ref,
+and the latter contains only current main, origin/main, and immutable v0.1.1
+refs.
 
-Every code or repository retirement change must satisfy all applicable gates:
+## Local and hosted hygiene
 
-1. Record the old behavior in a language-neutral contract.
-2. Demonstrate an owning Rust implementation without duplicated business or
-   policy logic.
-3. Pass positive, negative, malformed-input, authorization, and failure-mode
-   parity tests appropriate to the capability.
-4. Prove all intended consumers use the replacement artifact.
-5. Preserve rollback evidence and verify it can be restored.
-6. Land the change from a clean worktree through a focused branch, maintainer
-   audit, pull request, required CI, merge queue, and post-merge verification.
-7. Delete obsolete code or archive the retired repository only after the prior
-   gates pass.
+Completed local cleanup includes:
 
-Bulk local deletion additionally requires an exact resolved-path inventory,
-confirmation that targets are inside the intended cleanup directory, and a
-check for unique or dirty content. Production is out of scope throughout.
+- 12.0 GiB of reproducible Cargo output plus generated virtual environments,
+  `node_modules`, database state, and test/tool caches removed only after
+  evidence classification;
+- exact same-origin, same-commit, same-tree reference clones removed after
+  cleanliness checks, reclaiming more than 3.7 GiB;
+- unique metadata-free work preserved as a verified bundle instead of deleted;
+- Git maintenance run only on clean repositories after backup; and
+- current primary repository audit showing zero stashes and no linked
+  deployment worktrees, with only the governed documentation branch and the
+  separately classified blog editorial drafts outstanding.
 
-## Completion criteria
+Hosted cleanup removed 224 completed intermediate
+`rust-db-test-bundle-1` artifacts totaling 37,225,644,668 live bytes only after
+their consumers completed. Release, security, beta, wheel, SBOM, attestation,
+checksum, and acceptance artifacts were not targeted. Current compiler and
+image caches remain useful; retention policy and the existing cleanup workflow
+handle them without a risky bulk delete.
 
-This cleanup is complete when:
+After dual-copy verification, the rejected release run's exact 632,072-byte
+assembled `rust-release-assets` artifact was deleted. Its 90-day build SBOM,
+the corrected release artifacts, and both local copies of each release remain
+retained.
 
-- no supported artifact, deployment, workspace, or test depends on Python MMF;
-- every retained MMF reference is clearly labeled historical or compatibility
-  evidence;
-- supported behavior is owned by tested, shared Rust crates;
-- retired repositories and product metadata accurately reflect their status;
-- local and hosted disposable artifacts have been reconciled under documented
-  retention rules;
-- beta-only leftovers are removed while rollback evidence is retained;
-- all cleanup pull requests are merged and protections are intact; and
-- a final audit reports clean local repositories, no unintended branches or
-  worktrees, no open cleanup pull requests, and no production changes.
+The broader audit found one metadata-only upstream audit shell whose empty
+index made all 5,874 tracked paths appear deleted. Its unique commit was first
+preserved in two complete bundles (7,899,523 bytes; SHA-256
+`11bb49e6c39875ac33d904e2f112db0050ef52fb298aa5ccaca6d58c5a29765d`),
+then the exact orphan directory was removed. Pinned, clean upstream
+conformance fixtures and the active multi-worktree upstream maintenance set
+remain classified reference inputs, not abandoned product branches.
+
+After the corrected release and its evidence passed, cleanup removed the
+generated framework holding content at
+`C:\w\marty-framework-generated-holding-20260825T2238Z`, the 20.36 GB
+framework `target` tree, and only the exact local retirement test image at
+digest
+`sha256:2d6cd463159778a67ab362dfd8ba36515fcafa267552d03cce1459625bb3a112`.
+The generated directories were sent to the recycle bin; the orphan shell was
+deleted after its dual complete bundle because recycle support was unavailable
+for that OneDrive path.
+
+The final hosted audit found 28 repositories and 30 branches. Every repository
+has only its default branch except the generated `gh-pages` publication
+branches in `gtk-rs-core` and `longfellow-zk`; neither is abandoned product
+work. There are no open pull requests after this record merges. The final local
+migration audit found every primary product repository on its default branch
+with zero stashes and no linked deployment worktrees; only this governed
+documentation branch existed during its pull request. Four uncommitted
+`marty-blog` editorial draft/review files on local `main` predate and are
+unrelated to the migration. They were classified and preserved in place rather
+than silently folded into or deleted by this closeout.
+
+## Completion gates
+
+- [x] Classify every tracked and published Python MMF reference.
+- [x] Preserve supported behavior in shared Rust owners and language-neutral
+  positive, negative, malformed-input, authorization, and failure-mode tests.
+- [x] Remove obsolete Python dependencies, imports, adapters, build contexts,
+  tests, mounts, workflows, and catalog claims after parity.
+- [x] Prove credentials v0.1.70 and marty-ui v1.1.203 contain no Python MMF
+  runtime package and pass aggregate beta acceptance.
+- [x] Remove obsolete `marty` and `charts/marty` packages after dual recovery.
+- [x] Publish and independently verify the corrected signed Rust v0.1.1 source
+  release and final bundle.
+- [x] Re-audit and reconcile every local/remote branch, worktree, stash, open
+  pull request, generated holding directory, and exact local test image.
+- [ ] Merge this record through protected checks and verify the final clean
+  organization state.
+
+The external-wallet device-lab evidence and optional 7/14-day soak windows are
+tracked operational follow-ups. They do not authorize a production promotion
+and do not reopen completed feature parity.
