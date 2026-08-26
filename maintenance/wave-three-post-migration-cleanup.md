@@ -4,7 +4,7 @@
 <!-- cspell:ignore MRTD cutover -->
 <!-- cspell:ignore Clippy HMAC ECDH HKDF -->
 
-Status: Closeout acceptance passed; record awaiting protected merge
+Status: Complete
 
 Opened: 2026-08-25
 
@@ -362,7 +362,8 @@ than silently folded into or deleted by this closeout.
   release and final bundle.
 - [x] Re-audit and reconcile every local/remote branch, worktree, stash, open
   pull request, generated holding directory, and exact local test image.
-- [ ] Merge this record through protected checks and verify the final clean
+- [x] Merge the closeout record through protected checks in `.github#36` at
+  `2ce1726fe28aa980daa02dcda031231e87f9d779` and verify the final clean
   organization state.
 
 The external-wallet device-lab evidence and optional 7/14-day soak windows are
