@@ -1,0 +1,39 @@
+{
+  "schema": "elevenid.behavior-catalog/v2",
+  "repository": "ElevenID/example",
+  "producer": {
+    "workflow_path": ".github/workflows/behavior-observations.yml",
+    "workflow_sha256": "sha256:f4a6b89a82b5c82f39a85c25d04816f8a3e9cb159d7ef9a0c14c57e25afb950a",
+    "central_workflow_sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "harness_path": ".github/feature-regression/observation_harness.py",
+    "harness_sha256": "sha256:9a44e61f4a9221327e1216882a1290b1e7f155d2f971f4146ad7b3455e7f3f98",
+    "subject_path": ".github/feature-regression/behavior_subject.py",
+    "subject_sha256": "sha256:f40f3778adcc6cfdb4d899b62452b7a63bc51dacb78f2a146c70a644a35957bb",
+    "subject_runtime": "python",
+    "subject_args": [],
+    "subject_env": {},
+    "runtime_image": "python:3.12-alpine@sha256:236173eb74001afe2f60862de935b74fcbd00adfca247b2c27051a70a6a39a2d",
+    "job_name": "behavior-observations / Behavior observation producer",
+    "produce_step_name": "Produce trusted runtime observations atomically",
+    "upload_step_name": "Upload runtime observations",
+    "artifact_name_prefix": "feature-regression-observations",
+    "observation_path": "feature-regression-observations.json"
+  },
+  "operations": [
+    {
+      "id": "credential.approve",
+      "name": "approve credential",
+      "cases": [
+        {
+          "id": "approval-provider-failure",
+          "components": ["src/api.py"],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        }
+      ]
+    }
+  ]
+}

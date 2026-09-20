@@ -1,0 +1,22 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "approval-message",
+      "repository": "ElevenID/example",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "approve credential",
+        "dimension": "public_message"
+      },
+      "approved_by": "reviewer",
+      "before_value": "Credential approval failed",
+      "after_value": "Replacement approval message",
+      "before_sha256": "sha256:47b558e5fef282e007677872ad992f938440c5969ba897b1352050802da936fb",
+      "after_sha256": "sha256:cd0a5d3a0865e3e2a5d8e8cee0d2b62528a2ca0d5c3dba2594a25c3ddfba3520",
+      "compatibility_impact": "Clients see intentionally revised wording.",
+      "replacement_behavior": "Approval remains operation-specific.",
+      "breaking_loss": false
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "schema": "elevenid.feature-regression-review/v1",
+  "repository": "ElevenID/example",
+  "reviewed_base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reviewed_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "applicability": {
+    "decision": "applicable",
+    "rationale": "This change migrates an existing production operation."
+  },
+  "reviewer": {
+    "login": "reviewer",
+    "role": "feature_regression_reviewer",
+    "context": "fresh-read-only-session-42"
+  },
+  "implementation_context": "implementation-session-17",
+  "sanitized_public_evidence": true,
+  "behavior_catalog": "catalog:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/behavior-catalog.json",
+  "inventory_sources": [
+    {
+      "repository": "ElevenID/example",
+      "path": "src/api.py",
+      "commit": "cccccccccccccccccccccccccccccccccccccccc",
+      "phase": "pre_change"
+    }
+  ],
+  "findings": [],
+  "commands": [
+    "python -m pytest tests/test_api.py"
+  ],
+  "tests": [
+    "test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"
+  ],
+  "unexercised_surfaces": [],
+  "residual_risks": [],
+  "surface_coverage": {
+    "entry_points": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "request_validation": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "success_behavior": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "failure_semantics": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "persistence_audit": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "metrics_operator_diagnostics": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "security_redaction": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "failure_retry_concurrency": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "configuration_deployment_consumers": {
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    },
+    "production_boundary_tests_demos": {
+      "evidence": [
+        "artifact:https://github.com/ElevenID/example/actions/runs/12345"
+      ]
+    }
+  },
+  "operations": [
+    {
+      "id": "credential.approve",
+      "case_id": "approval-provider-failure",
+      "name": "approve credential",
+      "public_status": {
+        "disposition": "preserved",
+        "before": {
+          "value": "HTTP 502",
+          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.public_status.before"]
+        },
+        "after": {
+          "value": "HTTP 502",
+          "evidence": ["artifact-observation:ElevenID/example@12345:approval-provider-failure.public_status.after"]
+        }
+      },
+      "public_message": {
+        "disposition": "preserved",
+        "before": {
+          "value": "Credential approval failed",
+          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.public_message.before"]
+        },
+        "after": {
+          "value": "Credential approval failed",
+          "evidence": ["artifact-observation:ElevenID/example@12345:approval-provider-failure.public_message.after"]
+        }
+      },
+      "safe_server_diagnostic": {
+        "disposition": "preserved",
+        "before": {
+          "value": {"stage": "approval", "category": "provider"},
+          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.safe_server_diagnostic.before"]
+        },
+        "after": {
+          "value": {"stage": "approval", "category": "provider"},
+          "evidence": ["artifact-observation:ElevenID/example@12345:approval-provider-failure.safe_server_diagnostic.after"]
+        }
+      }
+    }
+  ],
+  "behavior_dispositions": [
+    {
+      "behavior": "approval provider failure mapping",
+      "disposition": "preserved",
+      "evidence": ["test:ElevenID/example@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_api.py::test_approval_provider_failure"]
+    }
+  ],
+  "cross_boundary": {
+    "applies": false,
+    "method": null,
+    "common_sha256": null,
+    "sources": []
+  }
+}

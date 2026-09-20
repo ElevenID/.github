@@ -1,0 +1,28 @@
+name: feature-regression-observation-producer
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  behavior-observations:
+    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@dddddddddddddddddddddddddddddddddddddddd
+    with:
+      policy-ref: dddddddddddddddddddddddddddddddddddddddd
+      target-ref: ${{ github.event.pull_request.head.sha }}
+      workflow-path: .github/workflows/behavior-observations.yml
+      harness-path: .github/feature-regression/observation_harness.py
+      harness-sha256: sha256:9a44e61f4a9221327e1216882a1290b1e7f155d2f971f4146ad7b3455e7f3f98
+      subject-path: .github/feature-regression/behavior_subject.py
+      subject-sha256: sha256:f40f3778adcc6cfdb4d899b62452b7a63bc51dacb78f2a146c70a644a35957bb
+      subject-runtime: python
+      subject-args-json: '[]'
+      subject-env-json: '{}'
+      runtime-image: python:3.12-alpine@sha256:236173eb74001afe2f60862de935b74fcbd00adfca247b2c27051a70a6a39a2d
+      job-name: behavior-observations / Behavior observation producer
+      artifact-name-prefix: feature-regression-observations
+      observation-path: feature-regression-observations.json

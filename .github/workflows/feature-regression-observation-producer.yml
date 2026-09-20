@@ -1,0 +1,111 @@
+name: Reusable feature-regression observation producer
+# elevenid:required
+
+on:
+  workflow_call:
+    inputs:
+      policy-ref:
+        type: string
+        required: true
+      target-ref:
+        type: string
+        required: true
+      workflow-path:
+        type: string
+        required: true
+      harness-path:
+        type: string
+        required: true
+      harness-sha256:
+        type: string
+        required: true
+      subject-path:
+        type: string
+        required: true
+      subject-sha256:
+        type: string
+        required: true
+      subject-runtime:
+        type: string
+        required: true
+      subject-args-json:
+        type: string
+        required: true
+      subject-env-json:
+        type: string
+        required: true
+      runtime-image:
+        type: string
+        required: true
+      job-name:
+        type: string
+        required: true
+      artifact-name-prefix:
+        type: string
+        required: true
+      observation-path:
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  generate:
+    name: Behavior observation producer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out target revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ inputs.target-ref }}
+          persist-credentials: false
+      - name: Check out pinned observation runner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: ElevenID/.github
+          ref: ${{ inputs.policy-ref }}
+          path: .elevenid-feature-review
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Produce trusted runtime observations atomically
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ format('{0}-{1}-{2}', inputs.artifact-name-prefix, github.run_id, github.run_attempt) }}
+          HARNESS_PATH: ${{ inputs.harness-path }}
+          HARNESS_SHA256: ${{ inputs.harness-sha256 }}
+          JOB_NAME: ${{ inputs.job-name }}
+          OBSERVATION_PATH: ${{ inputs.observation-path }}
+          POLICY_REF: ${{ inputs.policy-ref }}
+          RUNTIME_IMAGE: ${{ inputs.runtime-image }}
+          SUBJECT_ARGS_JSON: ${{ inputs.subject-args-json }}
+          SUBJECT_ENV_JSON: ${{ inputs.subject-env-json }}
+          SUBJECT_PATH: ${{ inputs.subject-path }}
+          SUBJECT_RUNTIME: ${{ inputs.subject-runtime }}
+          SUBJECT_SHA256: ${{ inputs.subject-sha256 }}
+          TARGET_REF: ${{ inputs.target-ref }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_PATH: ${{ inputs.workflow-path }}
+        run: >-
+          python .elevenid-feature-review/scripts/feature_regression_observation_runner.py
+          produce --harness-path "$HARNESS_PATH" --harness-sha256 "$HARNESS_SHA256"
+          --subject-path "$SUBJECT_PATH" --subject-sha256 "$SUBJECT_SHA256"
+          --subject-runtime "$SUBJECT_RUNTIME" --subject-args-json "$SUBJECT_ARGS_JSON"
+          --subject-env-json "$SUBJECT_ENV_JSON" --runtime-image "$RUNTIME_IMAGE"
+          --output "$OBSERVATION_PATH"
+          --repository "$TARGET_REPOSITORY" --revision "$TARGET_REF"
+          --workflow-path "$WORKFLOW_PATH" --policy-ref "$POLICY_REF"
+          --job-name "$JOB_NAME" --artifact-name "$ARTIFACT_NAME"
+          --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Upload runtime observations
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ format('{0}-{1}-{2}', inputs.artifact-name-prefix, github.run_id, github.run_attempt) }}
+          path: ${{ inputs.observation-path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
