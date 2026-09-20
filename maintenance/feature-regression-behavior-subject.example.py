@@ -5,24 +5,24 @@ from src.api import probe_behavior
 
 observed = probe_behavior()
 document = {
-    "schema": "elevenid.behavior-subject-output/v1",
+    "schema": "elevenid.behavior-subject-output/v2",
     "observations": [
         {
-            "id": "approval-provider-failure.public_status.after",
+            "id": "approval-provider-failure.public_status",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "public_status",
             "value": observed["public_status"],
         },
         {
-            "id": "approval-provider-failure.public_message.after",
+            "id": "approval-provider-failure.public_message",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "public_message",
             "value": observed["public_message"],
         },
         {
-            "id": "approval-provider-failure.safe_server_diagnostic.after",
+            "id": "approval-provider-failure.safe_server_diagnostic",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "safe_server_diagnostic",

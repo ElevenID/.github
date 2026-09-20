@@ -36,9 +36,9 @@ SUBJECT = textwrap.dedent(
     import sys
 
     document = {
-        "schema": "elevenid.behavior-subject-output/v1",
+        "schema": "elevenid.behavior-subject-output/v2",
         "observations": [{
-            "id": "approval-provider-failure.public_status.after",
+            "id": "approval-provider-failure.public_status",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "public_status",
@@ -59,26 +59,28 @@ HARNESS = textwrap.dedent(
     parser.add_argument("command")
     parser.add_argument("--repository")
     parser.add_argument("--revision")
+    parser.add_argument("--phase", choices=("before", "after"), required=True)
     args = parser.parse_args()
     capture = json.load(sys.stdin)
     if args.command == "test":
-        if capture["schema"] != "elevenid.behavior-subject-capture/v1":
+        if capture["schema"] != "elevenid.behavior-subject-capture/v2":
             raise SystemExit(1)
         raise SystemExit(0)
     observations = []
     for observed in capture["observations"]:
         observations.append({
             **observed,
+            "id": f'{observed["case_id"]}.{observed["dimension"]}.{args.phase}',
             "producer_test": (
                 f"test:{args.repository}@{args.revision}:tests/test_api.py::"
                 "test_approval_provider_failure"
             ),
         })
     document = {
-        "schema": "elevenid.behavior-observations-runtime/v1",
+        "schema": "elevenid.behavior-observations-runtime/v2",
         "repository": args.repository,
         "revision": args.revision,
-        "phase": "after",
+        "phase": args.phase,
         "observations": observations,
     }
     sys.stdout.write(json.dumps(document, sort_keys=True, separators=(",", ":")))
@@ -178,6 +180,9 @@ class ObservationRunnerTests(unittest.TestCase):
         harness_path: str = HARNESS_PATH,
         subject_path: str = SUBJECT_PATH,
         runtime_image: str = RUNTIME_IMAGE,
+        phase: str = "after",
+        event_name: str = "pull_request",
+        head_branch: str = "feature/probe",
     ) -> list[str]:
         return [
             "--harness-path",
@@ -202,6 +207,12 @@ class ObservationRunnerTests(unittest.TestCase):
             REPOSITORY,
             "--revision",
             REVISION,
+            "--phase",
+            phase,
+            "--event-name",
+            event_name,
+            "--head-branch",
+            head_branch,
             "--workflow-path",
             WORKFLOW_PATH,
             "--policy-ref",
@@ -245,6 +256,8 @@ class ObservationRunnerTests(unittest.TestCase):
             f"sha256:{hashlib.sha256(b'').hexdigest()}", receipt["stderr_sha256"]
         )
         self.assertEqual("HTTP 502", document["observations"][0]["value"])
+        self.assertEqual("after", document["phase"])
+        self.assertEqual("pull_request", document["producer"]["event_name"])
         calls = self.container_mock.call_args_list
         self.assertEqual(3, len(calls))
         self.assertIsNone(calls[0].kwargs.get("stdin_data"))
@@ -264,6 +277,29 @@ class ObservationRunnerTests(unittest.TestCase):
             )
         )
 
+    def test_before_phase_requires_a_main_refresh_event(self) -> None:
+        self.assertEqual(
+            0,
+            self.produce(
+                phase="before", event_name="workflow_dispatch", head_branch="main"
+            ),
+        )
+        document = json.loads((self.root / OUTPUT_PATH).read_bytes())
+        self.assertEqual("before", document["phase"])
+        self.assertEqual("before", document["producer"]["phase"])
+        self.assertEqual("main", document["producer"]["head_branch"])
+
+    def test_phase_event_and_branch_substitution_fail_closed(self) -> None:
+        invalid = (
+            {"phase": "before", "event_name": "pull_request", "head_branch": "main"},
+            {"phase": "before", "event_name": "push", "head_branch": "feature/x"},
+            {"phase": "after", "event_name": "push", "head_branch": "main"},
+        )
+        for contract in invalid:
+            with self.subTest(contract=contract):
+                self.assertEqual(1, self.produce(**contract))
+                self.assertFalse((self.root / OUTPUT_PATH).exists())
+
     def test_cross_step_capture_tampering_exploit_has_no_trusted_reload_phase(
         self,
     ) -> None:
@@ -272,7 +308,7 @@ class ObservationRunnerTests(unittest.TestCase):
         trusted = output.read_bytes()
         final = json.loads(trusted)
         fabricated_capture = {
-            "schema": "elevenid.behavior-subject-capture/v1",
+            "schema": "elevenid.behavior-subject-capture/v2",
             "receipt": final["runtime_receipt"],
             "observations": [
                 {
@@ -319,6 +355,18 @@ class ObservationRunnerTests(unittest.TestCase):
                 ):
                     self.assertEqual(1, self.produce())
         self.assertEqual(1, self.produce(subject_path="../behavior_subject.py"))
+
+    @unittest.skipUnless(os.name == "posix", "real symlink semantics require POSIX")
+    def test_real_lexical_file_symlink_is_rejected_before_resolution(self) -> None:
+        real_subject = self.root / "real_behavior_subject.py"
+        real_subject.write_text(SUBJECT, encoding="utf-8")
+        self.subject.unlink()
+        self.subject.symlink_to(real_subject)
+
+        self.assertEqual(real_subject, self.subject.resolve())
+        self.assertTrue(self.subject.is_symlink())
+        self.assertEqual(1, self.produce())
+        self.assertFalse((self.root / OUTPUT_PATH).exists())
 
     def test_executable_mutation_during_subject_and_harness_runs_fails_closed(
         self,
