@@ -1,0 +1,4 @@
+/.github/workflows/feature-regression-*.yml text eol=lf
+/maintenance/feature-regression-* text eol=lf
+/scripts/feature_regression_*.py text eol=lf
+/tests/test_feature_regression_*.py text eol=lf
