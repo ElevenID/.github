@@ -286,8 +286,8 @@ derived as `<prefix>-<run id>-<run attempt>` so a stale rerun artifact cannot be
 selected. The gate uses GitHub API version `2026-03-10`, requires the exact-head
 run and attempt, validates the declared successful job by run ID and head SHA,
 requires one unexpired artifact whose mandatory `workflow_run` metadata exactly
-matches the run/head/repository/head-repository IDs and whose API-provided
-SHA-256 digest is present, downloads
+matches the run, head SHA, head branch, repository ID, and head-repository ID
+and whose API-provided SHA-256 digest is present, downloads
 it without forwarding authorization to artifact storage, and verifies that
 digest. The bounded ZIP must contain one regular, unencrypted member at the
 declared path. Its strict JSON must already be in
@@ -323,6 +323,10 @@ may also name legacy Python, test, configuration, or other non-JSON sources;
 those sources remain exact provenance but are not forced into digest
 equivalence. This separation allows a legacy implementation and a frozen JSON
 contract to coexist without pretending their bytes have the same meaning.
+The canonical current-repository contract at `reviewed_head` must be declared as
+a `post_change` inventory source; a `pre_change` label cannot substitute for the
+reviewed result. Repository names are compared case-insensitively when enforcing
+source uniqueness.
 Every source declares the same
 `sha256:<64 lowercase hex>` value as `common_sha256`. The gate fetches every
 file from the GitHub contents API at that exact commit and compares its computed

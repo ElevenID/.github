@@ -457,6 +457,7 @@ def artifact_metadata(archive: bytes, phase: str = "after") -> dict[str, object]
         "workflow_run": {
             "id": run_id,
             "head_sha": commit,
+            "head_branch": "main" if phase == "before" else "feature/probe",
             "repository_id": 99,
             "head_repository_id": 99,
         },
@@ -759,6 +760,8 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assertIn("does not accept the v2/v3 phase input", reviewer_documentation)
         self.assertNotIn("`POLICY_SHA`", reviewer_documentation)
         self.assertIn("retained for 90 days", reviewer_documentation)
+        self.assertIn("head branch", reviewer_documentation)
+        self.assertIn("`post_change` inventory source", reviewer_documentation)
         self.assertIn(
             "Do not add a Rust repository to `enabled_repositories`",
             reviewer_documentation,
@@ -1573,13 +1576,19 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                     "workflow_run": {
                         "id": 999,
                         "head_sha": HEAD,
+                        "head_branch": "feature/probe",
                         "repository_id": 99,
                         "head_repository_id": 99,
                     },
                 },
             ),
         )
-        for field in ("head_sha", "repository_id", "head_repository_id"):
+        for field in (
+            "head_sha",
+            "head_branch",
+            "repository_id",
+            "head_repository_id",
+        ):
             with self.subTest(workflow_run_field=field):
                 metadata = artifact_metadata(workflow_archive)
                 del metadata["workflow_run"][field]
@@ -1588,6 +1597,13 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                     f"workflow_run {'head' if field == 'head_sha' else field}",
                     **artifact_with_archive(workflow_archive, after_metadata=metadata),
                 )
+        metadata = artifact_metadata(workflow_archive)
+        metadata["workflow_run"]["head_branch"] = "main"
+        self.assert_invalid(
+            evidence,
+            "workflow_run head_branch does not match the Actions run",
+            **artifact_with_archive(workflow_archive, after_metadata=metadata),
+        )
 
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w") as bundle:
@@ -1851,6 +1867,102 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         evidence["cross_boundary"]["sources"][1]["path"] = "other/api.json"
         self.assert_invalid(
             evidence, "exact tuple declared in inventory_sources", fetch=fetch
+        )
+
+    def test_cross_boundary_rejects_case_only_duplicate_repository_tuple(self) -> None:
+        content = b'{"operation":"approve"}'
+        digest = canonical_json_digest(content)
+        current = (REPOSITORY, "contract/api.json", HEAD)
+        external = ("ElevenID/consumer", "contract/api.json", "d" * 40)
+        evidence = applicable_evidence()
+        evidence["inventory_sources"] = [
+            {
+                "repository": current[0],
+                "path": current[1],
+                "commit": current[2],
+                "phase": "post_change",
+            },
+            {
+                "repository": external[0],
+                "path": external[1],
+                "commit": external[2],
+                "phase": "post_change",
+            },
+        ]
+        evidence["cross_boundary"] = {
+            "applies": True,
+            "method": CANONICAL_JSON_METHOD,
+            "common_sha256": digest,
+            "sources": [
+                {
+                    "repository": current[0],
+                    "path": current[1],
+                    "commit": current[2],
+                    "sha256": digest,
+                },
+                {
+                    "repository": current[0].lower(),
+                    "path": current[1],
+                    "commit": current[2],
+                    "sha256": digest,
+                },
+                {
+                    "repository": external[0],
+                    "path": external[1],
+                    "commit": external[2],
+                    "sha256": digest,
+                },
+            ],
+        }
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if path == "tests/test_api.py":
+                return b"def test_approval_provider_failure(): pass"
+            return content
+
+        self.assert_invalid(
+            evidence, "cross_boundary.sources must contain unique tuples", fetch=fetch
+        )
+
+    def test_cross_boundary_current_head_contract_must_be_post_change(self) -> None:
+        content = b'{"operation":"approve"}'
+        digest = canonical_json_digest(content)
+        current = (REPOSITORY, "contract/api.json", HEAD)
+        external = ("ElevenID/consumer", "contract/api.json", "d" * 40)
+        evidence = applicable_evidence()
+        evidence["inventory_sources"] = [
+            {
+                "repository": item[0],
+                "path": item[1],
+                "commit": item[2],
+                "phase": "pre_change" if item == current else "post_change",
+            }
+            for item in (current, external)
+        ]
+        evidence["cross_boundary"] = {
+            "applies": True,
+            "method": CANONICAL_JSON_METHOD,
+            "common_sha256": digest,
+            "sources": [
+                {
+                    "repository": item[0],
+                    "path": item[1],
+                    "commit": item[2],
+                    "sha256": digest,
+                }
+                for item in (current, external)
+            ],
+        }
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if path == "tests/test_api.py":
+                return b"def test_approval_provider_failure(): pass"
+            return content
+
+        self.assert_invalid(
+            evidence,
+            "current repository at reviewed_head as a post_change inventory source",
+            fetch=fetch,
         )
 
     def test_production_evidence_cannot_blanket_dimensions_or_surfaces_as_na(

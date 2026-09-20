@@ -82,17 +82,18 @@ def _safe_path(value: str, label: str) -> pathlib.Path:
         part in {"", ".", ".."} for part in candidate.parts
     ):
         raise RunnerError(f"{label} must be a safe repository-relative path")
-    resolved = pathlib.Path(*candidate.parts).resolve()
     root = pathlib.Path.cwd().resolve()
+    lexical = root.joinpath(*candidate.parts)
+    resolved = lexical.resolve()
     if root != resolved and root not in resolved.parents:
         raise RunnerError(f"{label} escapes the workspace")
-    return resolved
+    return lexical
 
 
 def _verify_file(path: pathlib.Path, expected_digest: str, label: str) -> None:
     if not DIGEST.fullmatch(expected_digest):
         raise RunnerError(f"{label} digest is invalid")
-    if not path.is_file() or path.is_symlink():
+    if path.is_symlink() or not path.is_file():
         raise RunnerError(f"{label} must be an existing regular non-symlink file")
     actual = f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
     if actual != expected_digest:
@@ -100,7 +101,7 @@ def _verify_file(path: pathlib.Path, expected_digest: str, label: str) -> None:
 
 
 def _file_digest(path: pathlib.Path, label: str) -> str:
-    if not path.is_file() or path.is_symlink():
+    if path.is_symlink() or not path.is_file():
         raise RunnerError(f"{label} must be a regular non-symlink file")
     return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
 

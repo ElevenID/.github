@@ -356,6 +356,18 @@ class ObservationRunnerTests(unittest.TestCase):
                     self.assertEqual(1, self.produce())
         self.assertEqual(1, self.produce(subject_path="../behavior_subject.py"))
 
+    @unittest.skipUnless(os.name == "posix", "real symlink semantics require POSIX")
+    def test_real_lexical_file_symlink_is_rejected_before_resolution(self) -> None:
+        real_subject = self.root / "real_behavior_subject.py"
+        real_subject.write_text(SUBJECT, encoding="utf-8")
+        self.subject.unlink()
+        self.subject.symlink_to(real_subject)
+
+        self.assertEqual(real_subject, self.subject.resolve())
+        self.assertTrue(self.subject.is_symlink())
+        self.assertEqual(1, self.produce())
+        self.assertFalse((self.root / OUTPUT_PATH).exists())
+
     def test_executable_mutation_during_subject_and_harness_runs_fails_closed(
         self,
     ) -> None:

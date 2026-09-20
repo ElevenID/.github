@@ -1211,20 +1211,22 @@ def _validate_cross_boundary(
     if len(sources) < 2:
         raise EvidenceError("cross_boundary.sources must contain at least two tuples")
     seen: set[tuple[str, str, str]] = set()
+    inventory_by_tuple = {
+        source.normalized_content_tuple: source for source in inventory_sources
+    }
     for index, value in enumerate(sources):
         path = f"cross_boundary.sources[{index}]"
         source = _mapping(value, path)
         item = _validate_source_tuple(source, path, include_digest=True)
         normalized_item = (item[0].casefold(), item[1], item[2])
-        if normalized_item not in {
-            source.normalized_content_tuple for source in inventory_sources
-        }:
+        inventory_source = inventory_by_tuple.get(normalized_item)
+        if inventory_source is None:
             raise EvidenceError(
                 f"{path} must be an exact tuple declared in inventory_sources"
             )
-        if item in seen:
+        if normalized_item in seen:
             raise EvidenceError("cross_boundary.sources must contain unique tuples")
-        seen.add(item)
+        seen.add(normalized_item)
         declared = _text(source.get("sha256"), f"{path}.sha256")
         if declared != expected:
             raise EvidenceError(f"{path}.sha256 does not equal common_sha256")
@@ -1234,14 +1236,16 @@ def _validate_cross_boundary(
                 f"{path} content digest {actual} does not equal {expected}"
             )
     if not any(
-        repository.casefold() == current_repository.casefold()
+        repository == current_repository.casefold()
         and commit == reviewed_head
-        for repository, _path, commit in seen
+        and inventory_by_tuple[(repository, source_path, commit)].phase == "post_change"
+        for repository, source_path, commit in seen
     ):
         raise EvidenceError(
-            "cross_boundary.sources must include the current repository at reviewed_head"
+            "cross_boundary.sources must include the current repository at "
+            "reviewed_head as a post_change inventory source"
         )
-    source_repositories = {repository.casefold() for repository, _path, _commit in seen}
+    source_repositories = {repository for repository, _path, _commit in seen}
     required_external_repositories = {
         source.repository.casefold()
         for source in inventory_sources
@@ -1879,6 +1883,16 @@ def _validate_artifact_observation(
         != expected_commit
     ):
         raise EvidenceError(f"{path} artifact workflow_run head does not match")
+    if (
+        _text(
+            workflow_run.get("head_branch"),
+            f"{path} artifact workflow_run head_branch",
+        )
+        != head_branch
+    ):
+        raise EvidenceError(
+            f"{path} artifact workflow_run head_branch does not match the Actions run"
+        )
     expected_repository_id = _mapping(
         run.get("repository"), f"{path} run repository"
     ).get("id")
