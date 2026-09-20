@@ -666,13 +666,23 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(evidence, "fields do not match the schema")
 
     def test_documented_example_matches_validator(self) -> None:
+        repository_root = pathlib.Path(__file__).parents[1]
         path = (
-            pathlib.Path(__file__).parents[1]
+            repository_root
             / "maintenance"
             / "feature-regression-review-evidence.example.json"
         )
         evidence = json.loads(path.read_text(encoding="utf-8"))
         self.validate(evidence)
+
+        attributes = (repository_root / ".gitattributes").read_text(encoding="utf-8")
+        for pinned_pattern in (
+            "/.github/workflows/feature-regression-*.yml",
+            "/maintenance/feature-regression-*",
+            "/scripts/feature_regression_*.py",
+            "/tests/test_feature_regression_*.py",
+        ):
+            self.assertIn(f"{pinned_pattern} text eol=lf", attributes.splitlines())
 
         maintenance = path.parent
         self.assertEqual(
@@ -685,21 +695,21 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         )
         self.assertEqual(
             HARNESS_BYTES,
-            (
-                maintenance / "feature-regression-observation-harness.example.py"
-            ).read_bytes(),
+            (maintenance / "feature-regression-observation-harness.example.py")
+            .read_text(encoding="utf-8")
+            .encode("utf-8"),
         )
         self.assertEqual(
             SUBJECT_BYTES,
-            (
-                maintenance / "feature-regression-behavior-subject.example.py"
-            ).read_bytes(),
+            (maintenance / "feature-regression-behavior-subject.example.py")
+            .read_text(encoding="utf-8")
+            .encode("utf-8"),
         )
         self.assertEqual(
             producer_workflow_bytes(),
-            (
-                maintenance / "feature-regression-observation-caller.example.yml"
-            ).read_bytes(),
+            (maintenance / "feature-regression-observation-caller.example.yml")
+            .read_text(encoding="utf-8")
+            .encode("utf-8"),
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
@@ -722,8 +732,10 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assertEqual(subject_output_bytes(), subject_result.stdout)
         self.assertEqual(b"", subject_result.stderr)
         artifact_example = (
-            maintenance / "feature-regression-artifact-observations.example.json"
-        ).read_bytes()
+            (maintenance / "feature-regression-artifact-observations.example.json")
+            .read_text(encoding="utf-8")
+            .encode("utf-8")
+        )
         self.assertEqual(observation_bytes("after"), artifact_example.rstrip(b"\n"))
         artifact_document = json.loads(artifact_example)
         self.assertEqual(
