@@ -44,6 +44,7 @@ CATALOG_PATH = ".github/feature-regression/behavior-catalog.json"
 WORKFLOW_PATH = ".github/workflows/behavior-observations.yml"
 QUALITY_POLICY_SHA = "0ce5534d83c050166b706b93bed31d0e6c214ca8"
 LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA = "cdecf65ee23c9969f49f61e8d4a0946c95ab4bec"
+APPROVED_FEATURE_IMPLEMENTATION_SHA = "41ce275e615b9ca9be11fde292e6d3b84c8b8ef5"
 FUTURE_APPROVED_REPAIR_SHA = "e" * 40
 HARNESS_PATH = ".github/feature-regression/observation_harness.py"
 HARNESS_BYTES = b"""import argparse
@@ -774,10 +775,14 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             )
         )
         self.assertEqual(
-            LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA,
+            APPROVED_FEATURE_IMPLEMENTATION_SHA,
             activation["approved_revision"],
         )
         self.assertEqual([], activation["enabled_repositories"])
+        self.assertNotEqual(
+            activation["approved_revision"],
+            LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA,
+        )
         self.assertNotEqual(activation["approved_revision"], FUTURE_APPROVED_REPAIR_SHA)
         self.assertEqual(
             json.loads(catalog_bytes()),
