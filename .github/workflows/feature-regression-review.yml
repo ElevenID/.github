@@ -1,0 +1,50 @@
+name: Reusable feature-regression review
+# elevenid:required
+
+on:
+  workflow_call:
+    inputs:
+      policy-ref:
+        description: Full ElevenID/.github commit containing the validator
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  feature-regression-review:
+    name: Feature Regression Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pinned validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: ElevenID/.github
+          ref: ${{ inputs.policy-ref }}
+          path: .elevenid-feature-review
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Test the pinned validator
+        shell: bash
+        working-directory: .elevenid-feature-review
+        run: >-
+          python -m unittest tests.test_feature_regression_review
+          tests.test_feature_regression_observation_runner
+      - name: Validate exact-head reviewer evidence
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          POLICY_REF: ${{ inputs.policy-ref }}
+        run: >-
+          python .elevenid-feature-review/scripts/feature_regression_review.py
+          --event-path "$GITHUB_EVENT_PATH"
+          --repository "$GITHUB_REPOSITORY"
+          --policy-ref "$POLICY_REF"
+          --api-url "$GITHUB_API_URL"

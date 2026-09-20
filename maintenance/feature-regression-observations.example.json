@@ -1,0 +1,35 @@
+{
+  "schema": "elevenid.behavior-observations/v2",
+  "repository": "ElevenID/example",
+  "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "phase": "before",
+  "observations": [
+    {
+      "id": "approval-provider-failure.public_status.before",
+      "operation_id": "credential.approve",
+      "case_id": "approval-provider-failure",
+      "dimension": "public_status",
+      "value": "HTTP 502",
+      "producer_test": "test:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:tests/test_api.py::test_approval_provider_failure",
+      "producer_run": "artifact:https://github.com/ElevenID/example/actions/runs/12344"
+    },
+    {
+      "id": "approval-provider-failure.public_message.before",
+      "operation_id": "credential.approve",
+      "case_id": "approval-provider-failure",
+      "dimension": "public_message",
+      "value": "Credential approval failed",
+      "producer_test": "test:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:tests/test_api.py::test_approval_provider_failure",
+      "producer_run": "artifact:https://github.com/ElevenID/example/actions/runs/12344"
+    },
+    {
+      "id": "approval-provider-failure.safe_server_diagnostic.before",
+      "operation_id": "credential.approve",
+      "case_id": "approval-provider-failure",
+      "dimension": "safe_server_diagnostic",
+      "value": {"stage": "approval", "category": "provider"},
+      "producer_test": "test:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:tests/test_api.py::test_approval_provider_failure",
+      "producer_run": "artifact:https://github.com/ElevenID/example/actions/runs/12344"
+    }
+  ]
+}

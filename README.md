@@ -13,5 +13,11 @@ must link to their owner, upstream project, decision, and public tracking work.
 
 ## Maintenance records
 
+- [Feature-Regression Reviewer contract](maintenance/feature-regression-reviewer.md)
+- [Feature-regression evidence example](maintenance/feature-regression-review-evidence.example.json)
+- [Feature-regression behavior catalog example](maintenance/feature-regression-behavior-catalog.example.json)
+- [Feature-regression observation example](maintenance/feature-regression-observations.example.json)
+- [Feature-regression artifact observation example](maintenance/feature-regression-artifact-observations.example.json)
+- [Feature-regression decision example](maintenance/feature-regression-decisions.example.json)
 - [Repository history rewrite review contract](maintenance/history-rewrite-22/README.md)
 - [Wave-three post-migration cleanup](maintenance/wave-three-post-migration-cleanup.md)

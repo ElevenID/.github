@@ -9,6 +9,10 @@ Thank you for contributing to an ElevenID open-source project.
 5. Sign off every commit with `git commit -s` to certify the Developer
    Certificate of Origin at <https://developercertificate.org/>.
 6. Open a pull request and complete the template.
+7. For migrations, rewrites, ownership transfers, large refactors, or
+   deletions, run the independent
+   [Feature-Regression Reviewer](https://github.com/ElevenID/.github/blob/main/maintenance/feature-regression-reviewer.md)
+   loop and attach exact-head evidence before merge.
 
 Do not include credentials, customer data, private repository content,
 commercial pricing, or payment-provider configuration in a public change.
