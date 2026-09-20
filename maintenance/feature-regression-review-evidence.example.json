@@ -1,5 +1,5 @@
 {
-  "schema": "elevenid.feature-regression-review/v1",
+  "schema": "elevenid.feature-regression-review/v2",
   "repository": "ElevenID/example",
   "reviewed_base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "reviewed_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -75,7 +75,7 @@
         "disposition": "preserved",
         "before": {
           "value": "HTTP 502",
-          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.public_status.before"]
+          "evidence": ["artifact-observation:ElevenID/example@12344:approval-provider-failure.public_status.before"]
         },
         "after": {
           "value": "HTTP 502",
@@ -86,7 +86,7 @@
         "disposition": "preserved",
         "before": {
           "value": "Credential approval failed",
-          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.public_message.before"]
+          "evidence": ["artifact-observation:ElevenID/example@12344:approval-provider-failure.public_message.before"]
         },
         "after": {
           "value": "Credential approval failed",
@@ -97,7 +97,7 @@
         "disposition": "preserved",
         "before": {
           "value": {"stage": "approval", "category": "provider"},
-          "evidence": ["observation:ElevenID/example@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:.github/feature-regression/base-observations.json#approval-provider-failure.safe_server_diagnostic.before"]
+          "evidence": ["artifact-observation:ElevenID/example@12344:approval-provider-failure.safe_server_diagnostic.before"]
         },
         "after": {
           "value": {"stage": "approval", "category": "provider"},

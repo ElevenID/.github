@@ -388,12 +388,13 @@ def _run_container(
 def _validate_subject_output(document: Any) -> list[dict[str, Any]]:
     if not isinstance(document, dict) or set(document) != {"schema", "observations"}:
         raise RunnerError("subject output fields do not match the schema")
-    if document.get("schema") != "elevenid.behavior-subject-output/v1":
+    if document.get("schema") != "elevenid.behavior-subject-output/v2":
         raise RunnerError("subject output schema is invalid")
     observations = document.get("observations")
     if not isinstance(observations, list) or not observations:
         raise RunnerError("subject observations must be a non-empty array")
     ids: set[str] = set()
+    identities: set[tuple[Any, Any, Any]] = set()
     for index, observation in enumerate(observations):
         if not isinstance(observation, dict) or set(observation) != {
             "id",
@@ -404,14 +405,21 @@ def _validate_subject_output(document: Any) -> list[dict[str, Any]]:
         }:
             raise RunnerError(f"subject observation {index} fields are invalid")
         observation_id = observation.get("id")
+        identity = (
+            observation.get("operation_id"),
+            observation.get("case_id"),
+            observation.get("dimension"),
+        )
         if (
             not isinstance(observation_id, str)
             or not observation_id
             or observation_id in ids
+            or identity in identities
             or observation.get("dimension") not in DIMENSIONS
         ):
             raise RunnerError(f"subject observation {index} identity is invalid")
         ids.add(observation_id)
+        identities.add(identity)
     return observations
 
 
@@ -425,7 +433,7 @@ def _capture_document(
     stderr: bytes,
 ) -> dict[str, Any]:
     return {
-        "schema": "elevenid.behavior-subject-capture/v1",
+        "schema": "elevenid.behavior-subject-capture/v2",
         "receipt": {
             "runtime_image": args.runtime_image,
             "subject_path": args.subject_path,
@@ -446,6 +454,7 @@ def _validate_observations(
     *,
     repository: str,
     revision: str,
+    phase: str,
     final: bool,
     capture: dict[str, Any],
 ) -> dict[str, Any]:
@@ -457,25 +466,30 @@ def _validate_observations(
     if set(document) != expected_fields:
         raise RunnerError("observation document fields do not match the schema")
     expected_schema = (
-        "elevenid.behavior-observations/v2"
+        "elevenid.behavior-observations/v3"
         if final
-        else "elevenid.behavior-observations-runtime/v1"
+        else "elevenid.behavior-observations-runtime/v2"
     )
     if document.get("schema") != expected_schema:
         raise RunnerError("observation schema does not match the production phase")
     if (
         document.get("repository") != repository
         or document.get("revision") != revision
-        or document.get("phase") != "after"
+        or document.get("phase") != phase
     ):
         raise RunnerError("observation repository/revision/phase does not match")
     observations = document.get("observations")
     if not isinstance(observations, list) or not observations:
         raise RunnerError("observations must be a non-empty array")
-    captured_by_id = {
-        observation["id"]: observation for observation in capture["observations"]
+    captured_by_identity = {
+        (
+            observation["operation_id"],
+            observation["case_id"],
+            observation["dimension"],
+        ): observation
+        for observation in capture["observations"]
     }
-    if len(observations) != len(captured_by_id):
+    if len(observations) != len(captured_by_identity):
         raise RunnerError(
             "harness observations do not cover the captured subject output"
         )
@@ -491,14 +505,27 @@ def _validate_observations(
         }:
             raise RunnerError(f"observation {index} fields do not match the schema")
         observation_id = observation.get("id")
-        captured = captured_by_id.get(observation_id)
-        if captured is None or observation_id in seen:
+        identity = (
+            observation.get("operation_id"),
+            observation.get("case_id"),
+            observation.get("dimension"),
+        )
+        captured = captured_by_identity.get(identity)
+        expected_id = f"{identity[1]}.{identity[2]}.{phase}"
+        if captured is None or observation_id != expected_id or observation_id in seen:
             raise RunnerError(
                 "observation ids must exactly match captured subject output"
             )
         seen.add(observation_id)
-        actual_core = {key: observation[key] for key in captured}
-        if _canonical(actual_core) != _canonical(captured):
+        actual_core = {
+            key: observation[key]
+            for key in ("operation_id", "case_id", "dimension", "value")
+        }
+        captured_core = {
+            key: captured[key]
+            for key in ("operation_id", "case_id", "dimension", "value")
+        }
+        if _canonical(actual_core) != _canonical(captured_core):
             raise RunnerError(
                 "harness observation differs from captured subject output"
             )
@@ -540,6 +567,9 @@ def _producer(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": args.run_id,
         "run_attempt": args.run_attempt,
         "head_sha": args.revision,
+        "phase": args.phase,
+        "event_name": args.event_name,
+        "head_branch": args.head_branch,
     }
 
 
@@ -629,7 +659,13 @@ def _produce(args: argparse.Namespace) -> None:
     output = revalidated_output
     _run_container(
         args,
-        ["python3", f"/workspace/{args.harness_path}", "test"],
+        [
+            "python3",
+            f"/workspace/{args.harness_path}",
+            "test",
+            "--phase",
+            args.phase,
+        ],
         FIXED_ENVIRONMENT,
         label="harness test",
         timeout=HARNESS_TIMEOUT_SECONDS,
@@ -648,6 +684,8 @@ def _produce(args: argparse.Namespace) -> None:
             args.repository,
             "--revision",
             args.revision,
+            "--phase",
+            args.phase,
         ],
         FIXED_ENVIRONMENT,
         label="harness emit",
@@ -661,18 +699,20 @@ def _produce(args: argparse.Namespace) -> None:
         _parse_json(harness_output, "runtime observation"),
         repository=args.repository,
         revision=args.revision,
+        phase=args.phase,
         final=False,
         capture=capture,
     )
 
     final = dict(runtime)
-    final["schema"] = "elevenid.behavior-observations/v2"
+    final["schema"] = "elevenid.behavior-observations/v3"
     final["runtime_receipt"] = capture["receipt"]
     final["producer"] = _producer(args)
     _validate_observations(
         final,
         repository=args.repository,
         revision=args.revision,
+        phase=args.phase,
         final=True,
         capture=capture,
     )
@@ -693,6 +733,9 @@ def _add_contract(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--revision", required=True)
+    parser.add_argument("--phase", required=True)
+    parser.add_argument("--event-name", required=True)
+    parser.add_argument("--head-branch", required=True)
     parser.add_argument("--workflow-path", required=True)
     parser.add_argument("--policy-ref", required=True)
     parser.add_argument("--job-name", required=True)
@@ -704,6 +747,18 @@ def _add_contract(parser: argparse.ArgumentParser) -> None:
 def _validate_args(args: argparse.Namespace) -> None:
     if not SHA.fullmatch(args.revision):
         raise RunnerError("revision must be a full lowercase SHA")
+    if args.phase not in {"before", "after"}:
+        raise RunnerError("phase must be before or after")
+    if args.phase == "after":
+        if args.event_name != "pull_request":
+            raise RunnerError("after observations require a pull_request event")
+    elif (
+        args.event_name not in {"push", "schedule", "workflow_dispatch"}
+        or args.head_branch != "main"
+    ):
+        raise RunnerError(
+            "before observations require push, schedule, or workflow_dispatch on main"
+        )
     if not SHA.fullmatch(args.policy_ref):
         raise RunnerError("policy-ref must be a full lowercase SHA")
     if not REPOSITORY.fullmatch(args.repository):

@@ -13,7 +13,7 @@
 Follow the visible
 [Feature-Regression Reviewer contract](https://github.com/ElevenID/.github/blob/main/maintenance/feature-regression-reviewer.md).
 The gate reads the latest separately posted comment containing
-`<!-- elevenid-feature-regression-review:v1 -->`.
+`<!-- elevenid-feature-regression-review:v2 -->`.
 
 - [ ] Applicability is declared with a concrete rationale in the evidence.
 - [ ] A reviewer in a fresh context independent of the implementation pass
@@ -22,13 +22,13 @@ The gate reads the latest separately posted comment containing
 - [ ] All ten contract surfaces have exact evidence; production-affecting
       applicable reviews do not use blanket N/A.
 - [ ] Every affected operation compares before/after public status, public
-      message, and safe server diagnostics with immutable base observations and
-      downloaded exact-head v2 artifact observations.
+      message, and safe server diagnostics with downloaded immutable v3
+      artifacts for both the exact base and exact head.
 - [ ] Every changed production path maps to a stable base-catalog case and its
       exact invariant triple.
 - [ ] The base catalog, behavior subject, harness, and producer caller are
       anchored below the reserved governance paths, byte-identical at
-      base/head, and the after observations came from the pinned central runtime
+      base/head, and both observation phases came from the pinned central runtime
       producer's digest-pinned isolated containers and atomically published,
       host-runner-owned in-memory capture.
 - [ ] Every deleted or replaced behavior is traced to a tested new owner, or an

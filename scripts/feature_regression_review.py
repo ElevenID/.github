@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from typing import Any
 
 
-MARKER = "<!-- elevenid-feature-regression-review:v1 -->"
-SCHEMA = "elevenid.feature-regression-review/v1"
+MARKER = "<!-- elevenid-feature-regression-review:v2 -->"
+SCHEMA = "elevenid.feature-regression-review/v2"
 CANONICAL_JSON_METHOD = "elevenid-deterministic-json-v1"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -29,11 +29,6 @@ TEST_REFERENCE = re.compile(
     r"^test:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@"
     r"(?P<commit>[0-9a-f]{40}):(?P<path>[A-Za-z0-9_.\-/]+)::"
     r"(?P<test>[A-Za-z0-9_.:/#\-\[\]]+)$"
-)
-ASSERTION_REFERENCE = re.compile(
-    r"^observation:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@"
-    r"(?P<commit>[0-9a-f]{40}):(?P<path>[A-Za-z0-9_.\-/]+)#"
-    r"(?P<assertion>[A-Za-z0-9_.-]+)$"
 )
 ARTIFACT_OBSERVATION_REFERENCE = re.compile(
     r"^artifact-observation:"
@@ -253,17 +248,25 @@ class TestReference:
 
 
 @dataclass(frozen=True)
-class ArtifactReference:
+class InventorySource:
     repository: str
-    run_id: int
+    path: str
+    commit: str
+    phase: str
+
+    @property
+    def content_tuple(self) -> tuple[str, str, str]:
+        return self.repository, self.path, self.commit
+
+    @property
+    def normalized_content_tuple(self) -> tuple[str, str, str]:
+        return self.repository.casefold(), self.path, self.commit
 
 
 @dataclass(frozen=True)
-class AssertionReference:
+class ArtifactReference:
     repository: str
-    commit: str
-    path: str
-    assertion_id: str
+    run_id: int
 
 
 @dataclass(frozen=True)
@@ -468,21 +471,6 @@ def _test_reference(value: Any, path: str) -> str:
     return reference
 
 
-def _parse_assertion_reference(value: Any, path: str) -> AssertionReference:
-    reference = _text(value, path)
-    match = ASSERTION_REFERENCE.fullmatch(reference)
-    if match is None:
-        raise EvidenceError(
-            f"{path} must use observation:<owner/repo>@<40sha>:<path>#<id> syntax"
-        )
-    return AssertionReference(
-        _repository(match.group("repository"), f"{path} repository"),
-        _sha(match.group("commit"), f"{path} commit"),
-        _relative_path(match.group("path"), f"{path} path"),
-        _text(match.group("assertion"), f"{path} id"),
-    )
-
-
 def _parse_artifact_observation_reference(
     value: Any, path: str
 ) -> ArtifactObservationReference:
@@ -497,12 +485,6 @@ def _parse_artifact_observation_reference(
         run_id=int(match.group("run_id")),
         observation_id=_text(match.group("observation"), f"{path} id"),
     )
-
-
-def _assertion_reference(value: Any, path: str) -> str:
-    reference = _text(value, path)
-    _parse_assertion_reference(reference, path)
-    return reference
 
 
 def _parse_catalog_reference(value: Any, path: str) -> CatalogReference:
@@ -578,13 +560,11 @@ def _evidence_reference(value: Any, path: str) -> str:
         return _test_reference(reference, path)
     if reference.startswith("artifact:"):
         return _artifact_reference(reference, path)
-    if reference.startswith("observation:"):
-        return _assertion_reference(reference, path)
     if reference.startswith("artifact-observation:"):
         _parse_artifact_observation_reference(reference, path)
         return reference
     raise EvidenceError(
-        f"{path} must be a strict test, observation, artifact-observation, or "
+        f"{path} must be a strict test, artifact-observation, or "
         "ElevenID Actions artifact URL"
     )
 
@@ -623,12 +603,12 @@ def _validate_source_tuple(
     return repository, source_path, commit
 
 
-def _validate_inventory_sources(value: Any) -> list[tuple[str, str, str]]:
+def _validate_inventory_sources(value: Any) -> list[InventorySource]:
     sources = _list(value, "inventory_sources")
     if not sources:
         raise EvidenceError("inventory_sources must not be empty")
     seen: set[tuple[str, str, str]] = set()
-    validated: list[tuple[str, str, str]] = []
+    validated: list[InventorySource] = []
     for index, source in enumerate(sources):
         path = f"inventory_sources[{index}]"
         source = _mapping(source, path)
@@ -636,14 +616,15 @@ def _validate_inventory_sources(value: Any) -> list[tuple[str, str, str]]:
         phase = _text(source.get("phase"), f"{path}.phase")
         if phase not in {"pre_change", "post_change"}:
             raise EvidenceError(f"{path}.phase must be pre_change or post_change")
-        item = (
-            _repository(source.get("repository"), f"{path}.repository"),
-            _relative_path(source.get("path"), f"{path}.path"),
-            _sha(source.get("commit"), f"{path}.commit"),
+        item = InventorySource(
+            repository=_repository(source.get("repository"), f"{path}.repository"),
+            path=_relative_path(source.get("path"), f"{path}.path"),
+            commit=_sha(source.get("commit"), f"{path}.commit"),
+            phase=phase,
         )
-        if item in seen:
+        if item.normalized_content_tuple in seen:
             raise EvidenceError("inventory_sources must contain unique tuples")
-        seen.add(item)
+        seen.add(item.normalized_content_tuple)
         validated.append(item)
     return validated
 
@@ -1131,6 +1112,11 @@ def _expected_producer_workflow(producer: ProducerContract) -> bytes:
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -1141,7 +1127,8 @@ jobs:
     uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@{producer.central_workflow_sha}
     with:
       policy-ref: {producer.central_workflow_sha}
-      target-ref: ${{{{ github.event.pull_request.head.sha }}}}
+      target-ref: ${{{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}}}
+      phase: ${{{{ github.event_name == 'pull_request' && 'after' || 'before' }}}}
       workflow-path: {producer.workflow_path}
       harness-path: {producer.harness_path}
       harness-sha256: {producer.harness_sha256}
@@ -1185,7 +1172,7 @@ def _validate_cross_boundary(
     value: Any,
     *,
     fetch_content: ContentFetcher,
-    inventory_sources: list[tuple[str, str, str]],
+    inventory_sources: list[InventorySource],
     current_repository: str,
     reviewed_head: str,
     required: bool,
@@ -1228,7 +1215,10 @@ def _validate_cross_boundary(
         path = f"cross_boundary.sources[{index}]"
         source = _mapping(value, path)
         item = _validate_source_tuple(source, path, include_digest=True)
-        if item not in inventory_sources:
+        normalized_item = (item[0].casefold(), item[1], item[2])
+        if normalized_item not in {
+            source.normalized_content_tuple for source in inventory_sources
+        }:
             raise EvidenceError(
                 f"{path} must be an exact tuple declared in inventory_sources"
             )
@@ -1252,34 +1242,17 @@ def _validate_cross_boundary(
             "cross_boundary.sources must include the current repository at reviewed_head"
         )
     source_repositories = {repository.casefold() for repository, _path, _commit in seen}
-    normalized_sources = {
-        (repository.casefold(), path, commit) for repository, path, commit in seen
-    }
-    required_external_tuples = {
-        (repository.casefold(), path, commit)
-        for repository, path, commit in inventory_sources
-        if repository.casefold() != current_repository.casefold()
-    }
-    missing_external_tuples = required_external_tuples - normalized_sources
-    if missing_external_tuples:
-        rendered = ", ".join(
-            f"{repository}:{path}@{commit}"
-            for repository, path, commit in sorted(missing_external_tuples)
-        )
-        raise EvidenceError(
-            "cross_boundary.sources omit external inventory tuples: " + rendered
-        )
     required_external_repositories = {
-        repository.casefold()
-        for repository, _path, _commit in inventory_sources
-        if repository.casefold() != current_repository.casefold()
+        source.repository.casefold()
+        for source in inventory_sources
+        if source.repository.casefold() != current_repository.casefold()
     }
     missing_owners = (
         external_moved_owners | required_external_repositories
     ) - source_repositories
     if missing_owners:
         raise EvidenceError(
-            "cross_boundary.sources omit moved owners: "
+            "cross_boundary.sources omit canonical contract sources for repositories: "
             + ", ".join(sorted(missing_owners))
         )
     return sorted(seen)
@@ -1289,11 +1262,16 @@ def _verify_test_reference(
     value: Any,
     path: str,
     *,
-    allowed_commits: set[str],
+    allowed_repository_commits: set[tuple[str, str]],
+    allowed_exact_sources: set[tuple[str, str, str]] | None = None,
     fetch_content: ContentFetcher,
 ) -> None:
     parsed = _parse_test_reference(value, path)
-    if parsed.commit not in allowed_commits:
+    repository_commit = (parsed.repository.casefold(), parsed.commit)
+    exact_source = (parsed.repository.casefold(), parsed.path, parsed.commit)
+    if repository_commit not in allowed_repository_commits and exact_source not in (
+        allowed_exact_sources or set()
+    ):
         raise EvidenceError(f"{path} is outside the permitted evidence phase")
     content = fetch_content(parsed.repository, parsed.path, parsed.commit)
     try:
@@ -1325,7 +1303,7 @@ def _verify_raw_reference(
     value: Any,
     path: str,
     *,
-    allowed_test_commits: set[str],
+    allowed_test_repository_commits: set[tuple[str, str]],
     artifact_commit: str,
     fetch_content: ContentFetcher,
     fetch_run: RunFetcher,
@@ -1335,7 +1313,7 @@ def _verify_raw_reference(
         _verify_test_reference(
             reference,
             path,
-            allowed_commits=allowed_test_commits,
+            allowed_repository_commits=allowed_test_repository_commits,
             fetch_content=fetch_content,
         )
     elif reference.startswith("artifact:"):
@@ -1381,7 +1359,7 @@ def _validate_behavior_catalog(
         {"schema", "repository", "producer", "operations"},
         "behavior catalog",
     )
-    if catalog.get("schema") != "elevenid.behavior-catalog/v2":
+    if catalog.get("schema") != "elevenid.behavior-catalog/v3":
         raise EvidenceError("behavior catalog schema is invalid")
     if str(catalog.get("repository", "")).casefold() != repository.casefold():
         raise EvidenceError("behavior catalog repository does not match")
@@ -1670,10 +1648,9 @@ def _select_observation(
         "phase",
         "observations",
     }
-    if expected_phase == "after":
-        expected_document_fields.update({"producer", "runtime_receipt"})
+    expected_document_fields.update({"producer", "runtime_receipt"})
     _exact_keys(document, expected_document_fields, f"{path} observation document")
-    if document.get("schema") != "elevenid.behavior-observations/v2":
+    if document.get("schema") != "elevenid.behavior-observations/v3":
         raise EvidenceError(f"{path} observation schema is invalid")
     if (
         str(document.get("repository", "")).casefold() != expected_repository.casefold()
@@ -1681,50 +1658,49 @@ def _select_observation(
         or document.get("phase") != expected_phase
     ):
         raise EvidenceError(f"{path} observation phase metadata does not match")
-    if expected_phase == "after":
-        receipt = _mapping(
-            document.get("runtime_receipt"), f"{path} observation runtime_receipt"
+    receipt = _mapping(
+        document.get("runtime_receipt"), f"{path} observation runtime_receipt"
+    )
+    _exact_keys(
+        receipt,
+        {
+            "runtime_image",
+            "subject_path",
+            "subject_sha256",
+            "runtime",
+            "arguments",
+            "environment",
+            "exit_code",
+            "stdout_sha256",
+            "stderr_sha256",
+        },
+        f"{path} observation runtime_receipt",
+    )
+    _relative_path(
+        receipt.get("subject_path"),
+        f"{path} observation runtime_receipt.subject_path",
+    )
+    if OCI_IMAGE.fullmatch(str(receipt.get("runtime_image"))) is None:
+        raise EvidenceError(
+            f"{path} observation runtime_receipt runtime_image is invalid"
         )
-        _exact_keys(
-            receipt,
-            {
-                "runtime_image",
-                "subject_path",
-                "subject_sha256",
-                "runtime",
-                "arguments",
-                "environment",
-                "exit_code",
-                "stdout_sha256",
-                "stderr_sha256",
-            },
-            f"{path} observation runtime_receipt",
-        )
-        _relative_path(
-            receipt.get("subject_path"),
-            f"{path} observation runtime_receipt.subject_path",
-        )
-        if OCI_IMAGE.fullmatch(str(receipt.get("runtime_image"))) is None:
+    for field in ("subject_sha256", "stdout_sha256", "stderr_sha256"):
+        if DIGEST.fullmatch(str(receipt.get(field))) is None:
             raise EvidenceError(
-                f"{path} observation runtime_receipt runtime_image is invalid"
+                f"{path} observation runtime_receipt {field} is invalid"
             )
-        for field in ("subject_sha256", "stdout_sha256", "stderr_sha256"):
-            if DIGEST.fullmatch(str(receipt.get(field))) is None:
-                raise EvidenceError(
-                    f"{path} observation runtime_receipt {field} is invalid"
-                )
-        if (
-            receipt.get("runtime") not in {"python", "direct"}
-            or receipt.get("exit_code") != 0
-        ):
-            raise EvidenceError(
-                f"{path} observation runtime_receipt must record a successful invocation"
-            )
-        _list(receipt.get("arguments"), f"{path} observation runtime_receipt.arguments")
-        _mapping(
-            receipt.get("environment"),
-            f"{path} observation runtime_receipt.environment",
+    if (
+        receipt.get("runtime") not in {"python", "direct"}
+        or receipt.get("exit_code") != 0
+    ):
+        raise EvidenceError(
+            f"{path} observation runtime_receipt must record a successful invocation"
         )
+    _list(receipt.get("arguments"), f"{path} observation runtime_receipt.arguments")
+    _mapping(
+        receipt.get("environment"),
+        f"{path} observation runtime_receipt.environment",
+    )
     matches: list[Mapping[str, Any]] = []
     observation_ids: set[str] = set()
     for index, raw_observation in enumerate(
@@ -1755,74 +1731,6 @@ def _select_observation(
     ):
         raise EvidenceError(f"{path} observation value does not match exact evidence")
     return observation
-
-
-def _validate_base_observation(
-    value: Any,
-    path: str,
-    *,
-    expected_repository: str,
-    expected_commit: str,
-    expected_phase: str,
-    operation_id: str,
-    case_id: str,
-    dimension: str,
-    expected_value: Any,
-    fetch_content: ContentFetcher,
-    fetch_run: RunFetcher,
-) -> None:
-    reference = _parse_assertion_reference(value, path)
-    if not reference.path.startswith(".github/feature-regression/"):
-        raise EvidenceError(
-            f"{path} base observation must use the reserved governance path"
-        )
-    if (
-        reference.repository.casefold() != expected_repository.casefold()
-        or reference.commit != expected_commit
-    ):
-        raise EvidenceError(
-            f"{path} does not bind the permitted {expected_phase} phase"
-        )
-    document = _mapping(
-        _parse_strict_json(
-            fetch_content(reference.repository, reference.path, reference.commit),
-            f"{path} observation document",
-        ),
-        f"{path} observation document",
-    )
-    observation = _select_observation(
-        document,
-        path=path,
-        observation_id=reference.assertion_id,
-        expected_repository=expected_repository,
-        expected_revision=reference.commit,
-        expected_phase=expected_phase,
-        operation_id=operation_id,
-        case_id=case_id,
-        dimension=dimension,
-        expected_value=expected_value,
-        record_fields={
-            "id",
-            "operation_id",
-            "case_id",
-            "dimension",
-            "value",
-            "producer_test",
-            "producer_run",
-        },
-    )
-    _verify_test_reference(
-        observation.get("producer_test"),
-        f"{path} observation producer_test",
-        allowed_commits={reference.commit},
-        fetch_content=fetch_content,
-    )
-    _verify_artifact_reference(
-        observation.get("producer_run"),
-        f"{path} observation producer_run",
-        expected_commit=reference.commit,
-        fetch_run=fetch_run,
-    )
 
 
 def _artifact_observation_bytes(
@@ -1864,6 +1772,7 @@ def _validate_artifact_observation(
     *,
     expected_repository: str,
     expected_commit: str,
+    expected_phase: str,
     producer: ProducerContract,
     operation_id: str,
     case_id: str,
@@ -1884,7 +1793,27 @@ def _validate_artifact_observation(
     if run.get("status") != "completed" or run.get("conclusion") != "success":
         raise EvidenceError(f"{path} Actions run must be completed successfully")
     if _sha(run.get("head_sha"), f"{path} Actions run head") != expected_commit:
-        raise EvidenceError(f"{path} Actions run must bind reviewed_head")
+        reviewed_label = (
+            "reviewed_base" if expected_phase == "before" else "reviewed_head"
+        )
+        raise EvidenceError(
+            f"{path} Actions run must bind the exact {reviewed_label} commit"
+        )
+    event_name = _text(run.get("event"), f"{path} Actions run event")
+    head_branch = _text(run.get("head_branch"), f"{path} Actions run head_branch")
+    if expected_phase == "after":
+        if event_name != "pull_request":
+            raise EvidenceError(
+                f"{path} after artifact must come from a pull_request run"
+            )
+    elif (
+        event_name not in {"push", "schedule", "workflow_dispatch"}
+        or head_branch != "main"
+    ):
+        raise EvidenceError(
+            f"{path} before artifact must come from push, schedule, or "
+            "workflow_dispatch on main"
+        )
     run_attempt = run.get("run_attempt")
     if not isinstance(run_attempt, int) or run_attempt <= 0:
         raise EvidenceError(f"{path} Actions run_attempt must be positive")
@@ -2004,6 +1933,9 @@ def _validate_artifact_observation(
             "run_id",
             "run_attempt",
             "head_sha",
+            "phase",
+            "event_name",
+            "head_branch",
         },
         f"{path} observation producer",
     )
@@ -2024,6 +1956,9 @@ def _validate_artifact_observation(
         "run_id": reference.run_id,
         "run_attempt": run_attempt,
         "head_sha": expected_commit,
+        "phase": expected_phase,
+        "event_name": event_name,
+        "head_branch": head_branch,
     }
     if dict(provenance) != expected_provenance:
         raise EvidenceError(
@@ -2057,7 +1992,7 @@ def _validate_artifact_observation(
         observation_id=reference.observation_id,
         expected_repository=expected_repository,
         expected_revision=expected_commit,
-        expected_phase="after",
+        expected_phase=expected_phase,
         operation_id=operation_id,
         case_id=case_id,
         dimension=dimension,
@@ -2074,7 +2009,7 @@ def _validate_artifact_observation(
     _verify_test_reference(
         observation.get("producer_test"),
         f"{path} observation producer_test",
-        allowed_commits={expected_commit},
+        allowed_repository_commits={(expected_repository.casefold(), expected_commit)},
         fetch_content=fetch_content,
     )
 
@@ -2085,6 +2020,7 @@ def _validate_phase_bound_evidence(
     repository: str,
     reviewed_base: str,
     reviewed_head: str,
+    inventory_sources: list[InventorySource],
     catalog: CatalogSelection | None,
     fetch_content: ContentFetcher,
     fetch_run: RunFetcher,
@@ -2092,6 +2028,15 @@ def _validate_phase_bound_evidence(
     fetch_artifacts: ArtifactsFetcher,
     download_artifact: ArtifactDownloader,
 ) -> None:
+    current_repository = repository.casefold()
+    phase_sources = {
+        phase: {
+            source.normalized_content_tuple
+            for source in inventory_sources
+            if source.phase == phase
+        }
+        for phase in ("pre_change", "post_change")
+    }
     required_cases = catalog.cases if catalog is not None else {}
     evidenced_cases: set[str] = set()
     for operation_index, raw_operation in enumerate(
@@ -2129,52 +2074,33 @@ def _validate_phase_bound_evidence(
                 if not references:
                     raise EvidenceError("observation evidence must not be empty")
                 for reference_index, reference in enumerate(references):
-                    if phase == "before" and not str(reference).startswith(
-                        "observation:"
-                    ):
-                        raise EvidenceError(
-                            f"{path}.{dimension}.before.evidence must use immutable "
-                            "checked-in behavior observations"
-                        )
                     reference_path = (
                         f"{path}.{dimension}.{phase}.evidence[{reference_index}]"
                     )
-                    if phase == "before":
-                        _validate_base_observation(
-                            reference,
-                            reference_path,
-                            expected_repository=repository,
-                            expected_commit=reviewed_base,
-                            expected_phase=phase,
-                            operation_id=operation_id,
-                            case_id=case_id,
-                            dimension=dimension,
-                            expected_value=snapshot.get("value"),
-                            fetch_content=fetch_content,
-                            fetch_run=fetch_run,
+                    if not str(reference).startswith("artifact-observation:"):
+                        raise EvidenceError(
+                            f"{path}.{dimension}.{phase}.evidence must use downloaded "
+                            "artifact observations"
                         )
-                    else:
-                        if not str(reference).startswith("artifact-observation:"):
-                            raise EvidenceError(
-                                f"{path}.{dimension}.after.evidence must use downloaded "
-                                "artifact observations"
-                            )
-                        _validate_artifact_observation(
-                            reference,
-                            reference_path,
-                            expected_repository=repository,
-                            expected_commit=reviewed_head,
-                            producer=catalog.producer,
-                            operation_id=operation_id,
-                            case_id=case_id,
-                            dimension=dimension,
-                            expected_value=snapshot.get("value"),
-                            fetch_content=fetch_content,
-                            fetch_run=fetch_run,
-                            fetch_jobs=fetch_jobs,
-                            fetch_artifacts=fetch_artifacts,
-                            download_artifact=download_artifact,
-                        )
+                    _validate_artifact_observation(
+                        reference,
+                        reference_path,
+                        expected_repository=repository,
+                        expected_commit=(
+                            reviewed_base if phase == "before" else reviewed_head
+                        ),
+                        expected_phase=phase,
+                        producer=catalog.producer,
+                        operation_id=operation_id,
+                        case_id=case_id,
+                        dimension=dimension,
+                        expected_value=snapshot.get("value"),
+                        fetch_content=fetch_content,
+                        fetch_run=fetch_run,
+                        fetch_jobs=fetch_jobs,
+                        fetch_artifacts=fetch_artifacts,
+                        download_artifact=download_artifact,
+                    )
             if comparison.get("disposition") == "moved":
                 mapping = _mapping(
                     comparison.get("test_mapping"), f"{path}.{dimension}.test_mapping"
@@ -2182,13 +2108,15 @@ def _validate_phase_bound_evidence(
                 _verify_test_reference(
                     mapping.get("before"),
                     f"{path}.{dimension}.test_mapping.before",
-                    allowed_commits={reviewed_base},
+                    allowed_repository_commits={(current_repository, reviewed_base)},
+                    allowed_exact_sources=phase_sources["pre_change"],
                     fetch_content=fetch_content,
                 )
                 _verify_test_reference(
                     mapping.get("after"),
                     f"{path}.{dimension}.test_mapping.after",
-                    allowed_commits={reviewed_head},
+                    allowed_repository_commits={(current_repository, reviewed_head)},
+                    allowed_exact_sources=phase_sources["post_change"],
                     fetch_content=fetch_content,
                 )
     if evidenced_cases != set(required_cases):
@@ -2198,7 +2126,7 @@ def _validate_phase_bound_evidence(
         _verify_test_reference(
             reference,
             f"tests[{index}]",
-            allowed_commits={reviewed_head},
+            allowed_repository_commits={(current_repository, reviewed_head)},
             fetch_content=fetch_content,
         )
     for collection_name in ("findings", "behavior_dispositions"):
@@ -2212,7 +2140,9 @@ def _validate_phase_bound_evidence(
                 _verify_raw_reference(
                     reference,
                     f"{collection_name}[{item_index}].evidence[{reference_index}]",
-                    allowed_test_commits={reviewed_head},
+                    allowed_test_repository_commits={
+                        (current_repository, reviewed_head)
+                    },
                     artifact_commit=reviewed_head,
                     fetch_content=fetch_content,
                     fetch_run=fetch_run,
@@ -2225,13 +2155,15 @@ def _validate_phase_bound_evidence(
                 _verify_test_reference(
                     mapping.get("before"),
                     f"{collection_name}[{item_index}].test_mapping.before",
-                    allowed_commits={reviewed_base},
+                    allowed_repository_commits={(current_repository, reviewed_base)},
+                    allowed_exact_sources=phase_sources["pre_change"],
                     fetch_content=fetch_content,
                 )
                 _verify_test_reference(
                     mapping.get("after"),
                     f"{collection_name}[{item_index}].test_mapping.after",
-                    allowed_commits={reviewed_head},
+                    allowed_repository_commits={(current_repository, reviewed_head)},
+                    allowed_exact_sources=phase_sources["post_change"],
                     fetch_content=fetch_content,
                 )
     for surface, coverage in _mapping(
@@ -2253,7 +2185,7 @@ def _validate_phase_bound_evidence(
             _verify_raw_reference(
                 reference,
                 f"surface_coverage.{surface}.evidence[{index}]",
-                allowed_test_commits={reviewed_head},
+                allowed_test_repository_commits={(current_repository, reviewed_head)},
                 artifact_commit=reviewed_head,
                 fetch_content=fetch_content,
                 fetch_run=fetch_run,
@@ -2397,7 +2329,7 @@ def validate_evidence(
         raise EvidenceError("sanitized_public_evidence must be true")
     inventory_sources = _validate_inventory_sources(document.get("inventory_sources"))
     for inventory_source in inventory_sources:
-        fetch_content(*inventory_source)
+        fetch_content(*inventory_source.content_tuple)
     _validate_findings(document.get("findings"))
     _validate_commands(document.get("commands"))
     _test_references(document.get("tests"), "tests")
@@ -2443,8 +2375,7 @@ def validate_evidence(
         document, current_repository=reviewed_repository
     )
     inventory_repositories = {
-        source_repository.casefold()
-        for source_repository, _path, _commit in inventory_sources
+        source.repository.casefold() for source in inventory_sources
     }
     cross_required = (
         len(inventory_repositories) > 1
@@ -2484,6 +2415,7 @@ def validate_evidence(
         repository=reviewed_repository,
         reviewed_base=reviewed_base,
         reviewed_head=reviewed_head,
+        inventory_sources=inventory_sources,
         catalog=catalog,
         fetch_content=fetch_content,
         fetch_run=fetch_run,

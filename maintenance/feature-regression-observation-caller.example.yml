@@ -3,6 +3,11 @@ name: feature-regression-observation-producer
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -10,15 +15,16 @@ permissions:
 
 jobs:
   behavior-observations:
-    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@dddddddddddddddddddddddddddddddddddddddd
+    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
     with:
-      policy-ref: dddddddddddddddddddddddddddddddddddddddd
-      target-ref: ${{ github.event.pull_request.head.sha }}
+      policy-ref: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+      target-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      phase: ${{ github.event_name == 'pull_request' && 'after' || 'before' }}
       workflow-path: .github/workflows/behavior-observations.yml
       harness-path: .github/feature-regression/observation_harness.py
-      harness-sha256: sha256:9a44e61f4a9221327e1216882a1290b1e7f155d2f971f4146ad7b3455e7f3f98
+      harness-sha256: sha256:2fc9043d50adc119c390d1aec6a5de7c36d602d3a869d15cc30d807eb2bdfe69
       subject-path: .github/feature-regression/behavior_subject.py
-      subject-sha256: sha256:f40f3778adcc6cfdb4d899b62452b7a63bc51dacb78f2a146c70a644a35957bb
+      subject-sha256: sha256:68fe8ff29707f6344aec1bc4af06a8af38a54b7cac9b5794dde0aa2128fdcf64
       subject-runtime: python
       subject-args-json: '[]'
       subject-env-json: '{}'

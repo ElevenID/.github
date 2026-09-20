@@ -132,7 +132,10 @@ a fenced `json` document. Start from the
 [maintained evidence example](feature-regression-review-evidence.example.json).
 The companion
 [catalog](feature-regression-behavior-catalog.example.json),
-[observation](feature-regression-observations.example.json), and
+[before artifact
+observation](feature-regression-before-artifact-observations.example.json),
+[after artifact
+observation](feature-regression-artifact-observations.example.json), and
 [decision](feature-regression-decisions.example.json) examples define the
 strict versioned documents referenced by that evidence.
 The catalog's sample digests bind the exact
@@ -151,7 +154,7 @@ metadata and tests its structure; it does not infer semantic parity. A separate
 human or agent reviewer must still perform the read-only comparison.
 
 ````markdown
-<!-- elevenid-feature-regression-review:v1 -->
+<!-- elevenid-feature-regression-review:v2 -->
 ```json
 { ...the evidence document... }
 ```
@@ -197,26 +200,32 @@ Evidence references use only these forms:
 
 - `test:<owner/repo>@<40-character commit>:<repository-relative path>::`
   `<test token>`; or
-- `observation:<owner/repo>@<40-character commit>:<path>#<observation id>`; or
 - `artifact-observation:<owner/repo>@<run id>:<observation id>`; or
 - `artifact:https://github.com/ElevenID/<repo>/actions/runs/<numeric id>`.
 
 Test references must point to a recognized test path. Top-level tests, surface
 coverage, behavior evidence, and production-boundary runs bind to
-`reviewed_head`; moved-test `before` references bind only to the immediate
-`reviewed_base`. Inventory tuples may document older sources, but cannot replace
-that comparison baseline. Production-boundary coverage must
+the current repository at `reviewed_head`. A moved-test `before` reference may
+bind either to the current repository at the immediate `reviewed_base` or to an
+exact `pre_change` inventory tuple. Its `after` peer may bind either to the
+current repository at `reviewed_head` or to an exact `post_change` inventory
+tuple. Repository, path, commit, and phase are all authoritative; unlisted
+substitutions fail closed. Artifact `producer_test` references are stricter and
+must remain in the artifact's own repository at its exact observed commit.
+Production-boundary coverage must
 include a completed successful Actions run whose `head_sha` is `reviewed_head`.
 
 Operation snapshots do not accept arbitrary test names as proof of values.
-Before snapshots select immutable, checked-in
-`elevenid.behavior-observations/v2` JSON at the immediate `reviewed_base`.
-Their producer tests and runs must bind to that same base. After snapshots must
-use `artifact-observation` and are never accepted from a file authored in the
-pull-request head.
+Both phases select immutable GitHub Actions artifacts containing canonical
+`elevenid.behavior-observations/v3` JSON. A `before` artifact must come from a
+successful `push`, `schedule`, or `workflow_dispatch` run on `main` whose
+`head_sha` is exactly `reviewed_base`; an `after` artifact must come from a
+successful `pull_request` run whose `head_sha` is exactly `reviewed_head`.
+Checked-in observation JSON is not accepted: requiring such a file to contain
+its own future commit SHA creates an impossible fixed point.
 
-The base catalog, immutable before observations, observation harness, and
-behavior subject must live below the reserved `.github/feature-regression/`
+The base catalog, observation harness, and behavior subject must live below the
+reserved `.github/feature-regression/`
 governance path. A change to any file below that path, or to the producer
 workflow, is production-affecting and cannot use `not_applicable`. This prevents
 a docs/test-only pull request from weakening the trusted base for the next
@@ -233,8 +242,9 @@ gate fetches the producer caller, harness, and subject at
 and checks all catalog digests. The caller must be the gate's exact single-job
 template invoking
 `ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml`
-at the same trusted policy commit used by the review gate; extra steps or jobs
-are rejected.
+at the same approved feature-implementation commit used by the review gate;
+extra steps or jobs are rejected. This feature-implementation pin is distinct
+from the newer Organization Quality policy pin that authorizes it.
 
 The pinned central producer checks out the target head without persisted
 credentials and checks out its standard-library runner from that policy commit.
@@ -254,7 +264,7 @@ bound path. Container lifecycle termination therefore removes detached or
 
 The subject receives closed standard input, fixed arguments, and an allowlisted
 environment, and must emit bounded canonical
-`elevenid.behavior-subject-output/v1` JSON on standard output. The host runner
+`elevenid.behavior-subject-output/v2` JSON on standard output. The host runner
 keeps the resulting capture and receipt only in memory. It pipes canonical
 capture JSON to separately isolated harness test and emit containers through
 standard input; the emit result returns through bounded standard output. No
@@ -263,7 +273,7 @@ argument. The runner requires every emitted identity and value to match the
 in-memory subject output. The harness can attach only a recognized exact-head
 producer-test reference; it cannot author or replace the invocation receipt or
 producer provenance. The host injects those fields, revalidates the canonical
-v2 document in memory, and atomically publishes it only after every container
+v3 document in memory, and atomically publishes it only after every container
 has exited and been removed. No later command or workflow step reloads a
 persisted capture as trusted input. The GitHub job record must contain the
 catalog-declared atomic producer and upload steps exactly once, both completed
@@ -307,9 +317,12 @@ Every tuple must also appear in `inventory_sources`, and the set must contain
 the current repository at `reviewed_head`. Cross-boundary evidence is mandatory
 when inventory spans repositories, any inventory source differs from the current
 repository, or any behavior/dimension moves to another repository; all named
-external owners and every exact external inventory repository/path/commit tuple
-must be represented. Multiple paths or revisions in one external repository
-cannot be collapsed to its repository name.
+external owners and every repository represented in inventory must have at
+least one exact canonical contract tuple in `cross_boundary.sources`. Inventory
+may also name legacy Python, test, configuration, or other non-JSON sources;
+those sources remain exact provenance but are not forced into digest
+equivalence. This separation allows a legacy implementation and a frozen JSON
+contract to coexist without pretending their bytes have the same meaning.
 Every source declares the same
 `sha256:<64 lowercase hex>` value as `common_sha256`. The gate fetches every
 file from the GitHub contents API at that exact commit and compares its computed
@@ -368,15 +381,17 @@ to call the organization reusable `.github/workflows/feature-regression-review.y
 from both
 `pull_request` and `merge_group` with `actions: read`, `contents: read`,
 `issues: read`, and `pull-requests: read`. Pin the reusable workflow and literal
-`policy-ref` to the same full organization-policy commit, which must equal the
-policy checkout's singular trusted `approved_revision`. Local, dynamic,
-branch, tag, unapproved, and mismatched calls are prohibited. Never use
-`pull_request_target`. After posting or replacing evidence, rerun the current
-head or merge-group gate; a comment intentionally
+`policy-ref` to the same full approved feature-implementation commit, which
+must equal the Organization Quality policy checkout's singular trusted
+`approved_revision`. This is not the Organization Quality policy checkout's
+own commit. Local, dynamic, branch, tag, unapproved, and mismatched calls are
+prohibited. Never use `pull_request_target`. After posting or replacing
+evidence, rerun the current head or merge-group gate; a comment intentionally
 does not start a privileged workflow.
 
-Use a caller shaped like this, replacing both occurrences of `POLICY_SHA` with
-the same reviewed 40-character organization-policy commit:
+Use a caller shaped like this, replacing both occurrences of
+`APPROVED_FEATURE_IMPLEMENTATION_SHA` with the same reviewed 40-character
+feature-implementation commit:
 
 ```yaml
 name: feature-regression-review
@@ -395,9 +410,9 @@ permissions:
 
 jobs:
   feature-regression-review:
-    uses: ElevenID/.github/.github/workflows/feature-regression-review.yml@POLICY_SHA
+    uses: ElevenID/.github/.github/workflows/feature-regression-review.yml@APPROVED_FEATURE_IMPLEMENTATION_SHA
     with:
-      policy-ref: POLICY_SHA
+      policy-ref: APPROVED_FEATURE_IMPLEMENTATION_SHA
 ```
 
 This is an exact caller schema, not a sketch. The filename must be
@@ -414,33 +429,79 @@ The protected context is exactly
 The policy repository cannot safely call an unmerged local or dynamic copy of
 its own gate during the bootstrap pull request.
 
-1. Land the reviewed policy, validator, tests, reusable review workflow, reusable
-   observation-producer workflow, standard-library observation runner, and
-   documents under the repository's existing protected checks. Do not add a
-   local self-call.
-2. In a separate policy-only follow-up commit, add the landed bootstrap commit's
-   exact SHA to `maintenance/feature-regression-approved-revisions.json`. Its
-   `approved_revision` is intentionally `null` and `enabled_repositories` is an
-   empty array in bootstrap; do not guess a SHA or enable a repository early.
-   Future policy activation atomically replaces the one approved SHA instead of
-   retaining older selectable revisions.
-3. In later pull requests, add the reserved caller above to this and downstream
-   repositories, replacing both placeholders with an approved policy commit.
-   The distinct caller and reusable filenames allow ElevenID/.github to host
-   both without self-reference or filename collision.
-   Before a repository submits any migration/deletion PR, land its exact central
-   producer caller plus v2 base behavior catalog, immutable harness, immutable
-   behavior subject, and base observation fixtures in
-   `.github/feature-regression/` in a separate protected change. The catalog
-   pins all of those producer details to the approved policy SHA.
+The deployable rollout deliberately has two different immutable pins:
+
+- `APPROVED_FEATURE_IMPLEMENTATION_SHA` is the merge commit containing this
+  v2/v3 repair. The Feature Regression reviewer, observation producer, their
+  `policy-ref` values, and each behavior catalog's `central_workflow_sha` use
+  this commit.
+- `QUALITY_POLICY_SHA` is the later activation commit whose singular
+  `approved_revision` equals `APPROVED_FEATURE_IMPLEMENTATION_SHA`.
+  Organization Quality uses this later commit and passes it as `policy-ref`.
+
+The historical activation commit
+`0ce5534d83c050166b706b93bed31d0e6c214ca8` still approves the legacy
+implementation `cdecf65ee23c9969f49f61e8d4a0946c95ab4bec`. That implementation
+does not accept the v2/v3 phase input and cannot produce an exact-base artifact.
+It must be rejected for a v2/v3 installation, not treated as a downgrade path.
+
+The maintained catalog, caller, and artifact examples use
+`eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` as an obvious fail-closed sentinel
+for the not-yet-known repair merge SHA. Never deploy that sentinel. After the
+repair and its separate activation merge, replace every sentinel and every
+`APPROVED_FEATURE_IMPLEMENTATION_SHA` placeholder with the singular approved
+repair SHA. Replace each `QUALITY_POLICY_SHA` with the later activation SHA.
+Do not collapse the two pins or substitute the quality-policy commit into a
+Feature Regression caller.
+
+1. Merge this reviewed repair while `enabled_repositories` remains empty and
+   the live catalog remains unchanged. This merge creates the immutable value
+   for `APPROVED_FEATURE_IMPLEMENTATION_SHA`.
+2. In a separate policy-only activation change, replace the catalog's one
+   `approved_revision` with the repair merge SHA. Keep `enabled_repositories`
+   empty. The activation merge becomes `QUALITY_POLICY_SHA`; never retain the
+   legacy and repaired revisions as parallel selectable options.
+3. In each target repository, first land its exact observation-producer caller
+   plus v3 base behavior catalog, immutable harness, and immutable behavior
+   subject in `.github/feature-regression/` as a separate protected change. Do
+   not check in a `before` observation fixture. The producer caller's `uses`
+   and `policy-ref`, and the catalog's `central_workflow_sha`, all use
+   `APPROVED_FEATURE_IMPLEMENTATION_SHA`.
+4. Let the merge's `push` run create the exact-main `before` artifact. The
+   weekly schedule and a manual dispatch on `main` refresh baseline artifacts,
+   which are retained for 90 days. If the exact PR base artifact has expired,
+   refresh only while that commit is still current `main`; otherwise update the
+   PR base and generate a new exact baseline. Never substitute a nearby run.
+5. In a later protected pull request, add the reserved review caller above and
+   update that repository's Organization Quality reusable workflow and its
+   `policy-ref` to `QUALITY_POLICY_SHA`. These two pin pairs must not be
+   collapsed into one value. The distinct caller and reusable filenames allow
+   ElevenID/.github to host both without self-reference or filename collision.
    A migration cannot claim coverage by introducing its catalog in the migration
    head; changed production paths without a catalog at `reviewed_base` fail.
-   Exercise `pull_request` and multi-entry `merge_group`. In a central policy
-   follow-up, add the repository name to `enabled_repositories`; from then on,
-   workflow policy fails if the reserved exact caller is deleted, omitted from
-   the scan, or replaced by a lookalike. The policy command requires the current
-   repository through `--repository` or `GITHUB_REPOSITORY` and fails closed if
-   it is absent. Then require the exact
+6. Exercise `pull_request`, baseline `push`/`schedule`/manual refresh, and
+   multi-entry `merge_group`.
+7. In a central policy follow-up, add the repository name to
+   `enabled_repositories`. Because Organization Quality checks out an immutable
+   policy commit, the target repository must then update its Organization
+   Quality `uses` and `policy-ref` to that later merged enablement commit. Until
+   that pin update lands, the target still reads the earlier empty activation
+   list; merely changing the central default branch does not activate
+   enforcement.
+   After the pin update, workflow policy fails if the reserved exact caller is
+   deleted, omitted from the scan, or replaced by a lookalike. The policy
+   command requires the current repository through `--repository` or
+   `GITHUB_REPOSITORY` and fails closed if it is absent.
+8. Require the exact
    `feature-regression-review / Feature Regression Review` context in branch
    protection. Finally prefer an organization ruleset-required workflow so a
    repository cannot remove or spoof its caller.
+
+Rust repositories require an additional prerequisite. The present producer
+intentionally provides a 30-second, 256 MiB, read-only `/workspace` and a small
+`noexec` temporary filesystem. That isolation cannot honestly compile and run a
+real Rust candidate probe, and a hard-coded Python or no-op subject is not an
+acceptable substitute. Do not add a Rust repository to `enabled_repositories`
+until a separately reviewed design supplies a bounded writable executable build
+tmpfs and a digest-pinned offline Rust runtime without weakening the existing
+network, credential, namespace, or provenance constraints.

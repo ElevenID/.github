@@ -41,9 +41,10 @@ BASE_TEST = (
 )
 ARTIFACT = "artifact:https://github.com/ElevenID/example/actions/runs/12345"
 CATALOG_PATH = ".github/feature-regression/behavior-catalog.json"
-BEFORE_PATH = ".github/feature-regression/base-observations.json"
 WORKFLOW_PATH = ".github/workflows/behavior-observations.yml"
-CENTRAL_WORKFLOW_SHA = "d" * 40
+QUALITY_POLICY_SHA = "0ce5534d83c050166b706b93bed31d0e6c214ca8"
+LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA = "cdecf65ee23c9969f49f61e8d4a0946c95ab4bec"
+FUTURE_APPROVED_REPAIR_SHA = "e" * 40
 HARNESS_PATH = ".github/feature-regression/observation_harness.py"
 HARNESS_BYTES = b"""import argparse
 import json
@@ -53,10 +54,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("command")
 parser.add_argument("--repository")
 parser.add_argument("--revision")
+parser.add_argument("--phase", choices=("before", "after"), required=True)
 args = parser.parse_args()
 capture = json.load(sys.stdin)
 if args.command == "test":
-    assert capture["schema"] == "elevenid.behavior-subject-capture/v1"
+    assert capture["schema"] == "elevenid.behavior-subject-capture/v2"
     by_dimension = {
         item["dimension"]: item["value"] for item in capture["observations"]
     }
@@ -76,6 +78,7 @@ if args.command == "test":
 observations = [
     {
         **observed,
+        "id": f"{observed['case_id']}.{observed['dimension']}.{args.phase}",
         "producer_test": (
             f"test:{args.repository}@{args.revision}:tests/test_api.py::"
             "test_approval_provider_failure"
@@ -84,10 +87,10 @@ observations = [
     for observed in capture["observations"]
 ]
 document = {
-    "schema": "elevenid.behavior-observations-runtime/v1",
+    "schema": "elevenid.behavior-observations-runtime/v2",
     "repository": args.repository,
     "revision": args.revision,
-    "phase": "after",
+    "phase": args.phase,
     "observations": observations,
 }
 sys.stdout.write(json.dumps(document, sort_keys=True, separators=(",", ":")))
@@ -101,24 +104,24 @@ from src.api import probe_behavior
 
 observed = probe_behavior()
 document = {
-    "schema": "elevenid.behavior-subject-output/v1",
+    "schema": "elevenid.behavior-subject-output/v2",
     "observations": [
         {
-            "id": "approval-provider-failure.public_status.after",
+            "id": "approval-provider-failure.public_status",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "public_status",
             "value": observed["public_status"],
         },
         {
-            "id": "approval-provider-failure.public_message.after",
+            "id": "approval-provider-failure.public_message",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "public_message",
             "value": observed["public_message"],
         },
         {
-            "id": "approval-provider-failure.safe_server_diagnostic.after",
+            "id": "approval-provider-failure.safe_server_diagnostic",
             "operation_id": "credential.approve",
             "case_id": "approval-provider-failure",
             "dimension": "safe_server_diagnostic",
@@ -141,6 +144,7 @@ PRODUCE_STEP_NAME = "Produce trusted runtime observations atomically"
 UPLOAD_STEP_NAME = "Upload runtime observations"
 ARTIFACT_NAME_PREFIX = "feature-regression-observations"
 ARTIFACT_NAME = f"{ARTIFACT_NAME_PREFIX}-12345-2"
+BEFORE_ARTIFACT_NAME = f"{ARTIFACT_NAME_PREFIX}-12344-1"
 OBSERVATION_MEMBER = "feature-regression-observations.json"
 OPERATION_ID = "credential.approve"
 CASE_ID = "approval-provider-failure"
@@ -150,9 +154,8 @@ DOC_FILES = [{"filename": "docs/reviewer-guide.md", "status": "modified"}]
 
 def observation_reference(phase: str, dimension: str) -> str:
     observation_id = f"{CASE_ID}.{dimension}.{phase}"
-    if phase == "before":
-        return f"observation:{REPOSITORY}@{BASE}:{BEFORE_PATH}#{observation_id}"
-    return f"artifact-observation:{REPOSITORY}@12345:{observation_id}"
+    run_id = 12344 if phase == "before" else 12345
+    return f"artifact-observation:{REPOSITORY}@{run_id}:{observation_id}"
 
 
 def snapshot(value: object, phase: str, dimension: str) -> dict[str, object]:
@@ -169,7 +172,7 @@ def comparison(value: object, dimension: str = "public_status") -> dict[str, obj
 
 def applicable_evidence() -> dict[str, object]:
     return {
-        "schema": "elevenid.feature-regression-review/v1",
+        "schema": "elevenid.feature-regression-review/v2",
         "repository": REPOSITORY,
         "reviewed_base": BASE,
         "reviewed_head": HEAD,
@@ -250,10 +253,10 @@ OBSERVATION_VALUES = {
 
 def subject_output_bytes() -> bytes:
     document = {
-        "schema": "elevenid.behavior-subject-output/v1",
+        "schema": "elevenid.behavior-subject-output/v2",
         "observations": [
             {
-                "id": f"{CASE_ID}.{dimension}.after",
+                "id": f"{CASE_ID}.{dimension}",
                 "operation_id": OPERATION_ID,
                 "case_id": CASE_ID,
                 "dimension": dimension,
@@ -273,6 +276,11 @@ def producer_workflow_bytes() -> bytes:
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -280,10 +288,11 @@ permissions:
 
 jobs:
   behavior-observations:
-    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@{CENTRAL_WORKFLOW_SHA}
+    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@{FUTURE_APPROVED_REPAIR_SHA}
     with:
-      policy-ref: {CENTRAL_WORKFLOW_SHA}
-      target-ref: ${{{{ github.event.pull_request.head.sha }}}}
+      policy-ref: {FUTURE_APPROVED_REPAIR_SHA}
+      target-ref: ${{{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}}}
+      phase: ${{{{ github.event_name == 'pull_request' && 'after' || 'before' }}}}
       workflow-path: {WORKFLOW_PATH}
       harness-path: {HARNESS_PATH}
       harness-sha256: {HARNESS_SHA256}
@@ -305,12 +314,12 @@ WORKFLOW_SHA256 = f"sha256:{hashlib.sha256(producer_workflow_bytes()).hexdigest(
 def catalog_bytes() -> bytes:
     return json.dumps(
         {
-            "schema": "elevenid.behavior-catalog/v2",
+            "schema": "elevenid.behavior-catalog/v3",
             "repository": REPOSITORY,
             "producer": {
                 "workflow_path": WORKFLOW_PATH,
                 "workflow_sha256": WORKFLOW_SHA256,
-                "central_workflow_sha": CENTRAL_WORKFLOW_SHA,
+                "central_workflow_sha": FUTURE_APPROVED_REPAIR_SHA,
                 "harness_path": HARNESS_PATH,
                 "harness_sha256": HARNESS_SHA256,
                 "subject_path": SUBJECT_PATH,
@@ -350,7 +359,7 @@ def observation_bytes(phase: str, overrides: dict[str, object] | None = None) ->
     values = {**OBSERVATION_VALUES, **(overrides or {})}
     commit = BASE if phase == "before" else HEAD
     document: dict[str, object] = {
-        "schema": "elevenid.behavior-observations/v2",
+        "schema": "elevenid.behavior-observations/v3",
         "repository": REPOSITORY,
         "revision": commit,
         "phase": phase,
@@ -362,64 +371,66 @@ def observation_bytes(phase: str, overrides: dict[str, object] | None = None) ->
                 "dimension": dimension,
                 "value": value,
                 "producer_test": BASE_TEST if phase == "before" else TEST,
-                **(
-                    {
-                        "producer_run": "artifact:https://github.com/ElevenID/example/actions/runs/12344"
-                    }
-                    if phase == "before"
-                    else {}
-                ),
             }
             for dimension, value in values.items()
         ],
     }
-    if phase == "after":
-        document["runtime_receipt"] = {
-            "runtime_image": RUNTIME_IMAGE,
-            "subject_path": SUBJECT_PATH,
-            "subject_sha256": SUBJECT_SHA256,
-            "runtime": SUBJECT_RUNTIME,
-            "arguments": SUBJECT_ARGS,
-            "environment": {
-                "LC_ALL": "C.UTF-8",
-                "PYTHONHASHSEED": "0",
-                "TZ": "UTC",
-            },
-            "exit_code": 0,
-            "stdout_sha256": (
-                f"sha256:{hashlib.sha256(subject_output_bytes()).hexdigest()}"
-            ),
-            "stderr_sha256": f"sha256:{hashlib.sha256(b'').hexdigest()}",
-        }
-        document["producer"] = {
-            "workflow_path": WORKFLOW_PATH,
-            "workflow_sha256": WORKFLOW_SHA256,
-            "central_workflow_sha": CENTRAL_WORKFLOW_SHA,
-            "harness_path": HARNESS_PATH,
-            "harness_sha256": HARNESS_SHA256,
-            "subject_path": SUBJECT_PATH,
-            "subject_sha256": SUBJECT_SHA256,
-            "subject_runtime": SUBJECT_RUNTIME,
-            "subject_args": SUBJECT_ARGS,
-            "subject_env": SUBJECT_ENV,
-            "runtime_image": RUNTIME_IMAGE,
-            "job_name": JOB_NAME,
-            "artifact_name": ARTIFACT_NAME,
-            "run_id": 12345,
-            "run_attempt": 2,
-            "head_sha": HEAD,
-        }
+    document["runtime_receipt"] = {
+        "runtime_image": RUNTIME_IMAGE,
+        "subject_path": SUBJECT_PATH,
+        "subject_sha256": SUBJECT_SHA256,
+        "runtime": SUBJECT_RUNTIME,
+        "arguments": SUBJECT_ARGS,
+        "environment": {
+            "LC_ALL": "C.UTF-8",
+            "PYTHONHASHSEED": "0",
+            "TZ": "UTC",
+        },
+        "exit_code": 0,
+        "stdout_sha256": (
+            f"sha256:{hashlib.sha256(subject_output_bytes()).hexdigest()}"
+        ),
+        "stderr_sha256": f"sha256:{hashlib.sha256(b'').hexdigest()}",
+    }
+    run_id = 12344 if phase == "before" else 12345
+    run_attempt = 1 if phase == "before" else 2
+    artifact_name = BEFORE_ARTIFACT_NAME if phase == "before" else ARTIFACT_NAME
+    event_name = "push" if phase == "before" else "pull_request"
+    head_branch = "main" if phase == "before" else "feature/probe"
+    document["producer"] = {
+        "workflow_path": WORKFLOW_PATH,
+        "workflow_sha256": WORKFLOW_SHA256,
+        "central_workflow_sha": FUTURE_APPROVED_REPAIR_SHA,
+        "harness_path": HARNESS_PATH,
+        "harness_sha256": HARNESS_SHA256,
+        "subject_path": SUBJECT_PATH,
+        "subject_sha256": SUBJECT_SHA256,
+        "subject_runtime": SUBJECT_RUNTIME,
+        "subject_args": SUBJECT_ARGS,
+        "subject_env": SUBJECT_ENV,
+        "runtime_image": RUNTIME_IMAGE,
+        "job_name": JOB_NAME,
+        "artifact_name": artifact_name,
+        "run_id": run_id,
+        "run_attempt": run_attempt,
+        "head_sha": commit,
+        "phase": phase,
+        "event_name": event_name,
+        "head_branch": head_branch,
+    }
     return json.dumps(
         document, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
 
 
-def artifact_zip(overrides: dict[str, object] | None = None) -> bytes:
+def artifact_zip(
+    phase: str = "after", overrides: dict[str, object] | None = None
+) -> bytes:
     output = io.BytesIO()
     info = zipfile.ZipInfo(OBSERVATION_MEMBER, date_time=(2020, 1, 1, 0, 0, 0))
     info.compress_type = zipfile.ZIP_STORED
     with zipfile.ZipFile(output, "w") as bundle:
-        bundle.writestr(info, observation_bytes("after", overrides))
+        bundle.writestr(info, observation_bytes(phase, overrides))
     return output.getvalue()
 
 
@@ -435,15 +446,17 @@ def artifact_document_zip(document: dict[str, object]) -> bytes:
     return output.getvalue()
 
 
-def artifact_metadata(archive: bytes) -> dict[str, object]:
+def artifact_metadata(archive: bytes, phase: str = "after") -> dict[str, object]:
+    run_id = 12344 if phase == "before" else 12345
+    commit = BASE if phase == "before" else HEAD
     return {
-        "id": 456,
-        "name": ARTIFACT_NAME,
+        "id": 455 if phase == "before" else 456,
+        "name": BEFORE_ARTIFACT_NAME if phase == "before" else ARTIFACT_NAME,
         "expired": False,
         "digest": f"sha256:{hashlib.sha256(archive).hexdigest()}",
         "workflow_run": {
-            "id": 12345,
-            "head_sha": HEAD,
+            "id": run_id,
+            "head_sha": commit,
             "repository_id": 99,
             "head_repository_id": 99,
         },
@@ -471,27 +484,68 @@ def default_fetch(repository: str, path: str, commit: str) -> bytes:
         return HARNESS_BYTES
     if repository == REPOSITORY and path == SUBJECT_PATH and commit in {BASE, HEAD}:
         return SUBJECT_BYTES
-    if (repository, path, commit) == (REPOSITORY, BEFORE_PATH, BASE):
-        return observation_bytes("before")
     raise AssertionError(f"unexpected fetch {repository}/{path}@{commit}")
 
 
-def artifact_with_after(overrides: dict[str, object]) -> dict[str, object]:
-    archive = artifact_zip(overrides)
+def artifact_with_after(
+    overrides: dict[str, object],
+    *,
+    before_overrides: dict[str, object] | None = None,
+) -> dict[str, object]:
+    archive = artifact_zip(overrides=overrides)
+    before_archive = artifact_zip("before", before_overrides)
 
     def fetch_artifacts(repository: str, run_id: int) -> list[dict[str, object]]:
-        if (repository, run_id) != (REPOSITORY, 12345):
+        if repository != REPOSITORY or run_id not in {12344, 12345}:
             raise AssertionError(f"unexpected artifacts {repository}/{run_id}")
-        return [artifact_metadata(archive)]
+        if run_id == 12344:
+            return [artifact_metadata(before_archive, "before")]
+        return [artifact_metadata(archive, "after")]
 
     def download(repository: str, artifact_id: int) -> bytes:
-        if (repository, artifact_id) != (REPOSITORY, 456):
+        if repository != REPOSITORY or artifact_id not in {455, 456}:
             raise AssertionError(
                 f"unexpected artifact download {repository}/{artifact_id}"
             )
-        return archive
+        return before_archive if artifact_id == 455 else archive
 
     return {"fetch_artifacts": fetch_artifacts, "download_artifact": download}
+
+
+def artifact_with_archive(
+    after_archive: bytes,
+    *,
+    after_metadata: dict[str, object] | None = None,
+    before_archive: bytes | None = None,
+) -> dict[str, object]:
+    before_archive = before_archive or artifact_zip("before")
+
+    def fetch_artifacts(repository: str, run_id: int) -> list[dict[str, object]]:
+        if repository != REPOSITORY or run_id not in {12344, 12345}:
+            raise AssertionError(f"unexpected artifacts {repository}/{run_id}")
+        if run_id == 12344:
+            return [artifact_metadata(before_archive, "before")]
+        return [after_metadata or artifact_metadata(after_archive)]
+
+    def download(repository: str, artifact_id: int) -> bytes:
+        if repository != REPOSITORY or artifact_id not in {455, 456}:
+            raise AssertionError(
+                f"unexpected artifact download {repository}/{artifact_id}"
+            )
+        return before_archive if artifact_id == 455 else after_archive
+
+    return {"fetch_artifacts": fetch_artifacts, "download_artifact": download}
+
+
+def jobs_with_after(after_jobs: list[dict[str, object]]):
+    def fetch_jobs(
+        repository: str, run_id: int, run_attempt: int
+    ) -> list[dict[str, object]]:
+        if run_id == 12344:
+            return successful_jobs(repository, run_id, run_attempt)
+        return after_jobs
+
+    return fetch_jobs
 
 
 def decision_bytes(
@@ -538,6 +592,8 @@ def successful_run(repository: str, run_id: int) -> dict[str, object]:
         "status": "completed",
         "conclusion": "success",
         "head_sha": BASE if run_id == 12344 else HEAD,
+        "event": "push" if run_id == 12344 else "pull_request",
+        "head_branch": "main" if run_id == 12344 else "feature/probe",
         "run_attempt": 1 if run_id == 12344 else 2,
         "path": f"{WORKFLOW_PATH}@refs/heads/main",
         "repository": {"id": 99, "full_name": REPOSITORY},
@@ -548,15 +604,20 @@ def successful_run(repository: str, run_id: int) -> dict[str, object]:
 def successful_jobs(
     repository: str, run_id: int, run_attempt: int
 ) -> list[dict[str, object]]:
-    if (repository, run_id, run_attempt) != (REPOSITORY, 12345, 2):
+    expected_attempt = 1 if run_id == 12344 else 2
+    if (
+        repository != REPOSITORY
+        or run_id not in {12344, 12345}
+        or run_attempt != expected_attempt
+    ):
         raise AssertionError(f"unexpected jobs {repository}/{run_id}/{run_attempt}")
     return [
         {
             "name": JOB_NAME,
             "status": "completed",
             "conclusion": "success",
-            "run_id": 12345,
-            "head_sha": HEAD,
+            "run_id": run_id,
+            "head_sha": BASE if run_id == 12344 else HEAD,
             "steps": [
                 {
                     "name": name,
@@ -570,16 +631,17 @@ def successful_jobs(
 
 
 def successful_artifacts(repository: str, run_id: int) -> list[dict[str, object]]:
-    if (repository, run_id) != (REPOSITORY, 12345):
+    if repository != REPOSITORY or run_id not in {12344, 12345}:
         raise AssertionError(f"unexpected artifacts {repository}/{run_id}")
-    archive = artifact_zip()
-    return [artifact_metadata(archive)]
+    phase = "before" if run_id == 12344 else "after"
+    archive = artifact_zip(phase)
+    return [artifact_metadata(archive, phase)]
 
 
 def successful_download(repository: str, artifact_id: int) -> bytes:
-    if (repository, artifact_id) != (REPOSITORY, 456):
+    if repository != REPOSITORY or artifact_id not in {455, 456}:
         raise AssertionError(f"unexpected artifact download {repository}/{artifact_id}")
-    return artifact_zip()
+    return artifact_zip("before" if artifact_id == 455 else "after")
 
 
 def comment(evidence: dict[str, object], author: str = "reviewer") -> dict[str, object]:
@@ -633,7 +695,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 repository=REPOSITORY,
                 current_base=BASE,
                 current_head=HEAD,
-                trusted_policy_ref=CENTRAL_WORKFLOW_SHA,
+                trusted_policy_ref=FUTURE_APPROVED_REPAIR_SHA,
                 comment_author="reviewer",
                 comment_author_association=association,
                 changed_files=files or PRODUCTION_FILES,
@@ -684,7 +746,36 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         ):
             self.assertIn(f"{pinned_pattern} text eol=lf", attributes.splitlines())
 
+        reviewer_documentation = (
+            repository_root / "maintenance" / "feature-regression-reviewer.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(QUALITY_POLICY_SHA, reviewer_documentation)
+        self.assertIn("QUALITY_POLICY_SHA", reviewer_documentation)
+        self.assertIn(
+            LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA, reviewer_documentation
+        )
+        self.assertIn("APPROVED_FEATURE_IMPLEMENTATION_SHA", reviewer_documentation)
+        self.assertIn(FUTURE_APPROVED_REPAIR_SHA, reviewer_documentation)
+        self.assertIn("does not accept the v2/v3 phase input", reviewer_documentation)
+        self.assertNotIn("`POLICY_SHA`", reviewer_documentation)
+        self.assertIn("retained for 90 days", reviewer_documentation)
+        self.assertIn(
+            "Do not add a Rust repository to `enabled_repositories`",
+            reviewer_documentation,
+        )
+
         maintenance = path.parent
+        activation = json.loads(
+            (maintenance / "feature-regression-approved-revisions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA,
+            activation["approved_revision"],
+        )
+        self.assertEqual([], activation["enabled_repositories"])
+        self.assertNotEqual(activation["approved_revision"], FUTURE_APPROVED_REPAIR_SHA)
         self.assertEqual(
             json.loads(catalog_bytes()),
             json.loads(
@@ -737,6 +828,27 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             .encode("utf-8")
         )
         self.assertEqual(observation_bytes("after"), artifact_example.rstrip(b"\n"))
+        before_artifact_example = (
+            (
+                maintenance
+                / "feature-regression-before-artifact-observations.example.json"
+            )
+            .read_text(encoding="utf-8")
+            .encode("utf-8")
+        )
+        self.assertEqual(
+            observation_bytes("before"), before_artifact_example.rstrip(b"\n")
+        )
+        self.assertFalse(
+            (maintenance / "feature-regression-observations.example.json").exists()
+        )
+        producer = (
+            repository_root
+            / ".github"
+            / "workflows"
+            / "feature-regression-observation-producer.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("retention-days: 90", producer)
         artifact_document = json.loads(artifact_example)
         self.assertEqual(
             f"sha256:{hashlib.sha256(subject_result.stdout).hexdigest()}",
@@ -805,7 +917,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             HARNESS_PATH,
             SUBJECT_PATH,
             WORKFLOW_PATH,
-            BEFORE_PATH,
+            ".github/feature-regression/base-observations.json",
             ".github/feature-regression/tests/test_harness.py",
             ".github/feature-regression/test_fixture.json",
         ):
@@ -923,6 +1035,144 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             f"test:{REPOSITORY}@{OLD}:tests/test_api.py::test_approval_provider_failure"
         )
         self.assert_invalid(evidence, "outside the permitted evidence phase")
+
+    def test_moved_test_mapping_allows_only_phase_authorized_exact_sources(
+        self,
+    ) -> None:
+        external = "ElevenID/consumer"
+        pre_commit = "1" * 40
+        post_commit = "2" * 40
+        pre_path = "tests/test_legacy.py"
+        post_path = "tests/test_replacement.py"
+        contract_path = "contracts/approval.json"
+        contract = b'{"operation":"credential.approve","status":502}'
+        digest = canonical_json_digest(contract)
+        evidence = applicable_evidence()
+        evidence["inventory_sources"] = [
+            {
+                "repository": REPOSITORY,
+                "path": contract_path,
+                "commit": HEAD,
+                "phase": "post_change",
+            },
+            {
+                "repository": external,
+                "path": contract_path,
+                "commit": post_commit,
+                "phase": "post_change",
+            },
+            {
+                "repository": external,
+                "path": pre_path,
+                "commit": pre_commit,
+                "phase": "pre_change",
+            },
+            {
+                "repository": external,
+                "path": post_path,
+                "commit": post_commit,
+                "phase": "post_change",
+            },
+        ]
+        evidence["cross_boundary"] = {
+            "applies": True,
+            "method": CANONICAL_JSON_METHOD,
+            "common_sha256": digest,
+            "sources": [
+                {
+                    "repository": REPOSITORY,
+                    "path": contract_path,
+                    "commit": HEAD,
+                    "sha256": digest,
+                },
+                {
+                    "repository": external,
+                    "path": contract_path,
+                    "commit": post_commit,
+                    "sha256": digest,
+                },
+            ],
+        }
+        dimension = evidence["operations"][0]["safe_server_diagnostic"]
+        dimension["disposition"] = "moved"
+        dimension["moved_owner"] = external
+        before_ref = f"test:{external}@{pre_commit}:{pre_path}::test_legacy_failure"
+        after_ref = (
+            f"test:{external}@{post_commit}:{post_path}::test_replacement_failure"
+        )
+        dimension["test_mapping"] = {"before": before_ref, "after": after_ref}
+        disposition = evidence["behavior_dispositions"][0]
+        disposition["disposition"] = "moved"
+        disposition["new_owner"] = external
+        disposition["test_mapping"] = {
+            "before": before_ref,
+            "after": after_ref,
+        }
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if (repository, path, commit) in {
+                (REPOSITORY, contract_path, HEAD),
+                (external, contract_path, post_commit),
+            }:
+                return contract
+            if (repository, path, commit) == (external, pre_path, pre_commit):
+                return b"def test_legacy_failure(): pass"
+            if (repository, path, commit) == (external, post_path, post_commit):
+                return b"def test_replacement_failure(): pass"
+            return default_fetch(repository, path, commit)
+
+        self.validate(evidence, fetch=fetch)
+        substitutions = (
+            ("before", after_ref),
+            ("after", before_ref),
+            (
+                "before",
+                f"test:ElevenID/other@{pre_commit}:{pre_path}::test_legacy_failure",
+            ),
+            (
+                "before",
+                f"test:{external}@{'3' * 40}:{pre_path}::test_legacy_failure",
+            ),
+            (
+                "before",
+                f"test:{external}@{pre_commit}:tests/test_other.py::test_legacy_failure",
+            ),
+        )
+        for phase, reference in substitutions:
+            with self.subTest(phase=phase, reference=reference):
+                candidate = copy.deepcopy(evidence)
+                candidate["operations"][0]["safe_server_diagnostic"]["test_mapping"][
+                    phase
+                ] = reference
+                self.assert_invalid(
+                    candidate,
+                    "outside the permitted evidence phase",
+                    fetch=fetch,
+                )
+
+        candidate = copy.deepcopy(evidence)
+        candidate["tests"] = [after_ref]
+        self.assert_invalid(
+            candidate, "outside the permitted evidence phase", fetch=fetch
+        )
+
+        candidate = copy.deepcopy(evidence)
+        candidate["behavior_dispositions"][0]["test_mapping"]["before"] = after_ref
+        self.assert_invalid(
+            candidate, "outside the permitted evidence phase", fetch=fetch
+        )
+
+        before_document = json.loads(observation_bytes("before"))
+        before_document["observations"][0]["producer_test"] = before_ref
+        self.assert_invalid(
+            evidence,
+            "outside the permitted evidence phase",
+            fetch=fetch,
+            **artifact_with_archive(
+                artifact_zip(),
+                before_archive=artifact_document_zip(before_document),
+            ),
+        )
 
     def test_changed_dimension_requires_authorized_intentional_decision(self) -> None:
         evidence = applicable_evidence()
@@ -1057,7 +1307,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
 
     def test_catalog_cannot_select_a_different_central_producer_revision(self) -> None:
         catalog = json.loads(catalog_bytes())
-        catalog["producer"]["central_workflow_sha"] = "e" * 40
+        catalog["producer"]["central_workflow_sha"] = "d" * 40
 
         def fetch(repository: str, path: str, commit: str) -> bytes:
             if (repository, path, commit) == (REPOSITORY, CATALOG_PATH, BASE):
@@ -1069,6 +1319,31 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             "central workflow SHA must match the trusted policy ref",
             fetch=fetch,
         )
+
+    def test_v3_catalog_rejects_the_legacy_approved_implementation(self) -> None:
+        with self.assertRaisesRegex(
+            EvidenceError, "central workflow SHA must match the trusted policy ref"
+        ):
+            validate_evidence(
+                applicable_evidence(),
+                repository=REPOSITORY,
+                current_base=BASE,
+                current_head=HEAD,
+                trusted_policy_ref=LEGACY_APPROVED_FEATURE_IMPLEMENTATION_SHA,
+                comment_author="reviewer",
+                comment_author_association="MEMBER",
+                changed_files=PRODUCTION_FILES,
+                fetch_content=default_fetch,
+                fetch_run=successful_run,
+                fetch_jobs=successful_jobs,
+                fetch_artifacts=successful_artifacts,
+                download_artifact=successful_download,
+                authority_resolver=lambda _login: {
+                    "permission": "maintain",
+                    "role_name": "maintain",
+                },
+                decision_fetcher=lambda _url: b"{}",
+            )
 
     def test_catalog_must_name_the_honest_atomic_producer_step(self) -> None:
         catalog = json.loads(catalog_bytes())
@@ -1100,12 +1375,58 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             fetch=fetch,
         )
 
+    def test_caller_triggers_and_phase_selection_are_immutable(self) -> None:
+        mutations = (
+            (
+                "  push:\n    branches: [main]\n",
+                "",
+            ),
+            (
+                '  schedule:\n    - cron: "17 6 * * 1"\n',
+                "",
+            ),
+            ("  workflow_dispatch:\n", ""),
+            (
+                "phase: ${{ github.event_name == 'pull_request' && 'after' || 'before' }}",
+                "phase: after",
+            ),
+        )
+        for original, replacement in mutations:
+            with self.subTest(original=original):
+                workflow = (
+                    producer_workflow_bytes()
+                    .decode()
+                    .replace(original, replacement)
+                    .encode()
+                )
+                catalog = json.loads(catalog_bytes())
+                catalog["producer"]["workflow_sha256"] = (
+                    f"sha256:{hashlib.sha256(workflow).hexdigest()}"
+                )
+
+                def fetch(repository: str, path: str, commit: str) -> bytes:
+                    if (repository, path, commit) == (
+                        REPOSITORY,
+                        CATALOG_PATH,
+                        BASE,
+                    ):
+                        return json.dumps(catalog).encode()
+                    if repository == REPOSITORY and path == WORKFLOW_PATH:
+                        return workflow
+                    return default_fetch(repository, path, commit)
+
+                self.assert_invalid(
+                    applicable_evidence(),
+                    "not the exact pinned central reusable caller",
+                    fetch=fetch,
+                )
+
     def test_observations_bind_phase_case_dimension_and_exact_value(self) -> None:
         evidence = applicable_evidence()
         evidence["operations"][0]["public_status"]["before"]["evidence"] = [
             observation_reference("after", "public_status")
         ]
-        self.assert_invalid(evidence, "immutable checked-in behavior observations")
+        self.assert_invalid(evidence, "exact reviewed_base commit")
 
         self.assert_invalid(
             applicable_evidence(),
@@ -1113,31 +1434,19 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             **artifact_with_after({"public_status": "HTTP 500"}),
         )
 
-    def test_before_evidence_cannot_use_an_inventory_pre_change_revision(self) -> None:
+    def test_before_artifact_cannot_use_an_inventory_pre_change_revision(self) -> None:
         evidence = applicable_evidence()
-        old_reference = (
-            f"observation:{REPOSITORY}@{OLD}:{BEFORE_PATH}#"
-            f"{CASE_ID}.public_status.before"
-        )
-        evidence["operations"][0]["public_status"]["before"]["evidence"] = [
-            old_reference
-        ]
 
-        def fetch(repository: str, path: str, commit: str) -> bytes:
-            if (repository, path, commit) == (REPOSITORY, BEFORE_PATH, OLD):
-                document = json.loads(observation_bytes("before"))
-                document["revision"] = OLD
-                document["observations"][0]["producer_test"] = (
-                    f"test:{REPOSITORY}@{OLD}:tests/test_api.py::"
-                    "test_approval_provider_failure"
-                )
-                return json.dumps(document).encode()
-            return default_fetch(repository, path, commit)
+        def wrong_base_run(repository: str, run_id: int) -> dict[str, object]:
+            run = successful_run(repository, run_id)
+            if run_id == 12344:
+                run["head_sha"] = OLD
+            return run
 
         self.assert_invalid(
             evidence,
-            "does not bind the permitted before phase",
-            fetch=fetch,
+            "exact reviewed_base commit",
+            fetch_run=wrong_base_run,
         )
 
     def test_noop_test_hand_authored_head_observation_and_unrelated_run_fail(
@@ -1166,7 +1475,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
 
         self.assert_invalid(
             evidence,
-            "must use downloaded artifact observations",
+            "strict test, artifact-observation",
             fetch=hand_authored,
             fetch_run=unrelated_run,
         )
@@ -1183,27 +1492,31 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(
             evidence,
             "producer job must be unique",
-            fetch_jobs=lambda *_: [
-                {
-                    "name": "unrelated",
-                    "status": "completed",
-                    "conclusion": "success",
-                    "run_attempt": 2,
-                }
-            ],
+            fetch_jobs=jobs_with_after(
+                [
+                    {
+                        "name": "unrelated",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "run_attempt": 2,
+                    }
+                ]
+            ),
         )
         self.assert_invalid(
             evidence,
             "producer job must succeed in this attempt",
-            fetch_jobs=lambda *_: [
-                {
-                    "name": JOB_NAME,
-                    "status": "completed",
-                    "conclusion": "success",
-                    "run_id": 999,
-                    "head_sha": HEAD,
-                }
-            ],
+            fetch_jobs=jobs_with_after(
+                [
+                    {
+                        "name": JOB_NAME,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "run_id": 999,
+                        "head_sha": HEAD,
+                    }
+                ]
+            ),
         )
         for missing_step in (PRODUCE_STEP_NAME, UPLOAD_STEP_NAME):
             with self.subTest(missing_step=missing_step):
@@ -1214,38 +1527,43 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 self.assert_invalid(
                     evidence,
                     "required producer step.*must be unique",
-                    fetch_jobs=lambda *_: [job],
+                    fetch_jobs=jobs_with_after([job]),
                 )
         self.assert_invalid(
             evidence,
             "artifact workflow_run must be an object",
-            fetch_artifacts=lambda *_: [
-                {
+            **artifact_with_archive(
+                artifact_zip(),
+                after_metadata={
                     "id": 456,
                     "name": ARTIFACT_NAME,
                     "expired": False,
                     "digest": "sha256:" + "0" * 64,
-                }
-            ],
+                },
+            ),
         )
         invalid_digest = artifact_metadata(artifact_zip())
         invalid_digest["digest"] = None
         self.assert_invalid(
             evidence,
             "artifact digest",
-            fetch_artifacts=lambda *_: [invalid_digest],
+            **artifact_with_archive(artifact_zip(), after_metadata=invalid_digest),
         )
         self.assert_invalid(
             evidence,
             "digest does not match",
-            download_artifact=lambda *_: artifact_zip() + b"tampered",
+            **artifact_with_archive(
+                artifact_zip() + b"tampered",
+                after_metadata=artifact_metadata(artifact_zip()),
+            ),
         )
         workflow_archive = artifact_zip()
         self.assert_invalid(
             evidence,
             "workflow_run id does not match",
-            fetch_artifacts=lambda *_: [
-                {
+            **artifact_with_archive(
+                workflow_archive,
+                after_metadata={
                     "id": 456,
                     "name": ARTIFACT_NAME,
                     "expired": False,
@@ -1258,8 +1576,8 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                         "repository_id": 99,
                         "head_repository_id": 99,
                     },
-                }
-            ],
+                },
+            ),
         )
         for field in ("head_sha", "repository_id", "head_repository_id"):
             with self.subTest(workflow_run_field=field):
@@ -1268,7 +1586,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 self.assert_invalid(
                     evidence,
                     f"workflow_run {'head' if field == 'head_sha' else field}",
-                    fetch_artifacts=lambda *_, value=metadata: [value],
+                    **artifact_with_archive(workflow_archive, after_metadata=metadata),
                 )
 
         output = io.BytesIO()
@@ -1278,8 +1596,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(
             evidence,
             "ZIP topology is unsafe",
-            fetch_artifacts=lambda *_: [artifact_metadata(unsafe)],
-            download_artifact=lambda *_: unsafe,
+            **artifact_with_archive(unsafe),
         )
 
         output = io.BytesIO()
@@ -1292,8 +1609,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(
             evidence,
             "ZIP topology is unsafe",
-            fetch_artifacts=lambda *_: [artifact_metadata(special_archive)],
-            download_artifact=lambda *_: special_archive,
+            **artifact_with_archive(special_archive),
         )
 
         document = json.loads(observation_bytes("after"))
@@ -1306,8 +1622,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(
             evidence,
             "observation JSON must be canonical",
-            fetch_artifacts=lambda *_: [artifact_metadata(archive)],
-            download_artifact=lambda *_: archive,
+            **artifact_with_archive(archive),
         )
 
     def test_after_artifact_binds_subject_provenance_and_runtime_receipt(self) -> None:
@@ -1328,11 +1643,51 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 self.assert_invalid(
                     evidence,
                     "artifact provenance does not match",
-                    fetch_artifacts=lambda *_, value=archive: [
-                        artifact_metadata(value)
-                    ],
-                    download_artifact=lambda *_, value=archive: value,
+                    **artifact_with_archive(archive),
                 )
+
+    def test_artifact_phase_event_branch_and_expiry_fail_closed(self) -> None:
+        evidence = applicable_evidence()
+
+        def altered_run(target_run: int, field: str, value: object):
+            def fetch(repository: str, run_id: int) -> dict[str, object]:
+                run = successful_run(repository, run_id)
+                if run_id == target_run:
+                    run[field] = value
+                return run
+
+            return fetch
+
+        cases = (
+            (12345, "event", "push", "after artifact must come from"),
+            (12344, "event", "pull_request", "before artifact must come from"),
+            (12344, "head_branch", "feature/x", "on main"),
+        )
+        for run_id, field, value, expected in cases:
+            with self.subTest(run_id=run_id, field=field):
+                self.assert_invalid(
+                    applicable_evidence(),
+                    expected,
+                    fetch_run=altered_run(run_id, field, value),
+                )
+
+        after_archive = artifact_zip()
+        expired = artifact_metadata(after_archive)
+        expired["expired"] = True
+        self.assert_invalid(
+            applicable_evidence(),
+            "artifact must be unexpired",
+            **artifact_with_archive(after_archive, after_metadata=expired),
+        )
+
+        wrong_phase = json.loads(observation_bytes("after"))
+        wrong_phase["phase"] = "before"
+        wrong_phase["producer"]["phase"] = "before"
+        self.assert_invalid(
+            applicable_evidence(),
+            "artifact provenance does not match|phase metadata does not match",
+            **artifact_with_archive(artifact_document_zip(wrong_phase)),
+        )
 
         receipt_mutations = (
             ("subject_path", ".github/feature-regression/other.py"),
@@ -1351,10 +1706,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 self.assert_invalid(
                     evidence,
                     "runtime receipt.*does not match|successful invocation",
-                    fetch_artifacts=lambda *_, value=archive: [
-                        artifact_metadata(value)
-                    ],
-                    download_artifact=lambda *_, value=archive: value,
+                    **artifact_with_archive(archive),
                 )
 
     def test_test_reference_requires_strict_utf8_and_existing_token(self) -> None:
@@ -1401,7 +1753,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                     "run_attempt": 2,
                     "path": WORKFLOW_PATH,
                 },
-                "bind reviewed_head",
+                "exact reviewed_head",
             ),
         )
         for run, expected in cases:
@@ -1521,15 +1873,12 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         evidence = applicable_evidence()
         evidence["operations"][0]["public_status"] = comparison("not_exposed")
 
-        def fetch(repository: str, path: str, commit: str) -> bytes:
-            if (repository, path, commit) == (REPOSITORY, BEFORE_PATH, BASE):
-                return observation_bytes("before", {"public_status": "not_exposed"})
-            return default_fetch(repository, path, commit)
-
         self.validate(
             evidence,
-            fetch=fetch,
-            **artifact_with_after({"public_status": "not_exposed"}),
+            **artifact_with_after(
+                {"public_status": "not_exposed"},
+                before_overrides={"public_status": "not_exposed"},
+            ),
         )
 
     def test_intentional_change_requires_actual_maintain_or_admin_permission(
@@ -1721,17 +2070,12 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             {"api_key": "not_exposed"}, "safe_server_diagnostic"
         )
 
-        def safe_fetch(repository: str, path: str, commit: str) -> bytes:
-            override = {"safe_server_diagnostic": {"api_key": "not_exposed"}}
-            if (repository, path, commit) == (REPOSITORY, BEFORE_PATH, BASE):
-                return observation_bytes("before", override)
-            return default_fetch(repository, path, commit)
-
+        override = {"safe_server_diagnostic": {"api_key": "not_exposed"}}
         self.validate(
             evidence,
-            fetch=safe_fetch,
             **artifact_with_after(
-                {"safe_server_diagnostic": {"api_key": "not_exposed"}}
+                override,
+                before_overrides=override,
             ),
         )
 
@@ -1957,11 +2301,13 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         }
         self.assert_invalid(
             evidence,
-            "sources omit external inventory tuples.*consumer-b",
+            "omit canonical contract sources for repositories.*consumer-b",
             fetch=lambda *_: content,
         )
 
-    def test_cross_boundary_requires_every_tuple_from_same_external_repo(self) -> None:
+    def test_cross_boundary_allows_legacy_inventory_beside_one_contract_source(
+        self,
+    ) -> None:
         content = b'{"status":502}'
         digest = canonical_json_digest(content)
         current = (REPOSITORY, "contract/api.json", HEAD)
@@ -1991,11 +2337,15 @@ class FeatureRegressionReviewTests(unittest.TestCase):
                 for item in (current, external_one)
             ],
         }
-        self.assert_invalid(
-            evidence,
-            "omit external inventory tuples.*errors.json",
-            fetch=lambda *_: content,
-        )
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if (repository, path, commit) == external_two:
+                return b"def legacy_python_test(): pass"
+            if (repository, path, commit) in {current, external_one}:
+                return content
+            return default_fetch(repository, path, commit)
+
+        self.validate(evidence, fetch=fetch)
 
     def test_cross_boundary_rejects_false_commit_tuple_like_827(self) -> None:
         content = b'{"status":502}'
@@ -2078,7 +2428,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             repository=REPOSITORY,
             current_base=BASE,
             current_head=HEAD,
-            trusted_policy_ref=CENTRAL_WORKFLOW_SHA,
+            trusted_policy_ref=FUTURE_APPROVED_REPAIR_SHA,
             changed_files=PRODUCTION_FILES,
             fetch_content=default_fetch,
             fetch_run=successful_run,
@@ -2102,7 +2452,7 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             repository=REPOSITORY,
             current_base=BASE,
             current_head=HEAD,
-            trusted_policy_ref=CENTRAL_WORKFLOW_SHA,
+            trusted_policy_ref=FUTURE_APPROVED_REPAIR_SHA,
             changed_files=PRODUCTION_FILES,
             fetch_content=default_fetch,
             fetch_run=successful_run,
@@ -2121,6 +2471,12 @@ class FeatureRegressionReviewTests(unittest.TestCase):
     def test_extract_rejects_invalid_marked_json(self) -> None:
         with self.assertRaisesRegex(EvidenceError, "evidence JSON is invalid"):
             extract_evidence(f"{MARKER}\n```json\n{{broken\n```")
+
+    def test_v1_marker_is_rejected_instead_of_downgraded(self) -> None:
+        old_marker = "<!-- elevenid-feature-regression-review:v1 -->"
+        payload = json.dumps(applicable_evidence())
+        with self.assertRaisesRegex(EvidenceError, "marker is missing"):
+            extract_evidence(f"{old_marker}\n```json\n{payload}\n```")
 
     def test_pull_request_event_uses_fetched_current_metadata(self) -> None:
         pull = {

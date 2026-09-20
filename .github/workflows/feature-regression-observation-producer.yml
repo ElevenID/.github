@@ -10,6 +10,9 @@ on:
       target-ref:
         type: string
         required: true
+      phase:
+        type: string
+        required: true
       workflow-path:
         type: string
         required: true
@@ -76,10 +79,13 @@ jobs:
         shell: bash
         env:
           ARTIFACT_NAME: ${{ format('{0}-{1}-{2}', inputs.artifact-name-prefix, github.run_id, github.run_attempt) }}
+          EVENT_NAME: ${{ github.event_name }}
           HARNESS_PATH: ${{ inputs.harness-path }}
           HARNESS_SHA256: ${{ inputs.harness-sha256 }}
+          HEAD_BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
           JOB_NAME: ${{ inputs.job-name }}
           OBSERVATION_PATH: ${{ inputs.observation-path }}
+          PHASE: ${{ inputs.phase }}
           POLICY_REF: ${{ inputs.policy-ref }}
           RUNTIME_IMAGE: ${{ inputs.runtime-image }}
           SUBJECT_ARGS_JSON: ${{ inputs.subject-args-json }}
@@ -98,6 +104,7 @@ jobs:
           --subject-env-json "$SUBJECT_ENV_JSON" --runtime-image "$RUNTIME_IMAGE"
           --output "$OBSERVATION_PATH"
           --repository "$TARGET_REPOSITORY" --revision "$TARGET_REF"
+          --phase "$PHASE" --event-name "$EVENT_NAME" --head-branch "$HEAD_BRANCH"
           --workflow-path "$WORKFLOW_PATH" --policy-ref "$POLICY_REF"
           --job-name "$JOB_NAME" --artifact-name "$ARTIFACT_NAME"
           --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
@@ -107,5 +114,5 @@ jobs:
           name: ${{ format('{0}-{1}-{2}', inputs.artifact-name-prefix, github.run_id, github.run_attempt) }}
           path: ${{ inputs.observation-path }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
           compression-level: 0

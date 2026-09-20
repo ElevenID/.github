@@ -10,6 +10,7 @@
     "pytest",
     "reclone",
     "setsid",
+    "tmpfs",
     "userinfo"
   ]
 }
