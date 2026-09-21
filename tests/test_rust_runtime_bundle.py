@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import yaml
+
 from scripts import rust_runtime_bundle as bundle
 
 
@@ -240,7 +242,12 @@ class RustRuntimeBundleTests(unittest.TestCase):
         self.assertIn("if: github.ref == 'refs/heads/main'", workflow)
         self.assertNotIn("pull_request", workflow)
         self.assertIn("timeout-minutes: 45", workflow)
-        self.assertIn("permissions:\n  contents: read\n  packages: write", workflow)
+        parsed_workflow = yaml.safe_load(workflow.replace("\non:\n", "\ntrigger:\n", 1))
+        self.assertEqual({"contents": "read"}, parsed_workflow["permissions"])
+        self.assertEqual(
+            {"contents": "read", "packages": "write"},
+            parsed_workflow["jobs"]["publish"]["permissions"],
+        )
         self.assertIn("--provenance=mode=max", workflow)
         self.assertIn("--metadata-file", workflow)
         self.assertIn("{{json .Provenance}}", workflow)
