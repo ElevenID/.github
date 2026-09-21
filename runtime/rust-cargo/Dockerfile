@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 FROM rust:1.95-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1 AS vendor
 
 ARG PROBE_MANIFEST_PATH
@@ -17,6 +16,24 @@ RUN test -n "$PROBE_MANIFEST_PATH" \
     && cp "$PROBE_LOCK_PATH" /opt/elevenid/Cargo.lock
 
 FROM rust:1.95-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1
+
+ARG PROBE_REPOSITORY
+ARG PROBE_REVISION
+ARG PROBE_MANIFEST_PATH
+ARG PROBE_MANIFEST_SHA256
+ARG PROBE_LOCK_PATH
+ARG PROBE_LOCK_SHA256
+ARG PROBE_SUBJECT_PATH
+ARG PROBE_SUBJECT_SHA256
+LABEL org.opencontainers.image.source="https://github.com/ElevenID/.github" \
+    io.elevenid.feature-regression.probe.repository="$PROBE_REPOSITORY" \
+    io.elevenid.feature-regression.probe.revision="$PROBE_REVISION" \
+    io.elevenid.feature-regression.probe.manifest="$PROBE_MANIFEST_PATH" \
+    io.elevenid.feature-regression.probe.manifest-sha256="$PROBE_MANIFEST_SHA256" \
+    io.elevenid.feature-regression.probe.lock="$PROBE_LOCK_PATH" \
+    io.elevenid.feature-regression.probe.lock-sha256="$PROBE_LOCK_SHA256" \
+    io.elevenid.feature-regression.probe.subject="$PROBE_SUBJECT_PATH" \
+    io.elevenid.feature-regression.probe.subject-sha256="$PROBE_SUBJECT_SHA256"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 \

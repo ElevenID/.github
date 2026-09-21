@@ -665,6 +665,23 @@ class ObservationRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(runner.RunnerError, "control the toolchain"):
                 runner._subject_spec(args)
 
+    def test_runner_paths_reject_controls_unicode_backslashes_and_oversize(
+        self,
+    ) -> None:
+        for value in (
+            "path/with\nnewline",
+            "path/with\rcarriage-return",
+            "path/with\ttab",
+            "path/with\0nul",
+            "path/with\x7fdelete",
+            "path/unicodé",
+            r"path\ambiguous",
+            "a" * 513,
+        ):
+            with self.subTest(value=repr(value)):
+                with self.assertRaisesRegex(runner.RunnerError, "safe repository"):
+                    runner._safe_path(value, "test path")
+
     def test_runtime_image_preflight_pulls_and_requires_requested_digest(self) -> None:
         docker = "/usr/bin/docker"
         with mock.patch.object(
@@ -712,6 +729,26 @@ class ObservationRunnerTests(unittest.TestCase):
         with mock.patch.object(runner, "_run_container", return_value=(content, b"")):
             with self.assertRaisesRegex(runner.RunnerError, "digest does not match"):
                 runner._runtime_manifest(args, bad)
+        for field, value in (
+            ("vendor_lock_sha256", "sha256:" + "7" * 64),
+            ("wrapper_sha256", "not-a-digest"),
+        ):
+            with self.subTest(field=field):
+                tampered_manifest = dict(manifest, **{field: value})
+                tampered_content = runner._canonical(tampered_manifest)
+                tampered_build = dict(
+                    build,
+                    runtime_manifest_sha256=(
+                        "sha256:" + hashlib.sha256(tampered_content).hexdigest()
+                    ),
+                )
+                with mock.patch.object(
+                    runner, "_run_container", return_value=(tampered_content, b"")
+                ):
+                    with self.assertRaisesRegex(
+                        runner.RunnerError, "manifest fields are invalid"
+                    ):
+                        runner._runtime_manifest(args, tampered_build)
 
     def test_unpinned_runtime_image_is_rejected_before_execution(self) -> None:
         self.assertEqual(1, self.produce(runtime_image="python:3.12-alpine"))

@@ -16,6 +16,7 @@ jobs:
   publish:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -27,15 +28,9 @@ jobs:
           BUNDLE_ID: ${{ inputs.bundle-id }}
         run: |
           set -euo pipefail
-          document="$(python scripts/rust_runtime_bundle.py "$BUNDLE_ID" --catalog runtime/rust-cargo/bundles.json)"
-          printf 'repository=%s\n' "$(jq -er .repository <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'revision=%s\n' "$(jq -er .revision <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'manifest_path=%s\n' "$(jq -er .manifest_path <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'manifest_sha256=%s\n' "$(jq -er .manifest_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'lock_path=%s\n' "$(jq -er .lock_path <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'lock_sha256=%s\n' "$(jq -er .lock_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'subject_path=%s\n' "$(jq -er .subject_path <<<"$document")" >> "$GITHUB_OUTPUT"
-          printf 'subject_sha256=%s\n' "$(jq -er .subject_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
+          python scripts/rust_runtime_bundle.py "$BUNDLE_ID" \
+            --catalog runtime/rust-cargo/bundles.json \
+            --github-output "$GITHUB_OUTPUT" >/dev/null
       - name: Check out exact probe source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -52,31 +47,117 @@ jobs:
           test "$(git -C .rust-runtime-target rev-parse HEAD)" = "$EXPECTED_REVISION"
           && python scripts/rust_runtime_bundle.py "$BUNDLE_ID"
           --catalog runtime/rust-cargo/bundles.json --target .rust-runtime-target
+      - name: Set up attested OCI builder
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build and publish content-addressed runtime
         id: publish
         shell: bash
         env:
-          BUNDLE_ID: ${{ inputs.bundle-id }}
+          BUNDLE_ID: ${{ steps.bundle.outputs.bundle_id }}
+          PROBE_REPOSITORY: ${{ steps.bundle.outputs.repository }}
+          PROBE_REVISION: ${{ steps.bundle.outputs.revision }}
           MANIFEST_PATH: ${{ steps.bundle.outputs.manifest_path }}
+          MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
           LOCK_PATH: ${{ steps.bundle.outputs.lock_path }}
+          LOCK_SHA256: ${{ steps.bundle.outputs.lock_sha256 }}
+          SUBJECT_PATH: ${{ steps.bundle.outputs.subject_path }}
+          SUBJECT_SHA256: ${{ steps.bundle.outputs.subject_sha256 }}
           GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/rust-runtime-publication"
+          auth_config="$(mktemp -d "$RUNNER_TEMP/rust-runtime-auth.XXXXXX")"
+          anonymous_config="$(mktemp -d "$RUNNER_TEMP/rust-runtime-anonymous.XXXXXX")"
           image="ghcr.io/elevenid/feature-regression-rust-cargo:${BUNDLE_ID}-${GITHUB_SHA}"
+          image_digest=""
+          cleanup() {
+            DOCKER_CONFIG="$auth_config" docker logout ghcr.io >/dev/null 2>&1 || true
+            if [[ -n "$image_digest" ]]; then
+              docker image rm --force "$image_digest" >/dev/null 2>&1 || true
+            fi
+            docker image rm --force "$image" >/dev/null 2>&1 || true
+            rm -rf -- "$auth_config" "$anonymous_config"
+          }
+          trap cleanup EXIT
+          mkdir -p "$artifact_dir"
+          export DOCKER_CONFIG="$auth_config"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
-          docker build --pull \
+          docker buildx build --pull --push --provenance=mode=max --sbom=true \
             --file runtime/rust-cargo/Dockerfile \
             --build-arg "PROBE_MANIFEST_PATH=$MANIFEST_PATH" \
             --build-arg "PROBE_LOCK_PATH=$LOCK_PATH" \
+            --build-arg "PROBE_REPOSITORY=$PROBE_REPOSITORY" \
+            --build-arg "PROBE_REVISION=$PROBE_REVISION" \
+            --build-arg "PROBE_MANIFEST_SHA256=$MANIFEST_SHA256" \
+            --build-arg "PROBE_LOCK_SHA256=$LOCK_SHA256" \
+            --build-arg "PROBE_SUBJECT_PATH=$SUBJECT_PATH" \
+            --build-arg "PROBE_SUBJECT_SHA256=$SUBJECT_SHA256" \
+            --metadata-file "$artifact_dir/build-metadata.json" \
             --tag "$image" .
-          docker push "$image"
-          docker pull "$image"
-          image_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+          digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
+            "$artifact_dir/build-metadata.json")"
+          image_digest="ghcr.io/elevenid/feature-regression-rust-cargo@${digest}"
+          docker buildx imagetools inspect "$image_digest" --raw \
+            > "$artifact_dir/image-index.json"
+          docker buildx imagetools inspect "$image_digest" --format '{{json .Provenance}}' \
+            > "$artifact_dir/provenance.json"
+          docker buildx imagetools inspect "$image_digest" --format '{{json .SBOM}}' \
+            > "$artifact_dir/sbom.json"
+          jq -e '.SLSA.buildType and (.SLSA.materials | length > 0)' \
+            "$artifact_dir/provenance.json" >/dev/null
+          jq -e '.SPDX.SPDXID == "SPDXRef-DOCUMENT"' \
+            "$artifact_dir/sbom.json" >/dev/null
+          docker pull "$image_digest"
           runtime_manifest="$(docker run --rm --pull=never --network=none --read-only \
-            --cap-drop=ALL --security-opt=no-new-privileges --user=65534:65534 \
+            --cap-drop=ALL --security-opt=no-new-privileges --ipc=none \
+            --pids-limit=32 --memory=64m --memory-swap=64m --cpus=.25 \
+            --user=65534:65534 \
             "$image_digest" /bin/cat /opt/elevenid/runtime-manifest.json)"
+          test "$runtime_manifest" = "$(jq -cS . <<<"$runtime_manifest")"
+          printf '%s' "$runtime_manifest" > "$artifact_dir/runtime-manifest.json"
           runtime_manifest_sha256="sha256:$(printf '%s' "$runtime_manifest" | sha256sum | cut -d' ' -f1)"
-          jq -cn \
+          DOCKER_CONFIG="$auth_config" docker logout ghcr.io
+          docker image rm --force "$image_digest" "$image" >/dev/null 2>&1 || true
+          export DOCKER_CONFIG="$anonymous_config"
+          if ! docker pull "$image_digest"; then
+            echo "::error::GHCR package must be public before Rust runtime activation; set package visibility to public and rerun this publisher"
+            exit 1
+          fi
+          docker image inspect --format '{{json .RepoDigests}}' "$image_digest" \
+            | jq -e --arg image "$image_digest" 'index($image) != null' >/dev/null
+          anonymous_manifest="$(docker run --rm --pull=never --network=none --read-only \
+            --cap-drop=ALL --security-opt=no-new-privileges --ipc=none \
+            --pids-limit=32 --memory=64m --memory-swap=64m --cpus=.25 \
+            --user=65534:65534 \
+            "$image_digest" /bin/cat /opt/elevenid/runtime-manifest.json)"
+          test "$anonymous_manifest" = "$runtime_manifest"
+          bundle="$(python scripts/rust_runtime_bundle.py "$BUNDLE_ID" \
+            --catalog runtime/rust-cargo/bundles.json)"
+          jq -cnS \
+            --argjson bundle "$bundle" \
             --arg image "$image_digest" \
             --arg runtime_manifest_sha256 "$runtime_manifest_sha256" \
-            '{image:$image,runtime_manifest_sha256:$runtime_manifest_sha256}'
+            --arg image_index_sha256 "sha256:$(sha256sum "$artifact_dir/image-index.json" | cut -d' ' -f1)" \
+            --arg provenance_sha256 "sha256:$(sha256sum "$artifact_dir/provenance.json" | cut -d' ' -f1)" \
+            --arg sbom_sha256 "sha256:$(sha256sum "$artifact_dir/sbom.json" | cut -d' ' -f1)" \
+            --arg publisher_revision "$GITHUB_SHA" \
+            '{bundle:$bundle,image:$image,image_index_sha256:$image_index_sha256,
+              provenance_sha256:$provenance_sha256,publisher_revision:$publisher_revision,
+              runtime_manifest_sha256:$runtime_manifest_sha256,
+              sbom_sha256:$sbom_sha256,schema:"elevenid.rust-cargo-publication/v1"}' \
+            > "$artifact_dir/publication.json"
+          printf 'image=%s\n' "$image_digest" >> "$GITHUB_OUTPUT"
+          printf 'runtime_manifest_sha256=%s\n' "$runtime_manifest_sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Verified public Rust runtime'
+            echo '```json'
+            cat "$artifact_dir/publication.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload runtime publication evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-runtime-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rust-runtime-publication
+          if-no-files-found: error
+          retention-days: 90

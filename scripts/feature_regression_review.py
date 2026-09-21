@@ -25,6 +25,7 @@ CANONICAL_JSON_METHOD = "elevenid-deterministic-json-v1"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 OCI_IMAGE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,254}@sha256:[0-9a-f]{64}$")
+SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.\-/]{1,512}$")
 APPROVED_RUST_RUNTIME_IMAGES: dict[str, str] = {}
 RUST_BUILD_FIELDS = {
     "profile",
@@ -477,13 +478,15 @@ def _repository(value: Any, path: str) -> str:
 
 
 def _relative_path(value: Any, path: str) -> str:
-    candidate = _text(value, path).replace("\\", "/")
+    if not isinstance(value, str) or not value:
+        raise EvidenceError(f"{path} must be a safe repository-relative path")
+    candidate = value
     parts = candidate.split("/")
     if (
-        candidate.startswith("/")
+        SAFE_RELATIVE_PATH.fullmatch(candidate) is None
+        or candidate.startswith("/")
         or not all(parts)
         or any(part in {".", ".."} for part in parts)
-        or not re.fullmatch(r"[A-Za-z0-9_.\-/]+", candidate)
     ):
         raise EvidenceError(f"{path} must be a safe repository-relative path")
     return candidate

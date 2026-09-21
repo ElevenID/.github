@@ -14,6 +14,18 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BUNDLE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.\-/]{1,512}$")
+GITHUB_OUTPUT_BINDINGS = (
+    ("bundle_id", "id"),
+    ("repository", "repository"),
+    ("revision", "revision"),
+    ("manifest_path", "manifest_path"),
+    ("manifest_sha256", "manifest_sha256"),
+    ("lock_path", "lock_path"),
+    ("lock_sha256", "lock_sha256"),
+    ("subject_path", "subject_path"),
+    ("subject_sha256", "subject_sha256"),
+)
 
 
 class BundleError(ValueError):
@@ -32,10 +44,15 @@ def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _relative(value: Any, label: str) -> str:
     if not isinstance(value, str):
         raise BundleError(f"{label} must be a string")
-    path = pathlib.PurePosixPath(value.replace("\\", "/"))
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise BundleError(f"{label} must be repository-relative")
-    return path.as_posix()
+    parts = value.split("/")
+    if (
+        SAFE_RELATIVE_PATH.fullmatch(value) is None
+        or value.startswith("/")
+        or not all(parts)
+        or any(part in {".", ".."} for part in parts)
+    ):
+        raise BundleError(f"{label} must be a safe repository-relative ASCII path")
+    return value
 
 
 def load_bundle(path: pathlib.Path, bundle_id: str) -> dict[str, str]:
@@ -135,16 +152,47 @@ def verify_target(root: pathlib.Path, bundle: dict[str, str]) -> None:
         raise BundleError("probe manifest binary path must identify the subject")
 
 
+def github_output_bytes(bundle: dict[str, str]) -> bytes:
+    if set(bundle) != {
+        "id",
+        "repository",
+        "revision",
+        "manifest_path",
+        "manifest_sha256",
+        "lock_path",
+        "lock_sha256",
+        "subject_path",
+        "subject_sha256",
+    }:
+        raise BundleError("bundle fields are invalid for GitHub output")
+    lines: list[str] = []
+    for output_name, bundle_name in GITHUB_OUTPUT_BINDINGS:
+        value = bundle[bundle_name]
+        if (
+            not isinstance(value, str)
+            or not value.isascii()
+            or not value
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        ):
+            raise BundleError(f"bundle {bundle_name} is unsafe for GitHub output")
+        lines.append(f"{output_name}={value}")
+    return ("\n".join(lines) + "\n").encode("ascii")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("bundle_id")
     parser.add_argument("--catalog", type=pathlib.Path, required=True)
     parser.add_argument("--target", type=pathlib.Path)
+    parser.add_argument("--github-output", type=pathlib.Path)
     args = parser.parse_args(argv)
     try:
         bundle = load_bundle(args.catalog, args.bundle_id)
         if args.target is not None:
             verify_target(args.target, bundle)
+        if args.github_output is not None:
+            with args.github_output.open("ab") as output:
+                output.write(github_output_bytes(bundle))
         sys.stdout.buffer.write(
             json.dumps(bundle, sort_keys=True, separators=(",", ":")).encode()
         )

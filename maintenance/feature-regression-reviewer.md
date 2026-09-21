@@ -544,14 +544,25 @@ catalog before completing all of these steps:
    repository and the Dockerfile fixes the base image by digest. Merge that
    review before publishing.
 3. Dispatch `publish-rust-probe-runtime.yml` on `main` for the bundle. Review the
-   workflow output, pull the reported image by digest, and independently inspect
-   `/opt/elevenid/runtime-manifest.json` and the image provenance. Record the
-   reported image and runtime-manifest digests; never use a mutable tag in a
-   behavior catalog.
-4. In a separate protected central-policy change, add exactly that image digest
+   workflow output. [GitHub documents that a newly created GHCR package is
+   private by default](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
+   and no documented `GITHUB_TOKEN` API can reliably change package visibility. The
+   first publication therefore intentionally fails its final anonymous-pull
+   proof. An organization package owner must set
+   `feature-regression-rust-cargo` to public in GitHub's package settings and
+   rerun the publisher. The rerun logs out, removes the local image, switches to
+   an isolated empty `DOCKER_CONFIG`, and must pull the exact digest without
+   credentials. A failed or private run emits no activation evidence.
+4. Download the successful run's `rust-runtime-publication-*` artifact. It binds
+   the reviewed bundle, publisher revision, image and runtime-manifest digests,
+   OCI-index digest, and the captured BuildKit max-mode provenance and SPDX SBOM
+   digests. Independently pull the reported image anonymously by digest, inspect
+   `/opt/elevenid/runtime-manifest.json`, and review the provenance and SBOM.
+   Never use a mutable tag in a behavior catalog.
+5. In a separate protected central-policy change, add exactly that image digest
    and runtime-manifest digest to both `APPROVED_RUST_RUNTIME_IMAGES` maps. This
    explicit dual allowlist is required by the producer and independent reviewer.
-5. Only after that activation merge, land the target repository's v4 catalog and
+6. Only after that activation merge, land the target repository's v4 catalog and
    exact producer caller pinned to the activated central commit, generate a real
    base observation, and exercise pull-request and merge-group review. Keep
    `enabled_repositories` empty until the ordinary activation rollout above is

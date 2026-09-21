@@ -1443,6 +1443,23 @@ class FeatureRegressionReviewTests(unittest.TestCase):
             fetch=fetch,
         )
 
+    def test_reviewer_paths_reject_controls_unicode_backslashes_and_oversize(
+        self,
+    ) -> None:
+        for value in (
+            "path/with\nnewline",
+            "path/with\rcarriage-return",
+            "path/with\ttab",
+            "path/with\0nul",
+            "path/with\x7fdelete",
+            "path/unicodé",
+            r"path\ambiguous",
+            "a" * 513,
+        ):
+            with self.subTest(value=repr(value)):
+                with self.assertRaisesRegex(EvidenceError, "safe repository"):
+                    review._relative_path(value, "test path")
+
     def test_rust_catalog_rejects_toolchain_environment_control(self) -> None:
         rust_catalog = json.loads(rust_catalog_bytes())
         rust_catalog["producer"]["subject_env"] = {"RUSTFLAGS": "--cfg=forged"}

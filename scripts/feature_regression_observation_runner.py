@@ -28,6 +28,7 @@ TEST_REFERENCE = re.compile(
     r"(?P<test>[A-Za-z0-9_.:/#\-\[\]]+)$"
 )
 OCI_IMAGE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,254}@sha256:[0-9a-f]{64}$")
+SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.\-/]{1,512}$")
 DIMENSIONS = {"public_status", "public_message", "safe_server_diagnostic"}
 FIXED_ENVIRONMENT = {"LC_ALL": "C.UTF-8", "PYTHONHASHSEED": "0", "TZ": "UTC"}
 RUST_FIXED_ENVIRONMENT = {
@@ -116,11 +117,15 @@ def _canonical(value: Any) -> bytes:
 
 
 def _safe_path(value: str, label: str) -> pathlib.Path:
-    candidate = pathlib.PurePosixPath(value.replace("\\", "/"))
-    if candidate.is_absolute() or any(
-        part in {"", ".", ".."} for part in candidate.parts
+    parts = value.split("/")
+    if (
+        SAFE_RELATIVE_PATH.fullmatch(value) is None
+        or value.startswith("/")
+        or not all(parts)
+        or any(part in {".", ".."} for part in parts)
     ):
         raise RunnerError(f"{label} must be a safe repository-relative path")
+    candidate = pathlib.PurePosixPath(value)
     root = pathlib.Path.cwd().resolve()
     lexical = root.joinpath(*candidate.parts)
     resolved = lexical.resolve()
