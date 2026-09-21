@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -lt 3 ]; then
+  echo "usage: run-rust-probe MANIFEST LOCK SUBJECT [ARG ...]" >&2
+  exit 64
+fi
+
+manifest=$1
+lock=$2
+subject=$3
+shift 3
+
+case "$manifest:$lock:$subject" in
+  /workspace/*:/workspace/*:/workspace/*) ;;
+  *) echo "probe inputs must be below /workspace" >&2; exit 64 ;;
+esac
+
+test "$(dirname "$manifest")/Cargo.lock" = "$lock"
+test -r "$manifest"
+test -r "$lock"
+test -r "$subject"
+mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR" "$HOME"
+cp /opt/elevenid/cargo-config.toml "$CARGO_HOME/config.toml"
+
+exec /usr/local/cargo/bin/cargo run \
+  --frozen \
+  --quiet \
+  --manifest-path "$manifest" \
+  --bin elevenid-feature-regression-probe \
+  -- "$@"

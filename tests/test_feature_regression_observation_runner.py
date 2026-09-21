@@ -29,6 +29,7 @@ RUNTIME_IMAGE = (
     "python:3.12-alpine@sha256:"
     "236173eb74001afe2f60862de935b74fcbd00adfca247b2c27051a70a6a39a2d"
 )
+RUST_RUNTIME_IMAGE = "ghcr.io/elevenid/feature-regression-rust-cargo@sha256:" + "9" * 64
 
 SUBJECT = textwrap.dedent(
     """
@@ -108,10 +109,18 @@ class ObservationRunnerTests(unittest.TestCase):
             runner, "_run_container", side_effect=self.run_fake_container
         )
         self.container_mock = self.container_patch.start()
+        self.prepare_runtime_image = runner._prepare_runtime_image
+        self.image_patch = mock.patch.object(
+            runner,
+            "_prepare_runtime_image",
+            side_effect=lambda _docker, image: image.rsplit("@", 1)[1],
+        )
+        self.image_patch.start()
 
     def tearDown(self) -> None:
         if self.container_patch is not None:
             self.container_patch.stop()
+        self.image_patch.stop()
         os.chdir(self.previous_cwd)
         self.temporary.cleanup()
 
@@ -183,6 +192,9 @@ class ObservationRunnerTests(unittest.TestCase):
         phase: str = "after",
         event_name: str = "pull_request",
         head_branch: str = "feature/probe",
+        subject_runtime: str = "python",
+        rust_build_json: str = "null",
+        subject_sha256: str | None = None,
     ) -> list[str]:
         return [
             "--harness-path",
@@ -192,15 +204,17 @@ class ObservationRunnerTests(unittest.TestCase):
             "--subject-path",
             subject_path,
             "--subject-sha256",
-            self.subject_digest,
+            subject_sha256 or self.subject_digest,
             "--subject-runtime",
-            "python",
+            subject_runtime,
             "--subject-args-json",
             "[]",
             "--subject-env-json",
             "{}",
             "--runtime-image",
             runtime_image,
+            "--rust-build-json",
+            rust_build_json,
             "--output",
             OUTPUT_PATH,
             "--repository",
@@ -506,15 +520,19 @@ class ObservationRunnerTests(unittest.TestCase):
         for required in (
             "--rm",
             "--interactive",
-            "--pull=missing",
+            "--pull=never",
             "--init",
             "--network=none",
             "--read-only",
             "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
+            "--ipc=none",
+            "--ulimit=nofile=256:256",
+            "--ulimit=core=0:0",
             "--pids-limit=64",
             "--memory=256m",
+            "--memory-swap=256m",
             "--cpus=1",
             "--user=65534:65534",
             "--workdir=/workspace",
@@ -528,6 +546,172 @@ class ObservationRunnerTests(unittest.TestCase):
         self.assertNotIn("subject-capture", serialized)
         self.assertNotIn("harness-output", serialized)
         self.assertNotIn("--pid=host", command)
+
+    def rust_fixture(
+        self,
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path, dict[str, str]]:
+        directory = self.root / ".github" / "feature-regression" / "rust-probe"
+        directory.mkdir(parents=True, exist_ok=True)
+        subject = directory / "behavior_subject.rs"
+        subject.write_text("fn main() {}\n", encoding="utf-8")
+        manifest = directory / "Cargo.toml"
+        manifest.write_text(
+            "[package]\nname='probe'\nversion='0.0.0'\nedition='2021'\n"
+            "publish=false\n\n[[bin]]\n"
+            "name='elevenid-feature-regression-probe'\n"
+            "path='behavior_subject.rs'\n",
+            encoding="utf-8",
+        )
+        lock = directory / "Cargo.lock"
+        lock.write_text("version = 3\n", encoding="utf-8")
+        manifest_digest = self.digest(manifest)
+        lock_digest = self.digest(lock)
+        runtime_manifest = {
+            "cargo_version": "cargo 1.95.0",
+            "profile": "rust-cargo-v1",
+            "python_version": "Python 3.12.10",
+            "rustc_version": "rustc 1.95.0 (reviewed)",
+            "schema": "elevenid.rust-cargo-runtime/v1",
+            "vendor_lock_sha256": lock_digest,
+            "wrapper_sha256": "sha256:" + "8" * 64,
+        }
+        runtime_bytes = runner._canonical(runtime_manifest)
+        build = {
+            "lock_path": lock.relative_to(self.root).as_posix(),
+            "lock_sha256": lock_digest,
+            "manifest_path": manifest.relative_to(self.root).as_posix(),
+            "manifest_sha256": manifest_digest,
+            "profile": "rust-cargo-v1",
+            "runtime_manifest_sha256": (
+                "sha256:" + hashlib.sha256(runtime_bytes).hexdigest()
+            ),
+        }
+        return subject, manifest, lock, build
+
+    def test_rust_profile_has_only_bounded_executable_build_storage(self) -> None:
+        command = runner._container_command(
+            docker="/usr/bin/docker",
+            image=RUST_RUNTIME_IMAGE,
+            name="elevenid-feature-review-rust",
+            workload=["/opt/elevenid/bin/run-rust-probe"],
+            environment=runner.RUST_FIXED_ENVIRONMENT,
+            profile="rust-cargo-v1",
+        )
+        for required in (
+            "--pull=never",
+            "--network=none",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--ipc=none",
+            "--pids-limit=128",
+            "--memory=4g",
+            "--memory-swap=4g",
+            "--cpus=2",
+            "--tmpfs=/build:rw,exec,nosuid,nodev,size=2g,mode=0700,uid=65534,gid=65534",
+            "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m",
+            "--user=65534:65534",
+        ):
+            self.assertIn(required, command)
+        self.assertNotIn("/var/run/docker.sock", " ".join(command))
+
+    def test_rust_build_is_fail_closed_until_exact_image_is_activated(self) -> None:
+        subject, _, _, build = self.rust_fixture()
+        args = mock.Mock(
+            subject_runtime="rust-cargo",
+            rust_build_json=json.dumps(build),
+            runtime_image=RUST_RUNTIME_IMAGE,
+            subject_path=subject.relative_to(self.root).as_posix(),
+        )
+        with self.assertRaisesRegex(runner.RunnerError, "not activated"):
+            runner._rust_build(args)
+        with mock.patch.dict(
+            runner.APPROVED_RUST_RUNTIME_IMAGES,
+            {RUST_RUNTIME_IMAGE: build["runtime_manifest_sha256"]},
+        ):
+            self.assertEqual(build, runner._rust_build(args))
+
+    def test_rust_build_rejects_lexical_escape_wrong_binary_and_toolchain_env(
+        self,
+    ) -> None:
+        subject, manifest, _, build = self.rust_fixture()
+        args = mock.Mock(
+            subject_runtime="rust-cargo",
+            rust_build_json=json.dumps(build),
+            runtime_image=RUST_RUNTIME_IMAGE,
+            subject_path=subject.relative_to(self.root).as_posix(),
+            subject_args_json="[]",
+            subject_env_json='{"RUSTC_WRAPPER":"/workspace/fake"}',
+        )
+        with mock.patch.dict(
+            runner.APPROVED_RUST_RUNTIME_IMAGES,
+            {RUST_RUNTIME_IMAGE: build["runtime_manifest_sha256"]},
+        ):
+            escaped = dict(build, manifest_path="../Cargo.toml")
+            args.rust_build_json = json.dumps(escaped)
+            with self.assertRaisesRegex(runner.RunnerError, "safe repository-relative"):
+                runner._rust_build(args)
+            args.rust_build_json = json.dumps(build)
+            manifest.write_text(
+                manifest.read_text(encoding="utf-8").replace(
+                    "behavior_subject.rs", "other.rs"
+                ),
+                encoding="utf-8",
+            )
+            build["manifest_sha256"] = self.digest(manifest)
+            args.rust_build_json = json.dumps(build)
+            with self.assertRaisesRegex(runner.RunnerError, "identify the subject"):
+                runner._rust_build(args)
+            with self.assertRaisesRegex(runner.RunnerError, "control the toolchain"):
+                runner._subject_spec(args)
+
+    def test_runtime_image_preflight_pulls_and_requires_requested_digest(self) -> None:
+        docker = "/usr/bin/docker"
+        with mock.patch.object(
+            runner,
+            "_run_process",
+            side_effect=[
+                (b"pulled", b""),
+                (json.dumps([RUST_RUNTIME_IMAGE]).encode(), b""),
+            ],
+        ) as run:
+            self.assertEqual(
+                RUST_RUNTIME_IMAGE.rsplit("@", 1)[1],
+                self.prepare_runtime_image(docker, RUST_RUNTIME_IMAGE),
+            )
+        self.assertEqual(
+            [docker, "pull", RUST_RUNTIME_IMAGE], run.call_args_list[0].args[0]
+        )
+        with mock.patch.object(
+            runner,
+            "_run_process",
+            side_effect=[
+                (b"", b""),
+                (b'["example.invalid/x@sha256:' + b"0" * 64 + b'"]', b""),
+            ],
+        ):
+            with self.assertRaisesRegex(runner.RunnerError, "does not match"):
+                self.prepare_runtime_image(docker, RUST_RUNTIME_IMAGE)
+
+    def test_runtime_manifest_binds_toolchain_wrapper_and_probe_lock(self) -> None:
+        _, _, lock, build = self.rust_fixture()
+        manifest = {
+            "cargo_version": "cargo 1.95.0",
+            "profile": "rust-cargo-v1",
+            "python_version": "Python 3.12.10",
+            "rustc_version": "rustc 1.95.0 (reviewed)",
+            "schema": "elevenid.rust-cargo-runtime/v1",
+            "vendor_lock_sha256": self.digest(lock),
+            "wrapper_sha256": "sha256:" + "8" * 64,
+        }
+        content = runner._canonical(manifest)
+        args = mock.Mock(subject_runtime="rust-cargo", runtime_image=RUST_RUNTIME_IMAGE)
+        with mock.patch.object(runner, "_run_container", return_value=(content, b"")):
+            self.assertEqual(manifest, runner._runtime_manifest(args, build))
+        bad = dict(build, runtime_manifest_sha256="sha256:" + "0" * 64)
+        with mock.patch.object(runner, "_run_container", return_value=(content, b"")):
+            with self.assertRaisesRegex(runner.RunnerError, "digest does not match"):
+                runner._runtime_manifest(args, bad)
 
     def test_unpinned_runtime_image_is_rejected_before_execution(self) -> None:
         self.assertEqual(1, self.produce(runtime_image="python:3.12-alpine"))

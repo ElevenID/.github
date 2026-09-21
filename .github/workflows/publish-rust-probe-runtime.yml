@@ -1,0 +1,82 @@
+name: Publish Rust probe runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle-id:
+        description: Reviewed entry in runtime/rust-cargo/bundles.json
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - name: Resolve reviewed runtime bundle
+        id: bundle
+        shell: bash
+        env:
+          BUNDLE_ID: ${{ inputs.bundle-id }}
+        run: |
+          set -euo pipefail
+          document="$(python scripts/rust_runtime_bundle.py "$BUNDLE_ID" --catalog runtime/rust-cargo/bundles.json)"
+          printf 'repository=%s\n' "$(jq -er .repository <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'revision=%s\n' "$(jq -er .revision <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'manifest_path=%s\n' "$(jq -er .manifest_path <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'manifest_sha256=%s\n' "$(jq -er .manifest_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'lock_path=%s\n' "$(jq -er .lock_path <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'lock_sha256=%s\n' "$(jq -er .lock_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'subject_path=%s\n' "$(jq -er .subject_path <<<"$document")" >> "$GITHUB_OUTPUT"
+          printf 'subject_sha256=%s\n' "$(jq -er .subject_sha256 <<<"$document")" >> "$GITHUB_OUTPUT"
+      - name: Check out exact probe source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: ${{ steps.bundle.outputs.repository }}
+          ref: ${{ steps.bundle.outputs.revision }}
+          path: .rust-runtime-target
+          persist-credentials: false
+      - name: Verify reviewed probe inputs
+        shell: bash
+        env:
+          BUNDLE_ID: ${{ inputs.bundle-id }}
+          EXPECTED_REVISION: ${{ steps.bundle.outputs.revision }}
+        run: >-
+          test "$(git -C .rust-runtime-target rev-parse HEAD)" = "$EXPECTED_REVISION"
+          && python scripts/rust_runtime_bundle.py "$BUNDLE_ID"
+          --catalog runtime/rust-cargo/bundles.json --target .rust-runtime-target
+      - name: Build and publish content-addressed runtime
+        id: publish
+        shell: bash
+        env:
+          BUNDLE_ID: ${{ inputs.bundle-id }}
+          MANIFEST_PATH: ${{ steps.bundle.outputs.manifest_path }}
+          LOCK_PATH: ${{ steps.bundle.outputs.lock_path }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/elevenid/feature-regression-rust-cargo:${BUNDLE_ID}-${GITHUB_SHA}"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker build --pull \
+            --file runtime/rust-cargo/Dockerfile \
+            --build-arg "PROBE_MANIFEST_PATH=$MANIFEST_PATH" \
+            --build-arg "PROBE_LOCK_PATH=$LOCK_PATH" \
+            --tag "$image" .
+          docker push "$image"
+          docker pull "$image"
+          image_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+          runtime_manifest="$(docker run --rm --pull=never --network=none --read-only \
+            --cap-drop=ALL --security-opt=no-new-privileges --user=65534:65534 \
+            "$image_digest" /bin/cat /opt/elevenid/runtime-manifest.json)"
+          runtime_manifest_sha256="sha256:$(printf '%s' "$runtime_manifest" | sha256sum | cut -d' ' -f1)"
+          jq -cn \
+            --arg image "$image_digest" \
+            --arg runtime_manifest_sha256 "$runtime_manifest_sha256" \
+            '{image:$image,runtime_manifest_sha256:$runtime_manifest_sha256}'

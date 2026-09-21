@@ -40,6 +40,10 @@ on:
       runtime-image:
         type: string
         required: true
+      rust-build-json:
+        type: string
+        required: false
+        default: "null"
       job-name:
         type: string
         required: true
@@ -88,6 +92,7 @@ jobs:
           PHASE: ${{ inputs.phase }}
           POLICY_REF: ${{ inputs.policy-ref }}
           RUNTIME_IMAGE: ${{ inputs.runtime-image }}
+          RUST_BUILD_JSON: ${{ inputs.rust-build-json }}
           SUBJECT_ARGS_JSON: ${{ inputs.subject-args-json }}
           SUBJECT_ENV_JSON: ${{ inputs.subject-env-json }}
           SUBJECT_PATH: ${{ inputs.subject-path }}
@@ -102,6 +107,7 @@ jobs:
           --subject-path "$SUBJECT_PATH" --subject-sha256 "$SUBJECT_SHA256"
           --subject-runtime "$SUBJECT_RUNTIME" --subject-args-json "$SUBJECT_ARGS_JSON"
           --subject-env-json "$SUBJECT_ENV_JSON" --runtime-image "$RUNTIME_IMAGE"
+          --rust-build-json "$RUST_BUILD_JSON"
           --output "$OBSERVATION_PATH"
           --repository "$TARGET_REPOSITORY" --revision "$TARGET_REF"
           --phase "$PHASE" --event-name "$EVENT_NAME" --head-branch "$HEAD_BRANCH"

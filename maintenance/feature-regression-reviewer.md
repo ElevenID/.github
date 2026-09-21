@@ -251,7 +251,9 @@ credentials and checks out its standard-library runner from that policy commit.
 The runner verifies that the pinned harness and subject are regular,
 non-symlink files with the catalog digests. One trusted host process performs
 the entire operation. Subject and harness code run only in the catalog-pinned
-OCI image through `docker run --rm --pull=missing`, never as host children. Each
+OCI image through `docker run --rm --pull=never`, never as host children. Before
+execution, the host performs a bounded pull of the exact catalog digest and
+requires Docker's inspected `RepoDigests` to contain that same digest. Each
 container has a private PID namespace, no network, an unprivileged user, a
 read-only root filesystem, a bounded `noexec,nosuid,nodev` `/tmp`, all
 capabilities dropped, `no-new-privileges`, and fixed PID, memory, and CPU limits.
@@ -501,11 +503,63 @@ Feature Regression caller.
    protection. Finally prefer an organization ruleset-required workflow so a
    repository cannot remove or spoof its caller.
 
-Rust repositories require an additional prerequisite. The present producer
-intentionally provides a 30-second, 256 MiB, read-only `/workspace` and a small
-`noexec` temporary filesystem. That isolation cannot honestly compile and run a
-real Rust candidate probe, and a hard-coded Python or no-op subject is not an
-acceptable substitute. Do not add a Rust repository to `enabled_repositories`
-until a separately reviewed design supplies a bounded writable executable build
-tmpfs and a digest-pinned offline Rust runtime without weakening the existing
-network, credential, namespace, or provenance constraints.
+Rust repositories use the `elevenid.behavior-catalog/v4` and `rust-cargo-v1`
+profile. The profile is deliberately fixed rather than caller-configurable.
+Do not add a Rust repository to `enabled_repositories` until the runtime image
+has completed the publish and activation sequence below. A
+catalog binds the reserved `Cargo.toml`, its sibling `Cargo.lock`, their raw
+byte digests, the behavior subject, the runtime image digest, and the canonical
+runtime-manifest digest. The manifest must declare exactly one `[[bin]]` named
+`elevenid-feature-regression-probe`, and that binary path must be the declared
+subject. Manifest, lock, and subject must be regular non-symlink files, remain
+byte-identical across base and head, and still match after execution. Rust
+toolchain, loader, home, path, and temporary-directory environment controls are
+reserved to the central profile.
+
+The Rust container retains the standard read-only source mount, read-only root
+filesystem, unprivileged UID/GID, empty capabilities, `no-new-privileges`, no
+network, private PID/IPC namespaces, and forced cleanup. It adds only a bounded
+2 GiB executable `nosuid,nodev` `/build` tmpfs and fixed 4 GiB memory/swap,
+2-CPU, 128-PID, and 600-second ceilings. The image contains the exact Rust
+toolchain, a vendored dependency cache tied to the reviewed lockfile, and the
+fixed `/opt/elevenid/bin/run-rust-probe` wrapper. The wrapper copies only its
+trusted offline Cargo configuration to `/build`, then invokes Cargo with
+`--frozen --quiet`, the fixed manifest, and the fixed binary name. It never
+downloads dependencies and never executes a compiler or candidate directly on
+the host. The receipt records the requested and resolved image digests, all Rust
+build inputs, and the exact canonical runtime manifest (tool versions, vendor
+lock digest, and wrapper digest); the reviewer recomputes and checks every
+binding.
+
+Rust remains double fail-closed until a real reviewed runtime is published.
+`runtime/rust-cargo/bundles.json` initially contains no bundle and both central
+runtime-image allowlists are empty. Do not invent a digest and do not activate a
+catalog before completing all of these steps:
+
+1. At an immutable target-repository commit, add the reserved Rust subject,
+   `Cargo.toml`, and sibling `Cargo.lock`; review that the subject calls the real
+   candidate behavior and does not hard-code expected output.
+2. Add a bundle entry containing that exact repository and commit plus the three
+   safe paths and raw-byte digests. The reviewed publisher fixes the GHCR
+   repository and the Dockerfile fixes the base image by digest. Merge that
+   review before publishing.
+3. Dispatch `publish-rust-probe-runtime.yml` on `main` for the bundle. Review the
+   workflow output, pull the reported image by digest, and independently inspect
+   `/opt/elevenid/runtime-manifest.json` and the image provenance. Record the
+   reported image and runtime-manifest digests; never use a mutable tag in a
+   behavior catalog.
+4. In a separate protected central-policy change, add exactly that image digest
+   and runtime-manifest digest to both `APPROVED_RUST_RUNTIME_IMAGES` maps. This
+   explicit dual allowlist is required by the producer and independent reviewer.
+5. Only after that activation merge, land the target repository's v4 catalog and
+   exact producer caller pinned to the activated central commit, generate a real
+   base observation, and exercise pull-request and merge-group review. Keep
+   `enabled_repositories` empty until the ordinary activation rollout above is
+   complete.
+
+A separately precompiled candidate artifact is not the smaller trust boundary:
+it would require an additional privileged build workflow, artifact-retention
+and identity binding, download verification, and executable provenance contract
+for every reviewed head. Compiling the tiny probe from immutable source with a
+lock-bound, digest-pinned offline cache keeps source review and execution in one
+receipt while preserving OCI isolation.

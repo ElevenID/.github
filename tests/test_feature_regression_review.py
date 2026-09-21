@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
 
+from scripts import feature_regression_review as review  # noqa: E402
 from scripts.feature_regression_review import (  # noqa: E402
     CANONICAL_JSON_METHOD,
     MARKER,
@@ -354,6 +355,33 @@ def catalog_bytes() -> bytes:
             ],
         }
     ).encode()
+
+
+def rust_catalog_bytes(
+    *,
+    manifest_path: str = ".github/feature-regression/rust-probe/Cargo.toml",
+    lock_path: str = ".github/feature-regression/rust-probe/Cargo.lock",
+) -> bytes:
+    catalog = json.loads(catalog_bytes())
+    producer = catalog["producer"]
+    catalog["schema"] = "elevenid.behavior-catalog/v4"
+    producer["subject_runtime"] = "rust-cargo"
+    producer["subject_path"] = (
+        ".github/feature-regression/rust-probe/behavior_subject.rs"
+    )
+    producer["subject_sha256"] = f"sha256:{'1' * 64}"
+    producer["runtime_image"] = (
+        "ghcr.io/elevenid/feature-regression-rust-probe@sha256:" + "2" * 64
+    )
+    producer["rust_build"] = {
+        "profile": "rust-cargo-v1",
+        "manifest_path": manifest_path,
+        "manifest_sha256": f"sha256:{'3' * 64}",
+        "lock_path": lock_path,
+        "lock_sha256": f"sha256:{'4' * 64}",
+        "runtime_manifest_sha256": f"sha256:{'5' * 64}",
+    }
+    return json.dumps(catalog).encode()
 
 
 def observation_bytes(phase: str, overrides: dict[str, object] | None = None) -> bytes:
@@ -1380,6 +1408,53 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         self.assert_invalid(
             applicable_evidence(),
             "runtime_image must be pinned by sha256 digest",
+            fetch=fetch,
+        )
+
+    def test_rust_catalog_is_fail_closed_until_runtime_digest_activation(self) -> None:
+        rust_catalog = rust_catalog_bytes()
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if (repository, path, commit) == (REPOSITORY, CATALOG_PATH, BASE):
+                return rust_catalog
+            return default_fetch(repository, path, commit)
+
+        self.assertEqual({}, review.APPROVED_RUST_RUNTIME_IMAGES)
+        self.assert_invalid(
+            applicable_evidence(),
+            "Rust runtime image is not activated by central policy",
+            fetch=fetch,
+        )
+
+    def test_rust_catalog_rejects_manifest_escape_before_activation(self) -> None:
+        rust_catalog = rust_catalog_bytes(
+            manifest_path=".github/feature-regression/rust-probe/../Cargo.toml",
+            lock_path=".github/feature-regression/Cargo.lock",
+        )
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if (repository, path, commit) == (REPOSITORY, CATALOG_PATH, BASE):
+                return rust_catalog
+            return default_fetch(repository, path, commit)
+
+        self.assert_invalid(
+            applicable_evidence(),
+            "safe repository-relative path",
+            fetch=fetch,
+        )
+
+    def test_rust_catalog_rejects_toolchain_environment_control(self) -> None:
+        rust_catalog = json.loads(rust_catalog_bytes())
+        rust_catalog["producer"]["subject_env"] = {"RUSTFLAGS": "--cfg=forged"}
+
+        def fetch(repository: str, path: str, commit: str) -> bytes:
+            if (repository, path, commit) == (REPOSITORY, CATALOG_PATH, BASE):
+                return json.dumps(rust_catalog).encode()
+            return default_fetch(repository, path, commit)
+
+        self.assert_invalid(
+            applicable_evidence(),
+            "subject_env is invalid",
             fetch=fetch,
         )
 
