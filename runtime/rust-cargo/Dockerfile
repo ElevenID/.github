@@ -13,7 +13,8 @@ RUN test -n "$PROBE_MANIFEST_PATH" \
     && cargo vendor --locked --versioned-dirs \
       --manifest-path "$PROBE_MANIFEST_PATH" /opt/elevenid/vendor \
       > /opt/elevenid/cargo-config.toml \
-    && cp "$PROBE_LOCK_PATH" /opt/elevenid/Cargo.lock
+    && cp "$PROBE_LOCK_PATH" /opt/elevenid/Cargo.lock \
+    && chmod -R a+rX /opt/elevenid
 
 FROM python:3.11.16-bookworm@sha256:b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c
 

@@ -665,6 +665,17 @@ class RustRuntimePublicationTests(unittest.TestCase):
         )
         self.assertEqual(1, dockerfile.count(f"FROM {publication.RUST_BASE_IMAGE}"))
         self.assertEqual(1, dockerfile.count(f"FROM {publication.PYTHON_BASE_IMAGE}"))
+        runtime_assets_copy = "COPY --from=vendor /opt/elevenid /opt/elevenid"
+        permission_normalization = "chmod -R a+rX /opt/elevenid"
+        self.assertEqual(1, dockerfile.count(permission_normalization))
+        self.assertLess(
+            dockerfile.index(permission_normalization),
+            dockerfile.index(runtime_assets_copy),
+        )
+        self.assertLess(
+            dockerfile.index(runtime_assets_copy),
+            dockerfile.index("USER 65534:65534"),
+        )
         for package_manager in (
             "apt-get",
             " apt ",
