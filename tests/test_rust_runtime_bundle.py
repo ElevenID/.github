@@ -241,7 +241,7 @@ class RustRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("pull_request", workflow)
         self.assertIn("timeout-minutes: 45", workflow)
         self.assertIn("permissions:\n  contents: read\n  packages: write", workflow)
-        self.assertIn("--provenance=mode=max --sbom=true", workflow)
+        self.assertIn("--provenance=mode=max", workflow)
         self.assertIn("--metadata-file", workflow)
         self.assertIn("{{json .Provenance}}", workflow)
         self.assertIn("{{json .SBOM}}", workflow)

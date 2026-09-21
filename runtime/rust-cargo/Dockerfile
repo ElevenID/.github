@@ -25,6 +25,9 @@ ARG PROBE_LOCK_PATH
 ARG PROBE_LOCK_SHA256
 ARG PROBE_SUBJECT_PATH
 ARG PROBE_SUBJECT_SHA256
+ARG BUILDX_VERSION
+ARG BUILDKIT_IMAGE
+ARG SBOM_GENERATOR
 LABEL org.opencontainers.image.source="https://github.com/ElevenID/.github" \
     io.elevenid.feature-regression.probe.repository="$PROBE_REPOSITORY" \
     io.elevenid.feature-regression.probe.revision="$PROBE_REVISION" \
@@ -33,7 +36,10 @@ LABEL org.opencontainers.image.source="https://github.com/ElevenID/.github" \
     io.elevenid.feature-regression.probe.lock="$PROBE_LOCK_PATH" \
     io.elevenid.feature-regression.probe.lock-sha256="$PROBE_LOCK_SHA256" \
     io.elevenid.feature-regression.probe.subject="$PROBE_SUBJECT_PATH" \
-    io.elevenid.feature-regression.probe.subject-sha256="$PROBE_SUBJECT_SHA256"
+    io.elevenid.feature-regression.probe.subject-sha256="$PROBE_SUBJECT_SHA256" \
+    io.elevenid.feature-regression.probe.builder.buildx-version="$BUILDX_VERSION" \
+    io.elevenid.feature-regression.probe.builder.buildkit-image="$BUILDKIT_IMAGE" \
+    io.elevenid.feature-regression.probe.builder.sbom-generator="$SBOM_GENERATOR"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 \

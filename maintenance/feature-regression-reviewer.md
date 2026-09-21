@@ -568,6 +568,25 @@ catalog before completing all of these steps:
    `enabled_repositories` empty until the ordinary activation rollout above is
    complete.
 
+The privileged publisher toolchain is immutable too. The workflow pins Buildx
+`v0.37.1`, BuildKit
+`moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3`,
+and the SBOM generator
+`docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9`.
+The Dockerfile's immutable `rust:1.95-bookworm` index digest resolves the
+explicit `linux/amd64` build to manifest
+`sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb`;
+publication provenance must contain that exact base material.
+Their exact identities are recorded in the OCI labels and canonical publication
+receipt. The evidence validator also parses the build metadata, attestation
+index, running builder-container image ID and repository digest, SLSA BuildKit
+provenance and the exact pinned Rust linux/amd64 base material, SPDX document,
+OCI labels, and canonical runtime manifest before emitting activation evidence.
+Local CI keeps
+registry resolution opt-in through `ELEVENID_LIVE_REGISTRY_TEST=1` because it
+must not depend on network access or credentials; the hosted main-only publisher
+and its credential-free pull are the authoritative integration proof.
+
 A separately precompiled candidate artifact is not the smaller trust boundary:
 it would require an additional privileged build workflow, artifact-retention
 and identity binding, download verification, and executable provenance contract
