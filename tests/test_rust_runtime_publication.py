@@ -29,6 +29,9 @@ BUNDLE = {
 }
 PINNED_BUILDERS = {
     "buildx_version": "v0.37.1",
+    "buildx_linux_amd64_sha256": (
+        "sha256:9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b"
+    ),
     "buildkit_version": "v0.33.0",
     "buildkit_image": (
         "moby/buildkit:v0.33.0@sha256:"
@@ -48,23 +51,47 @@ def write_json(path: pathlib.Path, value: object, *, canonical: bool = False) ->
     path.write_text(json.dumps(value, **options), encoding="utf-8")
 
 
-def provenance_document(*, include_scanner: bool = True) -> dict[str, object]:
+def platform_index_document(image: str, platform_digest: str) -> dict[str, object]:
+    return {
+        "digest": image.rsplit("@", 1)[1],
+        "manifests": [
+            {
+                "digest": platform_digest,
+                "platform": {"architecture": "amd64", "os": "linux"},
+            }
+        ],
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "schemaVersion": 2,
+    }
+
+
+def provenance_document(
+    *,
+    include_scanner: bool = True,
+    scanner_uri: str | None = None,
+    scanner_digest: str | None = None,
+) -> dict[str, object]:
     materials = [
         {
-            "uri": "pkg:docker/rust@1.95-bookworm",
+            "uri": publication.RUST_BASE_PROVENANCE_URI,
+            "digest": {"sha256": publication.RUST_BASE_IMAGE.rsplit("@sha256:", 1)[1]},
+        },
+        {
+            "uri": publication.PYTHON_BASE_PROVENANCE_URI,
             "digest": {
-                "sha256": publication.RUST_BASE_LINUX_AMD64_DIGEST.removeprefix(
-                    "sha256:"
-                )
+                "sha256": publication.PYTHON_BASE_IMAGE.rsplit("@sha256:", 1)[1]
             },
-        }
+        },
     ]
     if include_scanner:
         materials.insert(
             0,
             {
-                "uri": "pkg:docker/docker/buildkit-syft-scanner@stable-1",
-                "digest": {"sha256": "1" * 64},
+                "uri": scanner_uri or publication.SBOM_GENERATOR_PROVENANCE_URI,
+                "digest": {
+                    "sha256": scanner_digest
+                    or publication.SBOM_GENERATOR.rsplit("@sha256:", 1)[1]
+                },
             },
         )
     arguments = {
@@ -111,6 +138,16 @@ class RustRuntimePublicationTests(unittest.TestCase):
             f"github.com/docker/buildx {publication.BUILDX_VERSION} official\n",
             encoding="utf-8",
         )
+        write_json(
+            root / "buildx-identity.json",
+            {
+                "asset": publication.BUILDX_ASSET,
+                "platform": "linux/amd64",
+                "sha256": publication.BUILDX_LINUX_AMD64_SHA256,
+                "version": publication.BUILDX_VERSION,
+            },
+            canonical=True,
+        )
         (root / "buildkit-inspect.txt").write_text(
             f"BuildKit version: {publication.BUILDKIT_VERSION}\n",
             encoding="utf-8",
@@ -132,6 +169,27 @@ class RustRuntimePublicationTests(unittest.TestCase):
         )
         write_json(root / "labels.json", publication._expected_labels(BUNDLE))
         write_json(root / "provenance.json", provenance_document())
+        write_json(
+            root / "sbom-generator-index.json",
+            platform_index_document(
+                publication.SBOM_GENERATOR,
+                publication.SBOM_GENERATOR_LINUX_AMD64_DIGEST,
+            ),
+        )
+        write_json(
+            root / "rust-base-index.json",
+            platform_index_document(
+                publication.RUST_BASE_IMAGE,
+                publication.RUST_BASE_LINUX_AMD64_DIGEST,
+            ),
+        )
+        write_json(
+            root / "python-base-index.json",
+            platform_index_document(
+                publication.PYTHON_BASE_IMAGE,
+                publication.PYTHON_BASE_LINUX_AMD64_DIGEST,
+            ),
+        )
         write_json(
             root / "sbom.json",
             {
@@ -169,13 +227,26 @@ class RustRuntimePublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             document = self.validate(self.evidence(pathlib.Path(temporary)))
         self.assertEqual(publication.BUILDX_VERSION, document["buildx_version"])
+        self.assertEqual(
+            publication.BUILDX_LINUX_AMD64_SHA256,
+            document["buildx_linux_amd64_sha256"],
+        )
         self.assertEqual(publication.BUILDKIT_VERSION, document["buildkit_version"])
         self.assertEqual(publication.BUILDKIT_IMAGE, document["buildkit_image"])
         self.assertEqual(publication.SBOM_GENERATOR, document["sbom_generator"])
+        self.assertEqual(
+            publication.SBOM_GENERATOR_LINUX_AMD64_DIGEST,
+            document["sbom_generator_linux_amd64_digest"],
+        )
         self.assertEqual(publication.RUST_BASE_IMAGE, document["rust_base_image"])
         self.assertEqual(
             publication.RUST_BASE_LINUX_AMD64_DIGEST,
             document["rust_base_linux_amd64_digest"],
+        )
+        self.assertEqual(publication.PYTHON_BASE_IMAGE, document["python_base_image"])
+        self.assertEqual(
+            publication.PYTHON_BASE_LINUX_AMD64_DIGEST,
+            document["python_base_linux_amd64_digest"],
         )
         self.assertEqual(BUNDLE, document["bundle"])
         self.assertEqual(IMAGE, document["image"])
@@ -244,6 +315,9 @@ class RustRuntimePublicationTests(unittest.TestCase):
                     "buildkit_image_evidence_sha256",
                     "buildkit_inspect_sha256",
                     "buildkit_version",
+                    "buildx_asset",
+                    "buildx_identity_sha256",
+                    "buildx_linux_amd64_sha256",
                     "buildx_version",
                     "buildx_version_evidence_sha256",
                     "bundle",
@@ -252,11 +326,17 @@ class RustRuntimePublicationTests(unittest.TestCase):
                     "labels_sha256",
                     "provenance_sha256",
                     "publisher_revision",
+                    "python_base_image",
+                    "python_base_index_sha256",
+                    "python_base_linux_amd64_digest",
                     "runtime_manifest",
                     "runtime_manifest_sha256",
                     "rust_base_image",
+                    "rust_base_index_sha256",
                     "rust_base_linux_amd64_digest",
                     "sbom_generator",
+                    "sbom_generator_index_sha256",
+                    "sbom_generator_linux_amd64_digest",
                     "sbom_sha256",
                     "schema",
                 },
@@ -290,34 +370,51 @@ class RustRuntimePublicationTests(unittest.TestCase):
                 {"SPDX": {"SPDXID": "forged", "packages": []}},
                 "SPDX SBOM",
             ),
-            "wrong Rust base material digest": (
-                "provenance.json",
-                {
-                    **provenance_document(),
-                    "SLSA": {
-                        **provenance_document()["SLSA"],
-                        "buildDefinition": {
-                            **provenance_document()["SLSA"]["buildDefinition"],
-                            "resolvedDependencies": [
-                                {
-                                    "uri": "pkg:docker/rust@1.95-bookworm",
-                                    "digest": {"sha256": "2" * 64},
-                                },
-                                {
-                                    "uri": "pkg:docker/docker/buildkit-syft-scanner@stable-1",
-                                    "digest": {"sha256": "1" * 64},
-                                },
-                            ],
-                        },
-                    },
-                },
-                "exact Rust base image material",
-            ),
         }
         for name, (filename, replacement, expected) in mutations.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
                 root = self.evidence(pathlib.Path(temporary))
                 write_json(root / filename, replacement)
+                with self.assertRaisesRegex(publication.PublicationError, expected):
+                    self.validate(root)
+
+    def test_exact_provenance_material_uri_and_digest_are_mandatory(self) -> None:
+        scanner_cases = {
+            "same name wrong digest": provenance_document(scanner_digest="2" * 64),
+            "lookalike URI": provenance_document(
+                scanner_uri=(publication.SBOM_GENERATOR_PROVENANCE_URI + ".lookalike")
+            ),
+        }
+        for name, replacement in scanner_cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = self.evidence(pathlib.Path(temporary))
+                write_json(root / "provenance.json", replacement)
+                with self.assertRaisesRegex(
+                    publication.PublicationError, "exact SBOM generator material"
+                ):
+                    self.validate(root)
+
+        for name, uri, expected in (
+            (
+                "Rust base",
+                publication.RUST_BASE_PROVENANCE_URI,
+                "exact Rust base image material",
+            ),
+            (
+                "Python base",
+                publication.PYTHON_BASE_PROVENANCE_URI,
+                "exact Python base image material",
+            ),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = self.evidence(pathlib.Path(temporary))
+                provenance = provenance_document()
+                materials = provenance["SLSA"]["buildDefinition"][
+                    "resolvedDependencies"
+                ]
+                material = next(item for item in materials if item["uri"] == uri)
+                material["digest"] = {"sha256": "2" * 64}
+                write_json(root / "provenance.json", provenance)
                 with self.assertRaisesRegex(publication.PublicationError, expected):
                     self.validate(root)
 
@@ -352,6 +449,38 @@ class RustRuntimePublicationTests(unittest.TestCase):
                 root = self.evidence(pathlib.Path(temporary))
                 (root / filename).write_text(replacement, encoding="utf-8")
                 with self.assertRaises(publication.PublicationError):
+                    self.validate(root)
+
+    def test_same_buildx_version_with_different_binary_digest_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.evidence(pathlib.Path(temporary))
+            identity_path = root / "buildx-identity.json"
+            identity = json.loads(identity_path.read_text(encoding="utf-8"))
+            self.assertEqual(publication.BUILDX_VERSION, identity["version"])
+            identity["sha256"] = "sha256:" + "0" * 64
+            write_json(identity_path, identity, canonical=True)
+            with self.assertRaisesRegex(
+                publication.PublicationError, "Buildx executable identity"
+            ):
+                self.validate(root)
+
+    def test_every_external_image_linux_amd64_digest_is_bound(self) -> None:
+        cases = {
+            "sbom-generator-index.json": "SBOM generator linux/amd64",
+            "rust-base-index.json": "Rust base linux/amd64",
+            "python-base-index.json": "Python base linux/amd64",
+        }
+        for filename, expected in cases.items():
+            with (
+                self.subTest(filename=filename),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = self.evidence(pathlib.Path(temporary))
+                index_path = root / filename
+                index = json.loads(index_path.read_text(encoding="utf-8"))
+                index["manifests"][0]["digest"] = "sha256:" + "0" * 64
+                write_json(index_path, index)
+                with self.assertRaisesRegex(publication.PublicationError, expected):
                     self.validate(root)
 
     def test_buildkit_container_and_repo_digest_are_bound(self) -> None:
@@ -392,8 +521,12 @@ class RustRuntimePublicationTests(unittest.TestCase):
     def test_each_builder_identity_label_is_mandatory_and_exact(self) -> None:
         label_names = (
             "io.elevenid.feature-regression.probe.builder.buildx-version",
+            "io.elevenid.feature-regression.probe.builder.buildx-sha256",
             "io.elevenid.feature-regression.probe.builder.buildkit-image",
             "io.elevenid.feature-regression.probe.builder.sbom-generator",
+            "io.elevenid.feature-regression.probe.builder.sbom-generator-linux-amd64-digest",
+            "io.elevenid.feature-regression.probe.runtime.python-base-image",
+            "io.elevenid.feature-regression.probe.runtime.python-base-linux-amd64-digest",
         )
         for label in label_names:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
@@ -425,6 +558,10 @@ class RustRuntimePublicationTests(unittest.TestCase):
     def test_workflow_policy_pins_every_privileged_builder_identity(self) -> None:
         self.assertEqual(PINNED_BUILDERS["buildx_version"], publication.BUILDX_VERSION)
         self.assertEqual(
+            PINNED_BUILDERS["buildx_linux_amd64_sha256"],
+            publication.BUILDX_LINUX_AMD64_SHA256,
+        )
+        self.assertEqual(
             PINNED_BUILDERS["buildkit_version"], publication.BUILDKIT_VERSION
         )
         self.assertEqual(PINNED_BUILDERS["buildkit_image"], publication.BUILDKIT_IMAGE)
@@ -438,6 +575,15 @@ class RustRuntimePublicationTests(unittest.TestCase):
             "sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb",
             publication.RUST_BASE_LINUX_AMD64_DIGEST,
         )
+        self.assertEqual(
+            "python:3.11.16-bookworm@sha256:"
+            "b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c",
+            publication.PYTHON_BASE_IMAGE,
+        )
+        self.assertEqual(
+            "sha256:00f0ecbf74ff8f915020d5a40c4bc6a83f46cd7b83f47db51c7e204f0d8a3ec2",
+            publication.PYTHON_BASE_LINUX_AMD64_DIGEST,
+        )
         root = pathlib.Path(__file__).parents[1]
         workflow = yaml.safe_load(
             (root / ".github" / "workflows" / "publish-rust-probe-runtime.yml")
@@ -447,65 +593,104 @@ class RustRuntimePublicationTests(unittest.TestCase):
         self.assertEqual(
             {
                 "RUST_BUILDX_VERSION": publication.BUILDX_VERSION,
+                "RUST_BUILDX_LINUX_AMD64_SHA256": (
+                    publication.BUILDX_LINUX_AMD64_SHA256
+                ),
+                "RUST_BUILDX_ASSET_URL": (
+                    "https://github.com/docker/buildx/releases/download/v0.37.1/"
+                    "buildx-v0.37.1.linux-amd64"
+                ),
                 "RUST_BUILDKIT_VERSION": publication.BUILDKIT_VERSION,
                 "RUST_BUILDKIT_IMAGE": publication.BUILDKIT_IMAGE,
                 "RUST_SBOM_GENERATOR": publication.SBOM_GENERATOR,
+                "RUST_SBOM_GENERATOR_LINUX_AMD64_DIGEST": (
+                    publication.SBOM_GENERATOR_LINUX_AMD64_DIGEST
+                ),
+                "RUST_TOOLCHAIN_BASE_IMAGE": publication.RUST_BASE_IMAGE,
+                "RUST_TOOLCHAIN_BASE_LINUX_AMD64_DIGEST": (
+                    publication.RUST_BASE_LINUX_AMD64_DIGEST
+                ),
+                "RUST_PYTHON_BASE_IMAGE": publication.PYTHON_BASE_IMAGE,
+                "RUST_PYTHON_BASE_LINUX_AMD64_DIGEST": (
+                    publication.PYTHON_BASE_LINUX_AMD64_DIGEST
+                ),
             },
             workflow["env"],
         )
         steps = workflow["jobs"]["publish"]["steps"]
-        setup = next(
-            step for step in steps if step.get("name") == "Set up attested OCI builder"
-        )
-        self.assertEqual(
-            "docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
-            setup["uses"],
-        )
-        self.assertEqual("${{ env.RUST_BUILDX_VERSION }}", setup["with"]["version"])
-        self.assertEqual(
-            "image=${{ env.RUST_BUILDKIT_IMAGE }}", setup["with"]["driver-opts"]
-        )
-        self.assertEqual(
-            "${{ runner.temp }}/rust-runtime-auth-docker",
-            setup["env"]["DOCKER_CONFIG"],
+        self.assertFalse(
+            any("docker/setup-buildx-action@" in step.get("uses", "") for step in steps)
         )
         publisher_step = next(
             step
             for step in steps
             if step.get("name") == "Build and publish content-addressed runtime"
         )
-        self.assertEqual(
-            "${{ runner.temp }}/rust-runtime-auth-docker",
-            publisher_step["env"]["DOCKER_CONFIG"],
-        )
-        self.assertEqual(
-            "${{ steps.buildx.outputs.name }}",
-            publisher_step["env"]["BUILDER_NAME"],
-        )
         publisher = publisher_step["run"]
+        checksum_check = 'test "$buildx_sha256" = "$RUST_BUILDX_LINUX_AMD64_SHA256"'
+        self.assertIn("$RUST_BUILDX_ASSET_URL", publisher)
+        self.assertIn(checksum_check, publisher)
+        self.assertIn("buildx-identity.json", publisher)
+        self.assertLess(publisher.index(checksum_check), publisher.index("chmod 0555"))
+        self.assertLess(
+            publisher.index(checksum_check), publisher.index("docker buildx version")
+        )
+        self.assertIn(
+            '--driver-opt "image=$RUST_BUILDKIT_IMAGE"',
+            publisher,
+        )
         self.assertIn("buildkit-container.json", publisher)
         self.assertIn("buildkit-image.json", publisher)
+        self.assertIn("sbom-generator-index.json", publisher)
+        self.assertIn("rust-base-index.json", publisher)
+        self.assertIn("python-base-index.json", publisher)
         self.assertIn("--provenance=mode=max,version=v1", publisher)
         self.assertIn('--sbom="generator=$RUST_SBOM_GENERATOR"', publisher)
         self.assertIn("--platform linux/amd64", publisher)
         for argument, variable in {
             "BUILDX_VERSION": "RUST_BUILDX_VERSION",
+            "BUILDX_SHA256": "RUST_BUILDX_LINUX_AMD64_SHA256",
             "BUILDKIT_IMAGE": "RUST_BUILDKIT_IMAGE",
             "SBOM_GENERATOR": "RUST_SBOM_GENERATOR",
+            "SBOM_GENERATOR_LINUX_AMD64_DIGEST": (
+                "RUST_SBOM_GENERATOR_LINUX_AMD64_DIGEST"
+            ),
+            "PYTHON_BASE_IMAGE": "RUST_PYTHON_BASE_IMAGE",
+            "PYTHON_BASE_LINUX_AMD64_DIGEST": ("RUST_PYTHON_BASE_LINUX_AMD64_DIGEST"),
         }.items():
             self.assertIn(f'--build-arg "{argument}=${variable}"', publisher)
 
         dockerfile = (root / "runtime" / "rust-cargo" / "Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertEqual(2, dockerfile.count(f"FROM {publication.RUST_BASE_IMAGE}"))
+        self.assertEqual(1, dockerfile.count(f"FROM {publication.RUST_BASE_IMAGE}"))
+        self.assertEqual(1, dockerfile.count(f"FROM {publication.PYTHON_BASE_IMAGE}"))
+        for package_manager in (
+            "apt-get",
+            " apt ",
+            "apk ",
+            "dnf ",
+            "yum ",
+            "microdnf ",
+        ):
+            self.assertNotIn(package_manager, dockerfile)
         for label, argument in {
             "buildx-version": "BUILDX_VERSION",
+            "buildx-sha256": "BUILDX_SHA256",
             "buildkit-image": "BUILDKIT_IMAGE",
             "sbom-generator": "SBOM_GENERATOR",
+            "sbom-generator-linux-amd64-digest": ("SBOM_GENERATOR_LINUX_AMD64_DIGEST"),
         }.items():
             self.assertIn(
                 f'io.elevenid.feature-regression.probe.builder.{label}="${argument}"',
+                dockerfile,
+            )
+        for label, argument in {
+            "python-base-image": "PYTHON_BASE_IMAGE",
+            "python-base-linux-amd64-digest": "PYTHON_BASE_LINUX_AMD64_DIGEST",
+        }.items():
+            self.assertIn(
+                f'io.elevenid.feature-regression.probe.runtime.{label}="${argument}"',
                 dockerfile,
             )
 
@@ -521,7 +706,11 @@ class RustRuntimePublicationTests(unittest.TestCase):
         "opt-in read-only registry verification; hosted publisher is authoritative",
     )
     def test_live_pinned_builder_manifests_resolve_without_credentials(self) -> None:
-        for reference in (publication.BUILDKIT_IMAGE, publication.SBOM_GENERATOR):
+        for reference in (
+            publication.BUILDKIT_IMAGE,
+            publication.SBOM_GENERATOR,
+            publication.PYTHON_BASE_IMAGE,
+        ):
             with self.subTest(reference=reference):
                 result = subprocess.run(
                     ["docker", "buildx", "imagetools", "inspect", reference],
@@ -534,30 +723,43 @@ class RustRuntimePublicationTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr.decode())
                 expected = reference.rsplit("@", 1)[1]
                 self.assertRegex(result.stdout.decode(), rf"(?m)^Digest:\s+{expected}$")
-        result = subprocess.run(
-            [
-                "docker",
-                "buildx",
-                "imagetools",
-                "inspect",
-                publication.RUST_BASE_IMAGE,
-                "--raw",
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=30,
-        )
-        self.assertEqual(0, result.returncode, result.stderr.decode())
-        image_index = json.loads(result.stdout)
-        self.assertTrue(
-            any(
-                manifest.get("platform") == {"architecture": "amd64", "os": "linux"}
-                and manifest.get("digest") == publication.RUST_BASE_LINUX_AMD64_DIGEST
-                for manifest in image_index["manifests"]
-            )
-        )
+        for reference, expected_child in (
+            (publication.RUST_BASE_IMAGE, publication.RUST_BASE_LINUX_AMD64_DIGEST),
+            (
+                publication.PYTHON_BASE_IMAGE,
+                publication.PYTHON_BASE_LINUX_AMD64_DIGEST,
+            ),
+            (
+                publication.SBOM_GENERATOR,
+                publication.SBOM_GENERATOR_LINUX_AMD64_DIGEST,
+            ),
+        ):
+            with self.subTest(reference=reference, expected_child=expected_child):
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "buildx",
+                        "imagetools",
+                        "inspect",
+                        reference,
+                        "--raw",
+                    ],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    timeout=30,
+                )
+                self.assertEqual(0, result.returncode, result.stderr.decode())
+                image_index = json.loads(result.stdout)
+                self.assertTrue(
+                    any(
+                        manifest.get("platform")
+                        == {"architecture": "amd64", "os": "linux"}
+                        and manifest.get("digest") == expected_child
+                        for manifest in image_index["manifests"]
+                    )
+                )
         result = subprocess.run(
             [
                 "docker",
@@ -586,12 +788,11 @@ class RustRuntimePublicationTests(unittest.TestCase):
         self.assertTrue(slsa_payloads)
         self.assertTrue(
             any(
-                "buildkit-syft-scanner"
-                in json.dumps(
-                    payload["buildDefinition"]["resolvedDependencies"],
-                    sort_keys=True,
-                )
+                material.get("uri") == publication.SBOM_GENERATOR_PROVENANCE_URI
+                and material.get("digest")
+                == {"sha256": publication.SBOM_GENERATOR.rsplit("@sha256:", 1)[1]}
                 for payload in slsa_payloads
+                for material in payload["buildDefinition"]["resolvedDependencies"]
             )
         )
 

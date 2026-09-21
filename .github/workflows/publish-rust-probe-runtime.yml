@@ -14,9 +14,16 @@ permissions:
 
 env:
   RUST_BUILDX_VERSION: v0.37.1
+  RUST_BUILDX_LINUX_AMD64_SHA256: sha256:9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b
+  RUST_BUILDX_ASSET_URL: https://github.com/docker/buildx/releases/download/v0.37.1/buildx-v0.37.1.linux-amd64
   RUST_BUILDKIT_VERSION: v0.33.0
   RUST_BUILDKIT_IMAGE: moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3
   RUST_SBOM_GENERATOR: docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9
+  RUST_SBOM_GENERATOR_LINUX_AMD64_DIGEST: sha256:187e1892a7752c9384c59aba9517dd8e40610b748c72773e87b63720514463c2
+  RUST_TOOLCHAIN_BASE_IMAGE: rust:1.95-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1
+  RUST_TOOLCHAIN_BASE_LINUX_AMD64_DIGEST: sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb
+  RUST_PYTHON_BASE_IMAGE: python:3.11.16-bookworm@sha256:b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c
+  RUST_PYTHON_BASE_LINUX_AMD64_DIGEST: sha256:00f0ecbf74ff8f915020d5a40c4bc6a83f46cd7b83f47db51c7e204f0d8a3ec2
 
 jobs:
   publish:
@@ -53,14 +60,6 @@ jobs:
           test "$(git -C .rust-runtime-target rev-parse HEAD)" = "$EXPECTED_REVISION"
           && python scripts/rust_runtime_bundle.py "$BUNDLE_ID"
           --catalog runtime/rust-cargo/bundles.json --target .rust-runtime-target
-      - name: Set up attested OCI builder
-        id: buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-        env:
-          DOCKER_CONFIG: ${{ runner.temp }}/rust-runtime-auth-docker
-        with:
-          version: ${{ env.RUST_BUILDX_VERSION }}
-          driver-opts: image=${{ env.RUST_BUILDKIT_IMAGE }}
       - name: Build and publish content-addressed runtime
         id: publish
         shell: bash
@@ -75,30 +74,52 @@ jobs:
           SUBJECT_PATH: ${{ steps.bundle.outputs.subject_path }}
           SUBJECT_SHA256: ${{ steps.bundle.outputs.subject_sha256 }}
           GHCR_TOKEN: ${{ github.token }}
-          DOCKER_CONFIG: ${{ runner.temp }}/rust-runtime-auth-docker
-          BUILDER_NAME: ${{ steps.buildx.outputs.name }}
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/rust-runtime-publication"
-          auth_config="$DOCKER_CONFIG"
+          auth_config="$(mktemp -d "$RUNNER_TEMP/rust-runtime-auth.XXXXXX")"
           anonymous_config="$(mktemp -d "$RUNNER_TEMP/rust-runtime-anonymous.XXXXXX")"
+          buildx_path="$auth_config/cli-plugins/docker-buildx"
+          builder_name="rust-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image="ghcr.io/elevenid/feature-regression-rust-cargo:${BUNDLE_ID}-${GITHUB_SHA}"
+          buildx_verified=0
           image_digest=""
           cleanup() {
-            DOCKER_CONFIG="$auth_config" docker logout ghcr.io >/dev/null 2>&1 || true
+            if [[ "$buildx_verified" = 1 ]]; then
+              DOCKER_CONFIG="$auth_config" docker buildx rm --force "$builder_name" >/dev/null 2>&1 || true
+              DOCKER_CONFIG="$auth_config" docker logout ghcr.io >/dev/null 2>&1 || true
+            fi
             if [[ -n "$image_digest" ]]; then
               docker image rm --force "$image_digest" >/dev/null 2>&1 || true
             fi
             docker image rm --force "$image" >/dev/null 2>&1 || true
-            rm -rf -- "$anonymous_config"
+            rm -rf -- "$auth_config" "$anonymous_config"
           }
           trap cleanup EXIT
-          mkdir -p "$artifact_dir"
+          mkdir -p "$artifact_dir" "$(dirname "$buildx_path")"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --location --fail --silent --show-error \
+            "$RUST_BUILDX_ASSET_URL" --output "$buildx_path"
+          buildx_sha256="sha256:$(sha256sum "$buildx_path" | cut -d' ' -f1)"
+          test "$buildx_sha256" = "$RUST_BUILDX_LINUX_AMD64_SHA256"
+          chmod 0555 "$buildx_path"
+          buildx_verified=1
+          jq -cnS --arg version "$RUST_BUILDX_VERSION" \
+            --arg sha256 "$buildx_sha256" \
+            --arg asset "buildx-v0.37.1.linux-amd64" \
+            '{asset:$asset,platform:"linux/amd64",sha256:$sha256,version:$version}' \
+            > "$artifact_dir/buildx-identity.json"
+          export DOCKER_CONFIG="$auth_config"
           docker buildx version | tee "$artifact_dir/buildx-version.txt"
           grep -F " $RUST_BUILDX_VERSION " "$artifact_dir/buildx-version.txt" >/dev/null
+          selected_buildx_path="$(docker info --format '{{json .ClientInfo.Plugins}}' \
+            | jq -er '[.[] | select(.Name == "buildx")] | if length == 1 then .[0].Path else error("ambiguous buildx plugin") end')"
+          test "$(realpath "$selected_buildx_path")" = "$(realpath "$buildx_path")"
+          docker buildx create --name "$builder_name" --driver docker-container \
+            --driver-opt "image=$RUST_BUILDKIT_IMAGE" --use >/dev/null
           docker buildx inspect --bootstrap | tee "$artifact_dir/buildkit-inspect.txt"
           grep -F "$RUST_BUILDKIT_VERSION" "$artifact_dir/buildkit-inspect.txt" >/dev/null
-          builder_container="buildx_buildkit_${BUILDER_NAME:?}0"
+          builder_container="buildx_buildkit_${builder_name}0"
           docker inspect --format \
             '{"configured_image":{{json .Config.Image}},"image_id":{{json .Image}}}' \
             "$builder_container" > "$artifact_dir/buildkit-container.json"
@@ -107,7 +128,12 @@ jobs:
           docker image inspect --format \
             '{"image_id":{{json .Id}},"repo_digests":{{json .RepoDigests}}}' \
             "$buildkit_image_id" > "$artifact_dir/buildkit-image.json"
-          export DOCKER_CONFIG="$auth_config"
+          docker buildx imagetools inspect "$RUST_SBOM_GENERATOR" \
+            --format '{{json .Manifest}}' > "$artifact_dir/sbom-generator-index.json"
+          docker buildx imagetools inspect "$RUST_TOOLCHAIN_BASE_IMAGE" \
+            --format '{{json .Manifest}}' > "$artifact_dir/rust-base-index.json"
+          docker buildx imagetools inspect "$RUST_PYTHON_BASE_IMAGE" \
+            --format '{{json .Manifest}}' > "$artifact_dir/python-base-index.json"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
           docker buildx build --pull --push --provenance=mode=max,version=v1 \
             --sbom="generator=$RUST_SBOM_GENERATOR" \
@@ -122,8 +148,12 @@ jobs:
             --build-arg "PROBE_SUBJECT_PATH=$SUBJECT_PATH" \
             --build-arg "PROBE_SUBJECT_SHA256=$SUBJECT_SHA256" \
             --build-arg "BUILDX_VERSION=$RUST_BUILDX_VERSION" \
+            --build-arg "BUILDX_SHA256=$RUST_BUILDX_LINUX_AMD64_SHA256" \
             --build-arg "BUILDKIT_IMAGE=$RUST_BUILDKIT_IMAGE" \
             --build-arg "SBOM_GENERATOR=$RUST_SBOM_GENERATOR" \
+            --build-arg "SBOM_GENERATOR_LINUX_AMD64_DIGEST=$RUST_SBOM_GENERATOR_LINUX_AMD64_DIGEST" \
+            --build-arg "PYTHON_BASE_IMAGE=$RUST_PYTHON_BASE_IMAGE" \
+            --build-arg "PYTHON_BASE_LINUX_AMD64_DIGEST=$RUST_PYTHON_BASE_LINUX_AMD64_DIGEST" \
             --metadata-file "$artifact_dir/build-metadata.json" \
             --tag "$image" .
           digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
@@ -143,6 +173,8 @@ jobs:
             "$image_digest" /bin/cat /opt/elevenid/runtime-manifest.json)"
           test "$runtime_manifest" = "$(jq -cS . <<<"$runtime_manifest")"
           printf '%s' "$runtime_manifest" > "$artifact_dir/runtime-manifest.json"
+          test "sha256:$(sha256sum "$buildx_path" | cut -d' ' -f1)" \
+            = "$RUST_BUILDX_LINUX_AMD64_SHA256"
           DOCKER_CONFIG="$auth_config" docker logout ghcr.io
           docker image rm --force "$image_digest" "$image" >/dev/null 2>&1 || true
           export DOCKER_CONFIG="$anonymous_config"

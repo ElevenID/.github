@@ -13,6 +13,10 @@ from scripts.rust_runtime_bundle import BundleError, load_bundle
 
 
 BUILDX_VERSION = "v0.37.1"
+BUILDX_LINUX_AMD64_SHA256 = (
+    "sha256:9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b"
+)
+BUILDX_ASSET = "buildx-v0.37.1.linux-amd64"
 BUILDKIT_VERSION = "v0.33.0"
 BUILDKIT_IMAGE = (
     "moby/buildkit:v0.33.0@sha256:"
@@ -22,6 +26,12 @@ SBOM_GENERATOR = (
     "docker/buildkit-syft-scanner:stable-1@sha256:"
     "ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9"
 )
+SBOM_GENERATOR_PROVENANCE_URI = (
+    "pkg:docker/docker/buildkit-syft-scanner@1.12.0?platform=linux%2Famd64"
+)
+SBOM_GENERATOR_LINUX_AMD64_DIGEST = (
+    "sha256:187e1892a7752c9384c59aba9517dd8e40610b748c72773e87b63720514463c2"
+)
 RUST_BASE_IMAGE = (
     "rust:1.95-bookworm@sha256:"
     "6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1"
@@ -29,6 +39,15 @@ RUST_BASE_IMAGE = (
 RUST_BASE_LINUX_AMD64_DIGEST = (
     "sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb"
 )
+RUST_BASE_PROVENANCE_URI = "pkg:docker/rust@1.95-bookworm?platform=linux%2Famd64"
+PYTHON_BASE_IMAGE = (
+    "python:3.11.16-bookworm@sha256:"
+    "b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c"
+)
+PYTHON_BASE_LINUX_AMD64_DIGEST = (
+    "sha256:00f0ecbf74ff8f915020d5a40c4bc6a83f46cd7b83f47db51c7e204f0d8a3ec2"
+)
+PYTHON_BASE_PROVENANCE_URI = "pkg:docker/python@3.11.16-bookworm?platform=linux%2Famd64"
 IMAGE_REPOSITORY = "ghcr.io/elevenid/feature-regression-rust-cargo"
 WRAPPER_PATH = (
     pathlib.Path(__file__).parents[1] / "runtime" / "rust-cargo" / "run-rust-probe"
@@ -105,16 +124,28 @@ def _expected_labels(bundle: Mapping[str, str]) -> dict[str, str]:
         f"{prefix}subject": bundle["subject_path"],
         f"{prefix}subject-sha256": bundle["subject_sha256"],
         f"{prefix}builder.buildx-version": BUILDX_VERSION,
+        f"{prefix}builder.buildx-sha256": BUILDX_LINUX_AMD64_SHA256,
         f"{prefix}builder.buildkit-image": BUILDKIT_IMAGE,
         f"{prefix}builder.sbom-generator": SBOM_GENERATOR,
+        f"{prefix}builder.sbom-generator-linux-amd64-digest": (
+            SBOM_GENERATOR_LINUX_AMD64_DIGEST
+        ),
+        f"{prefix}runtime.python-base-image": PYTHON_BASE_IMAGE,
+        f"{prefix}runtime.python-base-linux-amd64-digest": (
+            PYTHON_BASE_LINUX_AMD64_DIGEST
+        ),
     }
 
 
 def _expected_build_arguments(bundle: Mapping[str, str]) -> dict[str, str]:
     return {
         "BUILDX_VERSION": BUILDX_VERSION,
+        "BUILDX_SHA256": BUILDX_LINUX_AMD64_SHA256,
         "BUILDKIT_IMAGE": BUILDKIT_IMAGE,
         "SBOM_GENERATOR": SBOM_GENERATOR,
+        "SBOM_GENERATOR_LINUX_AMD64_DIGEST": (SBOM_GENERATOR_LINUX_AMD64_DIGEST),
+        "PYTHON_BASE_IMAGE": PYTHON_BASE_IMAGE,
+        "PYTHON_BASE_LINUX_AMD64_DIGEST": PYTHON_BASE_LINUX_AMD64_DIGEST,
         "PROBE_REPOSITORY": bundle["repository"],
         "PROBE_REVISION": bundle["revision"],
         "PROBE_MANIFEST_PATH": bundle["manifest_path"],
@@ -124,6 +155,23 @@ def _expected_build_arguments(bundle: Mapping[str, str]) -> dict[str, str]:
         "PROBE_SUBJECT_PATH": bundle["subject_path"],
         "PROBE_SUBJECT_SHA256": bundle["subject_sha256"],
     }
+
+
+def _validate_linux_amd64_index(
+    value: Mapping[str, Any], label: str, image: str, platform_digest: str
+) -> None:
+    manifests = value.get("manifests")
+    if (
+        value.get("digest") != image.rsplit("@", 1)[1]
+        or not isinstance(manifests, list)
+        or not any(
+            isinstance(item, Mapping)
+            and item.get("digest") == platform_digest
+            and item.get("platform") == {"architecture": "amd64", "os": "linux"}
+            for item in manifests
+        )
+    ):
+        raise PublicationError(f"{label} linux/amd64 image does not match")
 
 
 def validate_publication_evidence(
@@ -147,11 +195,15 @@ def validate_publication_evidence(
         "buildkit-container.json",
         "buildkit-image.json",
         "buildx-version.txt",
+        "buildx-identity.json",
         "buildkit-inspect.txt",
         "image-index.json",
         "labels.json",
         "provenance.json",
+        "python-base-index.json",
         "runtime-manifest.json",
+        "rust-base-index.json",
+        "sbom-generator-index.json",
         "sbom.json",
     }
     entries = list(evidence_dir.iterdir())
@@ -166,6 +218,17 @@ def validate_publication_evidence(
         is None
     ):
         raise PublicationError("Buildx version evidence does not match")
+    buildx_identity = _mapping(
+        _json(evidence_dir / "buildx-identity.json", "Buildx identity"),
+        "Buildx identity",
+    )
+    if dict(buildx_identity) != {
+        "asset": BUILDX_ASSET,
+        "platform": "linux/amd64",
+        "sha256": BUILDX_LINUX_AMD64_SHA256,
+        "version": BUILDX_VERSION,
+    }:
+        raise PublicationError("Buildx executable identity does not match")
     buildkit_inspect = (evidence_dir / "buildkit-inspect.txt").read_text(
         encoding="utf-8"
     )
@@ -204,6 +267,37 @@ def validate_publication_evidence(
         for value in repo_digests
     ):
         raise PublicationError("BuildKit local image digest does not match")
+
+    scanner_index = _mapping(
+        _json(evidence_dir / "sbom-generator-index.json", "SBOM generator index"),
+        "SBOM generator index",
+    )
+    _validate_linux_amd64_index(
+        scanner_index,
+        "SBOM generator",
+        SBOM_GENERATOR,
+        SBOM_GENERATOR_LINUX_AMD64_DIGEST,
+    )
+    rust_index = _mapping(
+        _json(evidence_dir / "rust-base-index.json", "Rust base index"),
+        "Rust base index",
+    )
+    _validate_linux_amd64_index(
+        rust_index,
+        "Rust base",
+        RUST_BASE_IMAGE,
+        RUST_BASE_LINUX_AMD64_DIGEST,
+    )
+    python_index = _mapping(
+        _json(evidence_dir / "python-base-index.json", "Python base index"),
+        "Python base index",
+    )
+    _validate_linux_amd64_index(
+        python_index,
+        "Python base",
+        PYTHON_BASE_IMAGE,
+        PYTHON_BASE_LINUX_AMD64_DIGEST,
+    )
 
     metadata = _mapping(
         _json(evidence_dir / "build-metadata.json", "build metadata"),
@@ -249,6 +343,7 @@ def validate_publication_evidence(
         raise PublicationError("provenance materials are missing")
     scanner_material = False
     rust_material = False
+    python_material = False
     for material in materials:
         item = _mapping(material, "provenance material")
         uri = item.get("uri")
@@ -260,17 +355,32 @@ def validate_publication_evidence(
             for value in digests.values()
         ):
             raise PublicationError("provenance material digest is invalid")
-        scanner_material = scanner_material or "buildkit-syft-scanner" in uri
+        scanner_material = scanner_material or (
+            uri == SBOM_GENERATOR_PROVENANCE_URI
+            and dict(digests)
+            == {
+                "sha256": SBOM_GENERATOR.rsplit("@sha256:", 1)[1],
+            }
+        )
         rust_material = rust_material or (
-            "pkg:docker/rust@1.95-bookworm" in uri
-            and digests.get("sha256")
-            == RUST_BASE_LINUX_AMD64_DIGEST.removeprefix("sha256:")
+            uri == RUST_BASE_PROVENANCE_URI
+            and dict(digests) == {"sha256": RUST_BASE_IMAGE.rsplit("@sha256:", 1)[1]}
+        )
+        python_material = python_material or (
+            uri == PYTHON_BASE_PROVENANCE_URI
+            and dict(digests) == {"sha256": PYTHON_BASE_IMAGE.rsplit("@sha256:", 1)[1]}
         )
     if not scanner_material:
-        raise PublicationError("provenance does not identify the SBOM generator")
+        raise PublicationError(
+            "provenance does not identify the exact SBOM generator material"
+        )
     if not rust_material:
         raise PublicationError(
             "provenance does not identify the exact Rust base image material"
+        )
+    if not python_material:
+        raise PublicationError(
+            "provenance does not identify the exact Python base image material"
         )
 
     sbom = _mapping(_json(evidence_dir / "sbom.json", "SBOM"), "SBOM")
@@ -332,6 +442,9 @@ def validate_publication_evidence(
         "buildkit_inspect_sha256": _digest(evidence_dir / "buildkit-inspect.txt"),
         "buildkit_image": BUILDKIT_IMAGE,
         "buildkit_version": BUILDKIT_VERSION,
+        "buildx_asset": BUILDX_ASSET,
+        "buildx_identity_sha256": _digest(evidence_dir / "buildx-identity.json"),
+        "buildx_linux_amd64_sha256": BUILDX_LINUX_AMD64_SHA256,
         "buildx_version_evidence_sha256": _digest(evidence_dir / "buildx-version.txt"),
         "buildx_version": BUILDX_VERSION,
         "bundle": dict(bundle),
@@ -340,11 +453,19 @@ def validate_publication_evidence(
         "labels_sha256": _digest(evidence_dir / "labels.json"),
         "provenance_sha256": _digest(evidence_dir / "provenance.json"),
         "publisher_revision": publisher_revision,
+        "python_base_image": PYTHON_BASE_IMAGE,
+        "python_base_index_sha256": _digest(evidence_dir / "python-base-index.json"),
+        "python_base_linux_amd64_digest": PYTHON_BASE_LINUX_AMD64_DIGEST,
         "runtime_manifest": dict(runtime_document),
         "runtime_manifest_sha256": _digest(runtime_path),
         "rust_base_image": RUST_BASE_IMAGE,
+        "rust_base_index_sha256": _digest(evidence_dir / "rust-base-index.json"),
         "rust_base_linux_amd64_digest": RUST_BASE_LINUX_AMD64_DIGEST,
         "sbom_generator": SBOM_GENERATOR,
+        "sbom_generator_index_sha256": _digest(
+            evidence_dir / "sbom-generator-index.json"
+        ),
+        "sbom_generator_linux_amd64_digest": (SBOM_GENERATOR_LINUX_AMD64_DIGEST),
         "sbom_sha256": _digest(evidence_dir / "sbom.json"),
         "schema": "elevenid.rust-cargo-publication/v1",
     }

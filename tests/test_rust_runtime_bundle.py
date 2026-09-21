@@ -262,7 +262,9 @@ class RustRuntimeBundleTests(unittest.TestCase):
             workflow.index("printf 'image=%s\\n'"),
         )
         self.assertNotIn("# syntax=", dockerfile)
-        self.assertEqual(2, dockerfile.count("FROM rust:1.95-bookworm@sha256:"))
+        self.assertEqual(1, dockerfile.count("FROM rust:1.95-bookworm@sha256:"))
+        self.assertEqual(1, dockerfile.count("FROM python:3.11.16-bookworm@sha256:"))
+        self.assertNotIn("apt-get", dockerfile)
         self.assertIn("org.opencontainers.image.source", dockerfile)
         for binding in (
             "repository",

@@ -555,7 +555,8 @@ catalog before completing all of these steps:
    credentials. A failed or private run emits no activation evidence.
 4. Download the successful run's `rust-runtime-publication-*` artifact. It binds
    the reviewed bundle, publisher revision, image and runtime-manifest digests,
-   OCI-index digest, and the captured BuildKit max-mode provenance and SPDX SBOM
+   OCI-index digest, verified Buildx executable identity, builder and base-image
+   index evidence, and the captured BuildKit max-mode provenance and SPDX SBOM
    digests. Independently pull the reported image anonymously by digest, inspect
    `/opt/elevenid/runtime-manifest.json`, and review the provenance and SBOM.
    Never use a mutable tag in a behavior catalog.
@@ -568,15 +569,33 @@ catalog before completing all of these steps:
    `enabled_repositories` empty until the ordinary activation rollout above is
    complete.
 
-The privileged publisher toolchain is immutable too. The workflow pins Buildx
-`v0.37.1`, BuildKit
+The privileged publisher toolchain is immutable too. Before Buildx executes,
+the workflow downloads the official `buildx-v0.37.1.linux-amd64` release asset
+and requires SHA-256
+`9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b`.
+That value is the Linux AMD64 entry in Docker's official
+[`v0.37.1` checksum asset](https://github.com/docker/buildx/releases/download/v0.37.1/checksums.txt).
+It then creates a builder using BuildKit
 `moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3`,
 and the SBOM generator
 `docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9`.
+The scanner index's reviewed `linux/amd64` manifest is
+`sha256:187e1892a7752c9384c59aba9517dd8e40610b748c72773e87b63720514463c2`,
+and provenance must bind exact URI
+`pkg:docker/docker/buildkit-syft-scanner@1.12.0?platform=linux%2Famd64`
+to the pinned generator index digest.
 The Dockerfile's immutable `rust:1.95-bookworm` index digest resolves the
 explicit `linux/amd64` build to manifest
 `sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb`;
-publication provenance must contain that exact base material.
+the Python-bearing final base is
+`python:3.11.16-bookworm@sha256:b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c`
+with `linux/amd64` manifest
+`sha256:00f0ecbf74ff8f915020d5a40c4bc6a83f46cd7b83f47db51c7e204f0d8a3ec2`.
+Publication provenance must contain both exact base materials. The runtime
+Dockerfile performs no package-manager network installation. Captured registry
+indexes additionally bind each pinned index to its reviewed `linux/amd64`
+manifest; provenance binds the matching platform-qualified URI to the pinned
+index digest, which is BuildKit's emitted SLSA v1 representation.
 Their exact identities are recorded in the OCI labels and canonical publication
 receipt. The evidence validator also parses the build metadata, attestation
 index, running builder-container image ID and repository digest, SLSA BuildKit
@@ -585,7 +604,11 @@ OCI labels, and canonical runtime manifest before emitting activation evidence.
 Local CI keeps
 registry resolution opt-in through `ELEVENID_LIVE_REGISTRY_TEST=1` because it
 must not depend on network access or credentials; the hosted main-only publisher
-and its credential-free pull are the authoritative integration proof.
+and its credential-free pull are the authoritative integration proof. Unit and
+read-only registry tests validate policy and immutable inputs only; they do not
+claim that the unpublished GHCR runtime exists or is anonymously accessible.
+Any pull-request evidence must describe anonymous GHCR publication as the later
+activation gate in steps 3 through 5, not as a completed unit-test result.
 
 A separately precompiled candidate artifact is not the smaller trust boundary:
 it would require an additional privileged build workflow, artifact-retention
