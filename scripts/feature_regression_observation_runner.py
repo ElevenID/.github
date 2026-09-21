@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import tomllib
 from typing import Any, BinaryIO
 
 
@@ -27,15 +28,54 @@ TEST_REFERENCE = re.compile(
     r"(?P<test>[A-Za-z0-9_.:/#\-\[\]]+)$"
 )
 OCI_IMAGE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,254}@sha256:[0-9a-f]{64}$")
+SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.\-/]{1,512}$")
 DIMENSIONS = {"public_status", "public_message", "safe_server_diagnostic"}
 FIXED_ENVIRONMENT = {"LC_ALL": "C.UTF-8", "PYTHONHASHSEED": "0", "TZ": "UTC"}
+RUST_FIXED_ENVIRONMENT = {
+    **FIXED_ENVIRONMENT,
+    "CARGO_HOME": "/build/cargo-home",
+    "CARGO_NET_OFFLINE": "true",
+    "CARGO_TARGET_DIR": "/build/target",
+    "HOME": "/build/home",
+    "PATH": "/opt/elevenid/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+    "RUSTUP_HOME": "/usr/local/rustup",
+    "TMPDIR": "/tmp",
+}
+# Rust execution is deliberately unavailable until a reviewed runtime is
+# published. A follow-up policy revision must add the exact image reference and
+# the raw SHA-256 of /opt/elevenid/runtime-manifest.json together.
+APPROVED_RUST_RUNTIME_IMAGES: dict[str, str] = {}
 SUBJECT_TIMEOUT_SECONDS = 30.0
+RUST_SUBJECT_TIMEOUT_SECONDS = 600.0
 HARNESS_TIMEOUT_SECONDS = 30.0
 MAX_SUBJECT_STDOUT = 1_048_576
 MAX_SUBJECT_STDERR = 65_536
 MAX_HARNESS_STDOUT = 65_536
 MAX_HARNESS_STDERR = 65_536
 MAX_HARNESS_OBSERVATION_BYTES = 2 * 1024 * 1024
+RUST_BUILD_FIELDS = {
+    "profile",
+    "manifest_path",
+    "manifest_sha256",
+    "lock_path",
+    "lock_sha256",
+    "runtime_manifest_sha256",
+}
+RUST_RESERVED_ENVIRONMENT = {
+    "BASH_ENV",
+    "ENV",
+    "HOME",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "PATH",
+    "RUSTC",
+    "RUSTC_WRAPPER",
+    "RUSTDOC",
+    "SHELL",
+    "TMP",
+    "TMPDIR",
+    "TEMP",
+}
 
 
 class RunnerError(ValueError):
@@ -77,11 +117,15 @@ def _canonical(value: Any) -> bytes:
 
 
 def _safe_path(value: str, label: str) -> pathlib.Path:
-    candidate = pathlib.PurePosixPath(value.replace("\\", "/"))
-    if candidate.is_absolute() or any(
-        part in {"", ".", ".."} for part in candidate.parts
+    parts = value.split("/")
+    if (
+        SAFE_RELATIVE_PATH.fullmatch(value) is None
+        or value.startswith("/")
+        or not all(parts)
+        or any(part in {".", ".."} for part in parts)
     ):
         raise RunnerError(f"{label} must be a safe repository-relative path")
+    candidate = pathlib.PurePosixPath(value)
     root = pathlib.Path.cwd().resolve()
     lexical = root.joinpath(*candidate.parts)
     resolved = lexical.resolve()
@@ -134,19 +178,93 @@ def _subject_spec(args: argparse.Namespace) -> tuple[list[str], dict[str, str]]:
             or any(ord(character) < 32 for character in value)
         ):
             raise RunnerError("subject environment contains an unsafe entry")
+        if args.subject_runtime == "rust-cargo" and (
+            name in RUST_RESERVED_ENVIRONMENT
+            or name.startswith("CARGO_")
+            or name.startswith("RUST")
+            or name.startswith("LD_")
+            or name.startswith("DYLD_")
+        ):
+            raise RunnerError("Rust subject environment cannot control the toolchain")
         environment[name] = value
+    if args.subject_runtime == "rust-cargo":
+        environment = {**environment, **RUST_FIXED_ENVIRONMENT}
     return list(raw_arguments), environment
 
 
+def _rust_build(args: argparse.Namespace) -> dict[str, str] | None:
+    value = _json_cli(args.rust_build_json, "Rust build contract")
+    if args.subject_runtime != "rust-cargo":
+        if value is not None:
+            raise RunnerError("rust-build-json must be null for non-Rust subjects")
+        return None
+    if not isinstance(value, dict) or set(value) != RUST_BUILD_FIELDS:
+        raise RunnerError("Rust build contract fields are invalid")
+    if value.get("profile") != "rust-cargo-v1":
+        raise RunnerError("Rust build profile is invalid")
+    for field in ("manifest_sha256", "lock_sha256", "runtime_manifest_sha256"):
+        if (
+            not isinstance(value.get(field), str)
+            or DIGEST.fullmatch(value[field]) is None
+        ):
+            raise RunnerError(f"Rust build {field.replace('_', '-')} is invalid")
+    manifest = _safe_path(str(value.get("manifest_path", "")), "Rust manifest path")
+    lock = _safe_path(str(value.get("lock_path", "")), "Rust lock path")
+    if not str(value["manifest_path"]).startswith(".github/feature-regression/"):
+        raise RunnerError("Rust manifest must use the reserved governance path")
+    if manifest.name != "Cargo.toml" or lock != manifest.parent / "Cargo.lock":
+        raise RunnerError("Rust lock must be the manifest's sibling Cargo.lock")
+    _verify_file(manifest, value["manifest_sha256"], "Rust manifest")
+    _verify_file(lock, value["lock_sha256"], "Rust lock")
+    try:
+        manifest_document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise RunnerError(f"Rust manifest is invalid TOML: {error}") from error
+    binaries = manifest_document.get("bin")
+    if (
+        not isinstance(binaries, list)
+        or len(binaries) != 1
+        or not isinstance(binaries[0], dict)
+        or binaries[0].get("name") != "elevenid-feature-regression-probe"
+        or not isinstance(binaries[0].get("path"), str)
+    ):
+        raise RunnerError("Rust manifest must declare the one fixed probe binary")
+    binary_path = _safe_path(
+        pathlib.PurePosixPath(value["manifest_path"])
+        .parent.joinpath(binaries[0]["path"])
+        .as_posix(),
+        "Rust probe binary path",
+    )
+    subject = _safe_path(args.subject_path, "subject-path")
+    if binary_path != subject:
+        raise RunnerError("Rust manifest binary path must identify the subject")
+    approved_manifest = APPROVED_RUST_RUNTIME_IMAGES.get(args.runtime_image)
+    if approved_manifest != value["runtime_manifest_sha256"]:
+        raise RunnerError("Rust runtime image is not activated by central policy")
+    return {key: str(value[key]) for key in sorted(RUST_BUILD_FIELDS)}
+
+
 def _subject_command(
-    *, runtime: str, subject_path: str, arguments: list[str]
+    *,
+    runtime: str,
+    subject_path: str,
+    arguments: list[str],
+    rust_build: dict[str, str] | None,
 ) -> list[str]:
     container_subject = f"/workspace/{pathlib.PurePosixPath(subject_path).as_posix()}"
     if runtime == "python":
         return ["python3", container_subject, *arguments]
     if runtime == "direct":
         return [container_subject, *arguments]
-    raise RunnerError("subject runtime must be python or direct")
+    if runtime == "rust-cargo" and rust_build is not None:
+        return [
+            "/opt/elevenid/bin/run-rust-probe",
+            f"/workspace/{rust_build['manifest_path']}",
+            f"/workspace/{rust_build['lock_path']}",
+            container_subject,
+            *arguments,
+        ]
+    raise RunnerError("subject runtime must be python, direct, or rust-cargo")
 
 
 def _bounded_reader(
@@ -304,6 +422,7 @@ def _container_command(
     name: str,
     workload: list[str],
     environment: dict[str, str],
+    profile: str = "standard-v1",
 ) -> list[str]:
     workspace = pathlib.Path.cwd().resolve()
     if "," in str(workspace):
@@ -313,7 +432,7 @@ def _container_command(
         "run",
         "--rm",
         "--interactive",
-        "--pull=missing",
+        "--pull=never",
         f"--name={name}",
         "--init",
         "--network=none",
@@ -321,17 +440,61 @@ def _container_command(
         "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges",
-        "--pids-limit=64",
-        "--memory=256m",
-        "--cpus=1",
+        "--ipc=none",
+        "--ulimit=nofile=256:256",
+        "--ulimit=core=0:0",
         "--user=65534:65534",
         "--mount",
         f"type=bind,source={workspace},target=/workspace,readonly",
         "--workdir=/workspace",
     ]
+    if profile == "standard-v1":
+        command.extend(
+            ("--pids-limit=64", "--memory=256m", "--memory-swap=256m", "--cpus=1")
+        )
+    elif profile == "rust-cargo-v1":
+        command.extend(
+            (
+                "--pids-limit=128",
+                "--memory=4g",
+                "--memory-swap=4g",
+                "--cpus=2",
+                "--tmpfs=/build:rw,exec,nosuid,nodev,size=2g,mode=0700,uid=65534,gid=65534",
+                "--workdir=/build",
+            )
+        )
+    else:
+        raise RunnerError("container isolation profile is invalid")
     for name_, value in sorted(environment.items()):
         command.append(f"--env={name_}={value}")
     return [*command, image, *workload]
+
+
+def _prepare_runtime_image(docker: str, image: str) -> str:
+    _run_process(
+        [docker, "pull", image],
+        os.environ.copy(),
+        label="runtime image pull",
+        timeout=300,
+        stdout_limit=65_536,
+        stderr_limit=65_536,
+    )
+    stdout, _ = _run_process(
+        [docker, "image", "inspect", "--format", "{{json .RepoDigests}}", image],
+        os.environ.copy(),
+        label="runtime image inspection",
+        timeout=30,
+        stdout_limit=65_536,
+        stderr_limit=65_536,
+    )
+    digests = _parse_json(stdout.strip(), "runtime image repository digests")
+    expected_digest = image.rsplit("@", 1)[1]
+    if not isinstance(digests, list) or not any(
+        isinstance(item, str) and item.endswith(f"@{expected_digest}")
+        for item in digests
+    ):
+        raise RunnerError("local runtime image does not match the requested digest")
+    return expected_digest
 
 
 def _remove_container(docker: str, name: str) -> None:
@@ -371,6 +534,11 @@ def _run_container(
         name=name,
         workload=workload,
         environment=environment,
+        profile=(
+            "rust-cargo-v1"
+            if args.subject_runtime == "rust-cargo" and label == "subject"
+            else "standard-v1"
+        ),
     )
     try:
         return _run_process(
@@ -384,6 +552,51 @@ def _run_container(
         )
     finally:
         _remove_container(docker, name)
+
+
+def _runtime_manifest(
+    args: argparse.Namespace, rust_build: dict[str, str]
+) -> dict[str, str]:
+    content, _ = _run_container(
+        args,
+        ["/bin/cat", "/opt/elevenid/runtime-manifest.json"],
+        FIXED_ENVIRONMENT,
+        label="Rust runtime manifest",
+        timeout=30,
+        stdout_limit=65_536,
+        stderr_limit=65_536,
+    )
+    if (
+        f"sha256:{hashlib.sha256(content).hexdigest()}"
+        != rust_build["runtime_manifest_sha256"]
+    ):
+        raise RunnerError("Rust runtime manifest digest does not match")
+    manifest = _parse_json(content, "Rust runtime manifest")
+    expected_fields = {
+        "schema",
+        "profile",
+        "rustc_version",
+        "cargo_version",
+        "python_version",
+        "vendor_lock_sha256",
+        "wrapper_sha256",
+    }
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest) != expected_fields
+        or manifest.get("schema") != "elevenid.rust-cargo-runtime/v1"
+        or manifest.get("profile") != "rust-cargo-v1"
+        or manifest.get("vendor_lock_sha256") != rust_build["lock_sha256"]
+        or DIGEST.fullmatch(str(manifest.get("wrapper_sha256"))) is None
+        or any(
+            not isinstance(manifest.get(field), str) or not manifest[field]
+            for field in ("rustc_version", "cargo_version", "python_version")
+        )
+    ):
+        raise RunnerError("Rust runtime manifest fields are invalid")
+    if content != _canonical(manifest):
+        raise RunnerError("Rust runtime manifest must be canonical JSON")
+    return {key: str(manifest[key]) for key in sorted(expected_fields)}
 
 
 def _validate_subject_output(document: Any) -> list[dict[str, Any]]:
@@ -432,20 +645,28 @@ def _capture_document(
     environment: dict[str, str],
     stdout: bytes,
     stderr: bytes,
+    rust_build: dict[str, str] | None,
+    resolved_image_digest: str,
+    runtime_manifest: dict[str, str] | None,
 ) -> dict[str, Any]:
+    receipt: dict[str, Any] = {
+        "arguments": arguments,
+        "environment": environment,
+        "exit_code": 0,
+        "runtime": args.subject_runtime,
+        "runtime_image": args.runtime_image,
+        "stderr_sha256": f"sha256:{hashlib.sha256(stderr).hexdigest()}",
+        "stdout_sha256": f"sha256:{hashlib.sha256(stdout).hexdigest()}",
+        "subject_path": args.subject_path,
+        "subject_sha256": args.subject_sha256,
+    }
+    if rust_build is not None:
+        receipt["resolved_image_digest"] = resolved_image_digest
+        receipt["rust_build"] = rust_build
+        receipt["runtime_manifest"] = runtime_manifest
     return {
         "schema": "elevenid.behavior-subject-capture/v2",
-        "receipt": {
-            "runtime_image": args.runtime_image,
-            "subject_path": args.subject_path,
-            "subject_sha256": args.subject_sha256,
-            "runtime": args.subject_runtime,
-            "arguments": arguments,
-            "environment": environment,
-            "exit_code": 0,
-            "stdout_sha256": f"sha256:{hashlib.sha256(stdout).hexdigest()}",
-            "stderr_sha256": f"sha256:{hashlib.sha256(stderr).hexdigest()}",
-        },
+        "receipt": receipt,
         "observations": observations,
     }
 
@@ -549,9 +770,11 @@ def _validate_observations(
     return document
 
 
-def _producer(args: argparse.Namespace) -> dict[str, Any]:
+def _producer(
+    args: argparse.Namespace, rust_build: dict[str, str] | None
+) -> dict[str, Any]:
     workflow_path = _safe_path(args.workflow_path, "workflow-path")
-    return {
+    producer = {
         "workflow_path": args.workflow_path,
         "workflow_sha256": _file_digest(workflow_path, "producer workflow"),
         "central_workflow_sha": args.policy_ref,
@@ -572,6 +795,9 @@ def _producer(args: argparse.Namespace) -> dict[str, Any]:
         "event_name": args.event_name,
         "head_branch": args.head_branch,
     }
+    if rust_build is not None:
+        producer["rust_build"] = rust_build
+    return producer
 
 
 def _fsync_directory(path: pathlib.Path) -> None:
@@ -624,23 +850,44 @@ def _produce(args: argparse.Namespace) -> None:
         raise RunnerError("stale observation output exists before production")
     _verify_file(harness, args.harness_sha256, "observation harness")
     _verify_file(subject, args.subject_sha256, "observation subject")
+    rust_build = _rust_build(args)
+    resolved_image_digest = _prepare_runtime_image(_docker_binary(), args.runtime_image)
+    runtime_manifest = (
+        _runtime_manifest(args, rust_build) if rust_build is not None else None
+    )
     arguments, environment = _subject_spec(args)
     subject_command = _subject_command(
         runtime=args.subject_runtime,
         subject_path=args.subject_path,
         arguments=arguments,
+        rust_build=rust_build,
     )
     stdout, stderr = _run_container(
         args,
         subject_command,
         environment,
         label="subject",
-        timeout=SUBJECT_TIMEOUT_SECONDS,
+        timeout=(
+            RUST_SUBJECT_TIMEOUT_SECONDS
+            if rust_build is not None
+            else SUBJECT_TIMEOUT_SECONDS
+        ),
         stdout_limit=MAX_SUBJECT_STDOUT,
         stderr_limit=MAX_SUBJECT_STDERR,
     )
     _verify_file(subject, args.subject_sha256, "observation subject")
     _verify_file(harness, args.harness_sha256, "observation harness")
+    if rust_build is not None:
+        _verify_file(
+            _safe_path(rust_build["manifest_path"], "Rust manifest path"),
+            rust_build["manifest_sha256"],
+            "Rust manifest",
+        )
+        _verify_file(
+            _safe_path(rust_build["lock_path"], "Rust lock path"),
+            rust_build["lock_sha256"],
+            "Rust lock",
+        )
     subject_document = _parse_json(stdout, "subject output")
     if stdout != _canonical(subject_document):
         raise RunnerError("subject output must be canonical JSON")
@@ -651,6 +898,9 @@ def _produce(args: argparse.Namespace) -> None:
         environment=environment,
         stdout=stdout,
         stderr=stderr,
+        rust_build=rust_build,
+        resolved_image_digest=resolved_image_digest,
+        runtime_manifest=runtime_manifest,
     )
     capture_content = _canonical(capture)
 
@@ -708,7 +958,7 @@ def _produce(args: argparse.Namespace) -> None:
     final = dict(runtime)
     final["schema"] = "elevenid.behavior-observations/v3"
     final["runtime_receipt"] = capture["receipt"]
-    final["producer"] = _producer(args)
+    final["producer"] = _producer(args, rust_build)
     _validate_observations(
         final,
         repository=args.repository,
@@ -731,6 +981,7 @@ def _add_contract(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--subject-args-json", required=True)
     parser.add_argument("--subject-env-json", required=True)
     parser.add_argument("--runtime-image", required=True)
+    parser.add_argument("--rust-build-json", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--revision", required=True)
@@ -766,6 +1017,8 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise RunnerError("repository must be owner/repository")
     if OCI_IMAGE.fullmatch(args.runtime_image) is None:
         raise RunnerError("runtime-image must be pinned by sha256 digest")
+    if args.subject_runtime not in {"python", "direct", "rust-cargo"}:
+        raise RunnerError("subject-runtime is invalid")
     for field in ("harness_sha256", "subject_sha256"):
         if not DIGEST.fullmatch(getattr(args, field)):
             raise RunnerError(f"{field.replace('_', '-')} is invalid")

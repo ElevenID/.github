@@ -1,4 +1,10 @@
 /.github/workflows/feature-regression-*.yml text eol=lf
+/.github/workflows/publish-rust-probe-runtime.yml text eol=lf
 /maintenance/feature-regression-* text eol=lf
+/runtime/rust-cargo/** text eol=lf
 /scripts/feature_regression_*.py text eol=lf
+/scripts/rust_runtime_bundle.py text eol=lf
+/scripts/rust_runtime_publication.py text eol=lf
 /tests/test_feature_regression_*.py text eol=lf
+/tests/test_rust_runtime_bundle.py text eol=lf
+/tests/test_rust_runtime_publication.py text eol=lf

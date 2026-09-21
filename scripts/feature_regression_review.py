@@ -9,6 +9,7 @@ import os
 import pathlib
 import re
 import sys
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,25 @@ CANONICAL_JSON_METHOD = "elevenid-deterministic-json-v1"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 OCI_IMAGE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,254}@sha256:[0-9a-f]{64}$")
+SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.\-/]{1,512}$")
+APPROVED_RUST_RUNTIME_IMAGES: dict[str, str] = {}
+RUST_BUILD_FIELDS = {
+    "profile",
+    "manifest_path",
+    "manifest_sha256",
+    "lock_path",
+    "lock_sha256",
+    "runtime_manifest_sha256",
+}
+RUST_RUNTIME_MANIFEST_FIELDS = {
+    "schema",
+    "profile",
+    "rustc_version",
+    "cargo_version",
+    "python_version",
+    "vendor_lock_sha256",
+    "wrapper_sha256",
+}
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 TEST_REFERENCE = re.compile(
     r"^test:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@"
@@ -277,6 +297,26 @@ class ArtifactObservationReference:
 
 
 @dataclass(frozen=True)
+class RustBuildContract:
+    profile: str
+    manifest_path: str
+    manifest_sha256: str
+    lock_path: str
+    lock_sha256: str
+    runtime_manifest_sha256: str
+
+    def document(self) -> dict[str, str]:
+        return {
+            "profile": self.profile,
+            "manifest_path": self.manifest_path,
+            "manifest_sha256": self.manifest_sha256,
+            "lock_path": self.lock_path,
+            "lock_sha256": self.lock_sha256,
+            "runtime_manifest_sha256": self.runtime_manifest_sha256,
+        }
+
+
+@dataclass(frozen=True)
 class ProducerContract:
     workflow_path: str
     workflow_sha256: str
@@ -289,6 +329,7 @@ class ProducerContract:
     subject_args: tuple[str, ...]
     subject_env: dict[str, str]
     runtime_image: str
+    rust_build: RustBuildContract | None
     job_name: str
     produce_step_name: str
     upload_step_name: str
@@ -437,13 +478,15 @@ def _repository(value: Any, path: str) -> str:
 
 
 def _relative_path(value: Any, path: str) -> str:
-    candidate = _text(value, path).replace("\\", "/")
+    if not isinstance(value, str) or not value:
+        raise EvidenceError(f"{path} must be a safe repository-relative path")
+    candidate = value
     parts = candidate.split("/")
     if (
-        candidate.startswith("/")
+        SAFE_RELATIVE_PATH.fullmatch(candidate) is None
+        or candidate.startswith("/")
         or not all(parts)
         or any(part in {".", ".."} for part in parts)
-        or not re.fullmatch(r"[A-Za-z0-9_.\-/]+", candidate)
     ):
         raise EvidenceError(f"{path} must be a safe repository-relative path")
     return candidate
@@ -1107,6 +1150,12 @@ def _expected_producer_workflow(producer: ProducerContract) -> bytes:
     subject_env_json = json.dumps(
         producer.subject_env, sort_keys=True, separators=(",", ":")
     )
+    rust_build_input = ""
+    if producer.rust_build is not None:
+        rust_build_json = json.dumps(
+            producer.rust_build.document(), sort_keys=True, separators=(",", ":")
+        )
+        rust_build_input = f"      rust-build-json: '{rust_build_json}'\n"
     content = f"""name: feature-regression-observation-producer
 
 on:
@@ -1138,7 +1187,7 @@ jobs:
       subject-args-json: '{subject_args_json}'
       subject-env-json: '{subject_env_json}'
       runtime-image: {producer.runtime_image}
-      job-name: {producer.job_name}
+{rust_build_input}      job-name: {producer.job_name}
       artifact-name-prefix: {producer.artifact_name_prefix}
       observation-path: {producer.observation_path}
 """
@@ -1363,33 +1412,36 @@ def _validate_behavior_catalog(
         {"schema", "repository", "producer", "operations"},
         "behavior catalog",
     )
-    if catalog.get("schema") != "elevenid.behavior-catalog/v3":
+    catalog_schema = catalog.get("schema")
+    if catalog_schema not in {
+        "elevenid.behavior-catalog/v3",
+        "elevenid.behavior-catalog/v4",
+    }:
         raise EvidenceError("behavior catalog schema is invalid")
     if str(catalog.get("repository", "")).casefold() != repository.casefold():
         raise EvidenceError("behavior catalog repository does not match")
     producer_value = _mapping(catalog.get("producer"), "behavior catalog.producer")
-    _exact_keys(
-        producer_value,
-        {
-            "workflow_path",
-            "workflow_sha256",
-            "central_workflow_sha",
-            "harness_path",
-            "harness_sha256",
-            "subject_path",
-            "subject_sha256",
-            "subject_runtime",
-            "subject_args",
-            "subject_env",
-            "runtime_image",
-            "job_name",
-            "produce_step_name",
-            "upload_step_name",
-            "artifact_name_prefix",
-            "observation_path",
-        },
-        "behavior catalog.producer",
-    )
+    producer_fields = {
+        "workflow_path",
+        "workflow_sha256",
+        "central_workflow_sha",
+        "harness_path",
+        "harness_sha256",
+        "subject_path",
+        "subject_sha256",
+        "subject_runtime",
+        "subject_args",
+        "subject_env",
+        "runtime_image",
+        "job_name",
+        "produce_step_name",
+        "upload_step_name",
+        "artifact_name_prefix",
+        "observation_path",
+    }
+    if catalog_schema == "elevenid.behavior-catalog/v4":
+        producer_fields.add("rust_build")
+    _exact_keys(producer_value, producer_fields, "behavior catalog.producer")
     workflow_path = _relative_path(
         producer_value.get("workflow_path"), "behavior catalog.producer.workflow_path"
     )
@@ -1434,7 +1486,12 @@ def _validate_behavior_catalog(
         producer_value.get("subject_runtime"),
         "behavior catalog.producer.subject_runtime",
     )
-    if subject_runtime not in {"python", "direct"}:
+    allowed_runtimes = (
+        {"rust-cargo"}
+        if catalog_schema == "elevenid.behavior-catalog/v4"
+        else {"python", "direct"}
+    )
+    if subject_runtime not in allowed_runtimes:
         raise EvidenceError("behavior catalog producer subject_runtime is invalid")
     subject_args = tuple(
         _text(item, "behavior catalog.producer.subject_args")
@@ -1458,6 +1515,23 @@ def _validate_behavior_catalog(
             re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", name) is None
             or name in {"LC_ALL", "PYTHONHASHSEED", "TZ"}
             or re.fullmatch(r"[A-Za-z0-9_./:=+\-]{0,256}", value) is None
+            or (
+                subject_runtime == "rust-cargo"
+                and (
+                    name
+                    in {
+                        "BASH_ENV",
+                        "ENV",
+                        "HOME",
+                        "PATH",
+                        "SHELL",
+                        "TEMP",
+                        "TMP",
+                        "TMPDIR",
+                    }
+                    or name.startswith(("CARGO_", "RUST", "LD_", "DYLD_"))
+                )
+            )
         ):
             raise EvidenceError("behavior catalog producer subject_env is invalid")
         subject_env[name] = value
@@ -1468,6 +1542,71 @@ def _validate_behavior_catalog(
     if OCI_IMAGE.fullmatch(runtime_image) is None:
         raise EvidenceError(
             "behavior catalog producer runtime_image must be pinned by sha256 digest"
+        )
+    rust_build: RustBuildContract | None = None
+    if subject_runtime == "rust-cargo":
+        rust_value = _mapping(
+            producer_value.get("rust_build"),
+            "behavior catalog.producer.rust_build",
+        )
+        _exact_keys(
+            rust_value,
+            RUST_BUILD_FIELDS,
+            "behavior catalog.producer.rust_build",
+        )
+        profile = _text(
+            rust_value.get("profile"),
+            "behavior catalog.producer.rust_build.profile",
+        )
+        if profile != "rust-cargo-v1":
+            raise EvidenceError("behavior catalog Rust build profile is invalid")
+        manifest_path = _relative_path(
+            rust_value.get("manifest_path"),
+            "behavior catalog.producer.rust_build.manifest_path",
+        )
+        lock_path = _relative_path(
+            rust_value.get("lock_path"),
+            "behavior catalog.producer.rust_build.lock_path",
+        )
+        manifest_pure = pathlib.PurePosixPath(manifest_path)
+        if (
+            not manifest_path.startswith(".github/feature-regression/")
+            or manifest_pure.name != "Cargo.toml"
+            or pathlib.PurePosixPath(lock_path) != manifest_pure.parent / "Cargo.lock"
+        ):
+            raise EvidenceError("behavior catalog Rust manifest/lock paths are invalid")
+        manifest_sha256 = _text(
+            rust_value.get("manifest_sha256"),
+            "behavior catalog.producer.rust_build.manifest_sha256",
+        )
+        lock_sha256 = _text(
+            rust_value.get("lock_sha256"),
+            "behavior catalog.producer.rust_build.lock_sha256",
+        )
+        runtime_manifest_sha256 = _text(
+            rust_value.get("runtime_manifest_sha256"),
+            "behavior catalog.producer.rust_build.runtime_manifest_sha256",
+        )
+        if not all(
+            DIGEST.fullmatch(value)
+            for value in (
+                manifest_sha256,
+                lock_sha256,
+                runtime_manifest_sha256,
+            )
+        ):
+            raise EvidenceError("behavior catalog Rust build digests are invalid")
+        if APPROVED_RUST_RUNTIME_IMAGES.get(runtime_image) != runtime_manifest_sha256:
+            raise EvidenceError(
+                "behavior catalog Rust runtime image is not activated by central policy"
+            )
+        rust_build = RustBuildContract(
+            profile=profile,
+            manifest_path=manifest_path,
+            manifest_sha256=manifest_sha256,
+            lock_path=lock_path,
+            lock_sha256=lock_sha256,
+            runtime_manifest_sha256=runtime_manifest_sha256,
         )
     central_workflow_sha = _sha(
         producer_value.get("central_workflow_sha"),
@@ -1529,6 +1668,7 @@ def _validate_behavior_catalog(
         subject_args=subject_args,
         subject_env=subject_env,
         runtime_image=runtime_image,
+        rust_build=rust_build,
         job_name=job_name,
         produce_step_name=produce_step_name,
         upload_step_name=upload_step_name,
@@ -1561,6 +1701,44 @@ def _validate_behavior_catalog(
         )
     if _raw_sha256(base_subject) != subject_sha256:
         raise EvidenceError("observation subject does not match the catalog digest")
+    if rust_build is not None:
+        rust_files: dict[str, bytes] = {}
+        for label, path, digest in (
+            ("Rust manifest", rust_build.manifest_path, rust_build.manifest_sha256),
+            ("Rust lock", rust_build.lock_path, rust_build.lock_sha256),
+        ):
+            base_content = fetch_content(repository, path, reviewed_base)
+            head_content = fetch_content(repository, path, reviewed_head)
+            if base_content != head_content:
+                raise EvidenceError(f"{label} must be byte-identical at base and head")
+            if _raw_sha256(base_content) != digest:
+                raise EvidenceError(f"{label} does not match the catalog digest")
+            rust_files[label] = base_content
+        try:
+            manifest_document = tomllib.loads(
+                rust_files["Rust manifest"].decode("utf-8", errors="strict")
+            )
+        except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+            raise EvidenceError(f"Rust manifest is invalid TOML: {error}") from error
+        binaries = manifest_document.get("bin")
+        if (
+            not isinstance(binaries, list)
+            or len(binaries) != 1
+            or not isinstance(binaries[0], dict)
+            or binaries[0].get("name") != "elevenid-feature-regression-probe"
+            or not isinstance(binaries[0].get("path"), str)
+        ):
+            raise EvidenceError("Rust manifest must declare the one fixed probe binary")
+        binary_path = pathlib.PurePosixPath(rust_build.manifest_path).parent.joinpath(
+            binaries[0]["path"]
+        )
+        if (
+            any(part in {"", ".", ".."} for part in binary_path.parts)
+            or binary_path.as_posix() != subject_path
+        ):
+            raise EvidenceError(
+                "Rust manifest binary path must identify the observation subject"
+            )
     cases: dict[str, tuple[str, str, set[str]]] = {}
     components: list[tuple[str, str]] = []
     operation_ids: set[str] = set()
@@ -1665,19 +1843,25 @@ def _select_observation(
     receipt = _mapping(
         document.get("runtime_receipt"), f"{path} observation runtime_receipt"
     )
+    receipt_runtime = receipt.get("runtime")
+    receipt_fields = {
+        "runtime_image",
+        "subject_path",
+        "subject_sha256",
+        "runtime",
+        "arguments",
+        "environment",
+        "exit_code",
+        "stdout_sha256",
+        "stderr_sha256",
+    }
+    if receipt_runtime == "rust-cargo":
+        receipt_fields.update(
+            {"resolved_image_digest", "rust_build", "runtime_manifest"}
+        )
     _exact_keys(
         receipt,
-        {
-            "runtime_image",
-            "subject_path",
-            "subject_sha256",
-            "runtime",
-            "arguments",
-            "environment",
-            "exit_code",
-            "stdout_sha256",
-            "stderr_sha256",
-        },
+        receipt_fields,
         f"{path} observation runtime_receipt",
     )
     _relative_path(
@@ -1694,7 +1878,7 @@ def _select_observation(
                 f"{path} observation runtime_receipt {field} is invalid"
             )
     if (
-        receipt.get("runtime") not in {"python", "direct"}
+        receipt_runtime not in {"python", "direct", "rust-cargo"}
         or receipt.get("exit_code") != 0
     ):
         raise EvidenceError(
@@ -1705,6 +1889,31 @@ def _select_observation(
         receipt.get("environment"),
         f"{path} observation runtime_receipt.environment",
     )
+    if receipt_runtime == "rust-cargo":
+        if (
+            receipt.get("resolved_image_digest")
+            != str(receipt.get("runtime_image")).rsplit("@", 1)[-1]
+        ):
+            raise EvidenceError(
+                f"{path} Rust runtime receipt image digest does not match"
+            )
+        rust_build = _mapping(
+            receipt.get("rust_build"), f"{path} observation runtime_receipt.rust_build"
+        )
+        _exact_keys(
+            rust_build,
+            RUST_BUILD_FIELDS,
+            f"{path} observation runtime_receipt.rust_build",
+        )
+        runtime_manifest = _mapping(
+            receipt.get("runtime_manifest"),
+            f"{path} observation runtime_receipt.runtime_manifest",
+        )
+        _exact_keys(
+            runtime_manifest,
+            RUST_RUNTIME_MANIFEST_FIELDS,
+            f"{path} observation runtime_receipt.runtime_manifest",
+        )
     matches: list[Mapping[str, Any]] = []
     observation_ids: set[str] = set()
     for index, raw_observation in enumerate(
@@ -1928,29 +2137,32 @@ def _validate_artifact_observation(
     if payload != _deterministic_json_bytes(document):
         raise EvidenceError(f"{path} artifact observation JSON must be canonical")
     provenance = _mapping(document.get("producer"), f"{path} observation producer")
+    provenance_fields = {
+        "workflow_path",
+        "workflow_sha256",
+        "central_workflow_sha",
+        "harness_path",
+        "harness_sha256",
+        "subject_path",
+        "subject_sha256",
+        "subject_runtime",
+        "subject_args",
+        "subject_env",
+        "runtime_image",
+        "job_name",
+        "artifact_name",
+        "run_id",
+        "run_attempt",
+        "head_sha",
+        "phase",
+        "event_name",
+        "head_branch",
+    }
+    if producer.rust_build is not None:
+        provenance_fields.add("rust_build")
     _exact_keys(
         provenance,
-        {
-            "workflow_path",
-            "workflow_sha256",
-            "central_workflow_sha",
-            "harness_path",
-            "harness_sha256",
-            "subject_path",
-            "subject_sha256",
-            "subject_runtime",
-            "subject_args",
-            "subject_env",
-            "runtime_image",
-            "job_name",
-            "artifact_name",
-            "run_id",
-            "run_attempt",
-            "head_sha",
-            "phase",
-            "event_name",
-            "head_branch",
-        },
+        provenance_fields,
         f"{path} observation producer",
     )
     expected_provenance = {
@@ -1974,6 +2186,8 @@ def _validate_artifact_observation(
         "event_name": event_name,
         "head_branch": head_branch,
     }
+    if producer.rust_build is not None:
+        expected_provenance["rust_build"] = producer.rust_build.document()
     if dict(provenance) != expected_provenance:
         raise EvidenceError(
             f"{path} artifact provenance does not match the run/catalog"
@@ -1987,6 +2201,18 @@ def _validate_artifact_observation(
         "TZ": "UTC",
         **producer.subject_env,
     }
+    if producer.rust_build is not None:
+        expected_environment.update(
+            {
+                "CARGO_HOME": "/build/cargo-home",
+                "CARGO_NET_OFFLINE": "true",
+                "CARGO_TARGET_DIR": "/build/target",
+                "HOME": "/build/home",
+                "PATH": "/opt/elevenid/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+                "RUSTUP_HOME": "/usr/local/rustup",
+                "TMPDIR": "/tmp",
+            }
+        )
     for field, expected_receipt_value in (
         ("runtime_image", producer.runtime_image),
         ("subject_path", producer.subject_path),
@@ -2000,6 +2226,35 @@ def _validate_artifact_observation(
             raise EvidenceError(
                 f"{path} runtime receipt {field} does not match the catalog"
             )
+    if producer.rust_build is not None:
+        if (
+            receipt.get("resolved_image_digest")
+            != producer.runtime_image.rsplit("@", 1)[1]
+        ):
+            raise EvidenceError(
+                f"{path} runtime receipt resolved image digest does not match"
+            )
+        if receipt.get("rust_build") != producer.rust_build.document():
+            raise EvidenceError(f"{path} runtime receipt Rust build does not match")
+        runtime_manifest = _mapping(
+            receipt.get("runtime_manifest"),
+            f"{path} runtime receipt runtime_manifest",
+        )
+        if (
+            runtime_manifest.get("schema") != "elevenid.rust-cargo-runtime/v1"
+            or runtime_manifest.get("profile") != "rust-cargo-v1"
+            or runtime_manifest.get("vendor_lock_sha256")
+            != producer.rust_build.lock_sha256
+            or DIGEST.fullmatch(str(runtime_manifest.get("wrapper_sha256"))) is None
+            or any(
+                not isinstance(runtime_manifest.get(field), str)
+                or not runtime_manifest[field]
+                for field in ("rustc_version", "cargo_version", "python_version")
+            )
+            or f"sha256:{hashlib.sha256(_deterministic_json_bytes(runtime_manifest)).hexdigest()}"
+            != producer.rust_build.runtime_manifest_sha256
+        ):
+            raise EvidenceError(f"{path} runtime receipt manifest does not match")
     observation = _select_observation(
         document,
         path=path,
