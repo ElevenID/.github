@@ -18,9 +18,9 @@ permissions:
 
 jobs:
   workflow-quality:
-    uses: ElevenID/.github/.github/workflows/quality-workflows.yml@490223faa1d47256ee10596505ff954027221566
+    uses: ElevenID/.github/.github/workflows/quality-workflows.yml@14c69018a4ec7acabe223fc37065bb82c5574395
     with:
-      policy-ref: 490223faa1d47256ee10596505ff954027221566
+      policy-ref: 14c69018a4ec7acabe223fc37065bb82c5574395
 
   dependency-review:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
