@@ -834,6 +834,9 @@ class ObservationRunnerTests(unittest.TestCase):
         self.subject.chmod(0o644)
         self.subject_digest = self.digest(self.subject)
 
+        # This case uses the real Docker runner with --pull=never; prepare the
+        # pinned image explicitly instead of depending on runner image caches.
+        self.prepare_runtime_image(docker, RUNTIME_IMAGE)
         self.assertEqual(0, self.produce())
         trusted = target.read_bytes()
         time.sleep(0.5)
