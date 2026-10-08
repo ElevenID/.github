@@ -45,6 +45,8 @@ jobs:
         env:
           # Gate actionable ShellCheck warnings/errors; info/style findings remain advisory.
           SHELLCHECK_OPTS: --severity=warning
+          # Avoid Go's moving auto-selected toolchain during actionlint validation.
+          GOTOOLCHAIN: go1.26.8
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Audit GitHub Actions security
         shell: bash
