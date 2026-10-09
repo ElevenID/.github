@@ -13,6 +13,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from typing import Callable
 from unittest import mock
 
 from scripts import feature_regression_observation_runner as runner
@@ -30,6 +31,20 @@ RUNTIME_IMAGE = (
     "236173eb74001afe2f60862de935b74fcbd00adfca247b2c27051a70a6a39a2d"
 )
 RUST_RUNTIME_IMAGE = "ghcr.io/elevenid/feature-regression-rust-cargo@sha256:" + "9" * 64
+
+
+def namespace_regression_runtime_image(
+    docker: str, prepare: Callable[[str, str], str]
+) -> str:
+    """Select the same pinned bytes without making Docker Hub availability the test."""
+    candidates = ("mirror.gcr.io/library/" + RUNTIME_IMAGE, RUNTIME_IMAGE)
+    for reference in candidates:
+        try:
+            prepare(docker, reference)
+        except runner.RunnerError:
+            continue
+        return reference
+    raise RuntimeError("the pinned namespace-regression runtime image is unavailable")
 
 SUBJECT = textwrap.dedent(
     """
@@ -710,6 +725,30 @@ class ObservationRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(runner.RunnerError, "does not match"):
                 self.prepare_runtime_image(docker, RUST_RUNTIME_IMAGE)
 
+    def test_namespace_regression_uses_exact_digest_cache_then_fallback(self) -> None:
+        mirror = "mirror.gcr.io/library/" + RUNTIME_IMAGE
+        prepare = mock.Mock(return_value=RUNTIME_IMAGE.rsplit("@", 1)[1])
+        self.assertEqual(
+            mirror, namespace_regression_runtime_image("/docker", prepare)
+        )
+        prepare.assert_called_once_with("/docker", mirror)
+
+        prepare = mock.Mock(
+            side_effect=[runner.RunnerError("cache unavailable"), "sha256:" + "2" * 64]
+        )
+        self.assertEqual(
+            RUNTIME_IMAGE, namespace_regression_runtime_image("/docker", prepare)
+        )
+        self.assertEqual(
+            [mock.call("/docker", mirror), mock.call("/docker", RUNTIME_IMAGE)],
+            prepare.call_args_list,
+        )
+
+        prepare = mock.Mock(side_effect=runner.RunnerError("unavailable"))
+        with self.assertRaisesRegex(RuntimeError, "pinned namespace-regression"):
+            namespace_regression_runtime_image("/docker", prepare)
+        self.assertEqual(2, prepare.call_count)
+
     def test_runtime_manifest_binds_toolchain_wrapper_and_probe_lock(self) -> None:
         _, _, lock, build = self.rust_fixture()
         manifest = {
@@ -821,6 +860,9 @@ class ObservationRunnerTests(unittest.TestCase):
         )
         if probe.returncode != 0:
             self.skipTest("a Linux Docker engine is required")
+        runtime_image = namespace_regression_runtime_image(
+            docker, self.prepare_runtime_image
+        )
         self.container_patch.stop()
         self.container_patch = None
         self.root.chmod(0o755)
@@ -834,10 +876,9 @@ class ObservationRunnerTests(unittest.TestCase):
         self.subject.chmod(0o644)
         self.subject_digest = self.digest(self.subject)
 
-        # This case uses the real Docker runner with --pull=never; prepare the
-        # pinned image explicitly instead of depending on runner image caches.
-        self.prepare_runtime_image(docker, RUNTIME_IMAGE)
-        self.assertEqual(0, self.produce())
+        # This case uses the real Docker runner with --pull=never; the exact
+        # digest was prepared above before the namespace-escape assertion.
+        self.assertEqual(0, self.produce(runtime_image=runtime_image))
         trusted = target.read_bytes()
         time.sleep(0.5)
         self.assertEqual(trusted, target.read_bytes())
