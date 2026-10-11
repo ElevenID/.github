@@ -39,7 +39,7 @@ jobs:
             ~/go/pkg/mod
             ~/.cache/go-build
             ~/.cache/pip
-          key: workflow-quality-tools-v1-${{ runner.os }}-${{ runner.arch }}-actionlint-1.7.12-zizmor-1.27.0-pyyaml-6.0.3
+          key: workflow-quality-tools-v1-${{ runner.os }}-${{ runner.arch }}-actionlint-1.7.12-zizmor-1.28.0-pyyaml-6.0.3
       - name: Validate GitHub Actions syntax
         shell: bash
         env:
@@ -51,7 +51,7 @@ jobs:
       - name: Audit GitHub Actions security
         shell: bash
         run: |
-          python -m pip install --disable-pip-version-check "zizmor==1.27.0"
+          python -m pip install --disable-pip-version-check "zizmor==1.28.0"
           zizmor --persona=auditor --min-severity=high --min-confidence=high .github/workflows
       - name: Enforce ElevenID workflow policy
         shell: bash
