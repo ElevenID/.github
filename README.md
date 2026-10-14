@@ -13,6 +13,7 @@ must link to their owner, upstream project, decision, and public tracking work.
 
 ## Maintenance records
 
+- [PR feedback resolution policy](maintenance/pr-feedback-resolution.md)
 - [Feature-Regression Reviewer contract](maintenance/feature-regression-reviewer.md)
 - [Feature-regression evidence example](maintenance/feature-regression-review-evidence.example.json)
 - [Feature-regression behavior catalog example](maintenance/feature-regression-behavior-catalog.example.json)

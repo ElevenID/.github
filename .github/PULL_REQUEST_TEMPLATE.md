@@ -8,6 +8,18 @@
 
 <!-- Commands, checks, or manual scenarios run. -->
 
+## PR feedback
+
+Follow the PR feedback resolution policy in
+`ElevenID/.github/maintenance/pr-feedback-resolution.md`.
+
+- [ ] Every substantive human and automated comment has a documented fix or
+      reviewer-accepted disposition.
+- [ ] Fixes were verified on the corrected head, and applicable reviews were
+      repeated after relevant changes.
+- [ ] All review conversations are resolved; no general comment raises an
+      unanswered or uncorrected issue.
+
 ## Feature-regression review
 
 Follow the visible

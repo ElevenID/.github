@@ -13,6 +13,11 @@ Thank you for contributing to an ElevenID open-source project.
    deletions, run the independent
    [Feature-Regression Reviewer](https://github.com/ElevenID/.github/blob/main/maintenance/feature-regression-reviewer.md)
    loop and attach exact-head evidence before merge.
+8. Address every human and automated PR comment before merge. Follow the
+   [PR feedback resolution policy](maintenance/pr-feedback-resolution.md):
+   correct reported defects on the PR branch, verify the corrected head,
+   respond with the fix or a reasoned disposition, and resolve every review
+   conversation. Do not merge while substantive feedback remains open.
 
 Do not include credentials, customer data, private repository content,
 commercial pricing, or payment-provider configuration in a public change.
