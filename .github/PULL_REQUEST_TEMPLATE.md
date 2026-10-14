@@ -10,8 +10,8 @@
 
 ## PR feedback
 
-Follow the PR feedback resolution policy in
-`ElevenID/.github/maintenance/pr-feedback-resolution.md`.
+Follow the [central ElevenID contribution policy](https://github.com/ElevenID/.github/blob/main/CONTRIBUTING.md),
+including `maintenance/pr-feedback-resolution.md` in that repository.
 
 - [ ] Every substantive human and automated comment has a documented fix or
       reviewer-accepted disposition.
