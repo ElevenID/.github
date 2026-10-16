@@ -17,7 +17,7 @@ SPEC.loader.exec_module(cleanup)
 class LocalEvidenceRetentionTests(unittest.TestCase):
     def test_only_expired_disposable_trees_are_candidates(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             now = time.time()
             old = now - 40 * 86400
             for name in (
@@ -74,7 +74,7 @@ class LocalEvidenceRetentionTests(unittest.TestCase):
 
     def test_container_that_is_a_repository_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "artifacts/.git").mkdir(parents=True)
             (root / "artifacts/old.log").write_text("output")
             os.utime(root / "artifacts/old.log", (0, 0))
@@ -88,7 +88,7 @@ class LocalEvidenceRetentionTests(unittest.TestCase):
 
     def test_nested_backup_or_installation_preserves_its_parent(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for index, marker in enumerate(cleanup.PRESERVE):
                 path = root / "artifacts" / f"job-{index}" / "ordinary" / marker
                 path.mkdir(parents=True)
@@ -101,14 +101,14 @@ class LocalEvidenceRetentionTests(unittest.TestCase):
 
     def test_recursive_delete_target_must_be_a_bounded_scratch_child(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for path in (root, root / "worktrees" / "owned", root.parent):
                 with self.assertRaises(ValueError):
                     cleanup.validate_target(root, path)
 
     def test_container_with_git_file_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "artifacts").mkdir()
             (root / "artifacts/.git").write_text("gitdir: owned elsewhere")
             (root / "artifacts/old.log").write_text("old")
@@ -117,7 +117,7 @@ class LocalEvidenceRetentionTests(unittest.TestCase):
 
     def test_apply_rechecks_fresh_descendant_before_deleting(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             report = root / "artifacts/job/report.json"
             report.parent.mkdir(parents=True)
             report.write_text("{}")
