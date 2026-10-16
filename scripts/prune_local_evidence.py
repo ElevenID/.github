@@ -3,8 +3,10 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
+import sys
 import time
 from pathlib import Path
 
@@ -43,6 +45,27 @@ def linked(path):
     )
 
 
+def mount_points():
+    """Include Linux bind mounts, which may share their parent's device number."""
+    if sys.platform != "linux":
+        return set()
+    # Fail closed if the kernel mount table cannot be read or parsed.
+    mounts = set()
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        fields = line.split()
+        if len(fields) < 6 or " - " not in line:
+            raise ValueError("Invalid kernel mount table")
+        decoded = re.sub(
+            r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), fields[4]
+        )
+        mounts.add(Path(decoded))
+    return mounts
+
+
+def mounted(path, mounts):
+    return path in mounts or os.path.ismount(path)
+
+
 def protected(path):
     return any(word in path.name.lower() for word in PRESERVE)
 
@@ -51,6 +74,9 @@ def validate_target(root, path):
     """Require a direct child of a named scratch container inside the workspace."""
     if path.parent.parent != root or path.parent.name not in CONTAINERS:
         raise ValueError(f"Not a named workspace output child: {path}")
+    mounts = mount_points()
+    if mounted(path.parent, mounts) or mounted(path, mounts):
+        raise ValueError(f"Refusing mounted workspace output: {path}")
     if linked(path.parent) or linked(path):
         raise ValueError(f"Refusing linked workspace output: {path}")
     resolved = path.resolve(strict=True)
@@ -60,6 +86,9 @@ def validate_target(root, path):
 
 def inspect(path):
     """Return newest modification and size; protected trees are never candidates."""
+    mounts = mount_points()
+    if mounted(path, mounts) or any(path in mount.parents for mount in mounts):
+        return None
     if linked(path) or protected(path):
         return None
     newest = path.stat().st_mtime
@@ -73,7 +102,7 @@ def inspect(path):
             return None
         for name in dirs + files:
             child = Path(base) / name
-            if linked(child) or protected(child):
+            if linked(child) or protected(child) or mounted(child, mounts):
                 return None
             info = child.stat()
             newest = max(newest, info.st_mtime)
@@ -85,12 +114,18 @@ def inspect(path):
 
 
 def candidates(root, now):
+    mounts = mount_points()
     for name, days in CONTAINERS.items():
         container = root / name
-        if not container.is_dir() or linked(container) or (container / ".git").exists():
+        if (
+            not container.is_dir()
+            or linked(container)
+            or mounted(container, mounts)
+            or (container / ".git").exists()
+        ):
             continue
         for path in sorted(container.iterdir()):
-            if linked(path) or protected(path):
+            if linked(path) or protected(path) or mounted(path, mounts):
                 continue
             # Fixed containers and direct children only; never traverse a repository.
             validate_target(root, path)

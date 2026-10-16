@@ -72,6 +72,67 @@ class LocalEvidenceRetentionTests(unittest.TestCase):
             self.assertTrue((root / "artifacts/nested-repo/.git").exists())
             self.assertTrue((root / "worktrees/old").exists())
 
+    def test_nested_mount_is_rejected_before_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory).resolve()
+            nested = path / "ordinary" / "mounted"
+            with (
+                patch.object(cleanup, "mount_points", return_value={nested}),
+                patch.object(cleanup.os, "walk") as walk,
+            ):
+                self.assertIsNone(cleanup.inspect(path))
+                walk.assert_not_called()
+
+    def test_mounted_container_and_candidate_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            candidate = root / "artifacts" / "old"
+            candidate.mkdir(parents=True)
+            os.utime(candidate, (0, 0))
+            for mount in (candidate.parent, candidate):
+                with patch.object(cleanup, "mount_points", return_value={mount}):
+                    self.assertEqual(list(cleanup.candidates(root, time.time())), [])
+                    with self.assertRaises(ValueError):
+                        cleanup.validate_target(root, candidate)
+
+    def test_linux_bind_mount_table_decodes_escaped_paths(self):
+        table = "31 22 8:1 /source /scratch/a\\040b rw - ext4 /dev/root rw\n"
+        with (
+            patch.object(cleanup.sys, "platform", "linux"),
+        ):
+            with patch.object(Path, "read_text", return_value=table):
+                self.assertEqual(cleanup.mount_points(), {Path("/scratch/a b")})
+            with (
+                patch.object(Path, "read_text", side_effect=PermissionError),
+                self.assertRaises(PermissionError),
+            ):
+                cleanup.mount_points()
+
+    def test_apply_rechecks_new_nested_mount_before_deleting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            candidate = root / "artifacts" / "old"
+            candidate.mkdir(parents=True)
+            os.utime(candidate, (0, 0))
+            original = cleanup.candidates
+            mounts = set()
+
+            def mounted_candidates(workspace, now):
+                selected = list(original(workspace, now))
+                self.assertEqual(len(selected), 1)
+                mounts.add(candidate / "new-volume")
+                yield from selected
+
+            with (
+                patch.object(cleanup, "mount_points", side_effect=lambda: mounts),
+                patch.object(cleanup, "candidates", mounted_candidates),
+                patch.object(cleanup.shutil, "rmtree") as delete,
+                patch.object(sys, "argv", [str(SCRIPT), str(root), "--apply"]),
+            ):
+                cleanup.main()
+                delete.assert_not_called()
+            self.assertTrue(candidate.exists())
+
     def test_container_that_is_a_repository_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

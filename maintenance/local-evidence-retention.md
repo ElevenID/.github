@@ -27,7 +27,7 @@ which deletes expired output. Preservation is based on names: the tool cannot
 identify required assurance records stored under generic names. Move those records
 out of scratch containers before applying cleanup.
 The tool only examines named workspace output containers. It preserves nested
-Git repositories, symlinks/reparse points, and trees with any descendant whose name
+Git repositories, filesystem mounts (including Linux bind mounts), symlinks/reparse points, and trees with any descendant whose name
 identifies backups, archives, predeletion evidence, recovery, self-host installations,
 runtime state, release manifests/attestations, baselines, snapshots, or rollback
 records. It never cleans worktrees or build targets. Review those
