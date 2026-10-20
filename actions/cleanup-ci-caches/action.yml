@@ -1,6 +1,9 @@
 name: Cleanup closed pull-request caches
 description: Bounded, paced cleanup that preserves main and open pull-request caches
 inputs:
+  max-deletions:
+    description: Maximum deletions per run, from 1 to 2000, subject to available API budget
+    default: "200"
   include-queue-on-close:
     description: Scan queue refs as well as the PR merge ref on closed events
     default: "false"
@@ -11,8 +14,10 @@ runs:
       env:
         CACHE_CLEANUP_ACTION_PATH: ${{ github.action_path }}
         CACHE_CLEANUP_INCLUDE_QUEUE: ${{ inputs.include-queue-on-close }}
+        CACHE_CLEANUP_MAX_DELETIONS: ${{ inputs.max-deletions }}
       with:
         script: |
           const cleanup = require(process.env.CACHE_CLEANUP_ACTION_PATH + '/cleanup.cjs');
           await cleanup({github, context, core,
+            maxDeletions: Number(process.env.CACHE_CLEANUP_MAX_DELETIONS),
             includeQueueOnClose: process.env.CACHE_CLEANUP_INCLUDE_QUEUE === 'true'});

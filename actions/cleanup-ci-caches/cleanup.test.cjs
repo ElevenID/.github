@@ -173,3 +173,46 @@ test('authorization errors are never retried and unsupported events never call t
     assert.deepEqual(h.calls.lists, []);
   }
 });
+
+test('caller-specific batch limits preserve Core 300 and other callers 2000', async () => {
+  for (const maximum of [300, 2000]) {
+    const all = Array.from({length: maximum + 1}, (_, i) => cache(i));
+    const pages = Array.from({length: Math.ceil(all.length / 100)}, (_, i) => all.slice(i * 100, i * 100 + 100));
+    const {args, calls} = harness({pages});
+    args.maxDeletions = maximum;
+    await cleanup(args);
+    assert.equal(calls.deletes.length, maximum);
+    assert.ok(!calls.deletes.includes(maximum));
+    assert.match(calls.summaries[0], new RegExp(`limit ${maximum} per run`));
+  }
+});
+
+test('invalid batch limits fail before any API work', async () => {
+  for (const maximum of [0, -1, 2001, 1.5, NaN, Infinity, '300']) {
+    const {args, calls} = harness();
+    args.maxDeletions = maximum;
+    await assert.rejects(cleanup(args), /integer from 1 to 2000/);
+    assert.deepEqual(calls.lists, []);
+  }
+});
+
+test('low read budget defers further requests without pretending cleanup completed', async () => {
+  const {args, calls} = harness({list() {
+    return {data: {actions_caches: [cache(1)]}, headers: {'x-ratelimit-remaining': '50'}};
+  }});
+  await cleanup(args);
+  assert.deepEqual(calls.pulls, []);
+  assert.deepEqual(calls.deletes, []);
+  assert.equal(calls.warnings.length, 1);
+  assert.match(calls.summaries.join(' '), /deferred to a subsequent run/);
+});
+
+test('falling delete budget reports completed progress and leaves later caches untouched', async () => {
+  const {args, calls} = harness({pages: [[cache(1), cache(2)]], remove() {
+    return {headers: {'x-ratelimit-remaining': '50'}};
+  }});
+  await cleanup(args);
+  assert.deepEqual(calls.deletes, [1]);
+  assert.match(calls.summaries[0], /Removed 1/);
+  assert.match(calls.summaries.join(' '), /deferred to a subsequent run/);
+});
