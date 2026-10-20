@@ -34,16 +34,20 @@ module.exports = async function cleanup({github, context, core,
         const limited = error.status === 429 || (error.status === 403 && (
           headers['x-ratelimit-remaining'] === '0' || headers['retry-after'] !== undefined ||
           /secondary rate limit/i.test(error.message)));
-        if (!limited || attempt === 2) throw error;
+        // Octokit also reports transport resets as status 500 without a response.
+        // All operations here are idempotent GET or delete-by-ID requests.
+        const transient = [500, 502, 503, 504].includes(error.status);
+        if ((!limited && !transient) || attempt === 2) throw error;
         const retryAfter = Number(headers['retry-after']) * 1000;
         const reset = headers['x-ratelimit-remaining'] === '0'
           ? Number(headers['x-ratelimit-reset']) * 1000 - now() : 0;
-        const delay = Math.max(60000 * 2 ** attempt,
+        const delay = Math.max((limited ? 60000 : 1000) * 2 ** attempt,
           Number.isFinite(retryAfter) ? retryAfter : 0,
           Number.isFinite(reset) ? reset : 0);
-        // Long primary-limit exhaustion belongs to a later scheduled run.
+        // Long server-directed waits belong to a later scheduled run.
         if (delay > 300000) throw error;
-        core.warning(`GitHub rate limit; retrying after ${Math.ceil(delay / 1000)} seconds.`);
+        const reason = limited ? 'rate limit' : 'transient request failure';
+        core.warning(`GitHub ${reason}; retrying after ${Math.ceil(delay / 1000)} seconds.`);
         await wait(delay);
       }
     }

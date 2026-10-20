@@ -111,14 +111,15 @@ test('manual cleanup follows pages containing only ineligible caches', async () 
   assert.deepEqual(calls.deletes, [100]);
 });
 
-test('404 is harmless; other failures stop deletion and preserve a partial summary', async () => {
+test('404 is harmless; exhausted failures stop deletion and preserve a partial summary', async () => {
   const {args, calls} = harness({pages: [[cache(1), cache(2), cache(3), cache(4)]],
     remove({cache_id}) {
       if (cache_id === 2) throw error(404);
       if (cache_id === 3) throw error(500);
     }});
   await assert.rejects(cleanup(args), {status: 500});
-  assert.deepEqual(calls.deletes, [1, 2, 3]);
+  assert.deepEqual(calls.deletes, [1, 2, 3, 3, 3]);
+  assert.deepEqual(calls.waits, [1000, 1000, 1000, 1000, 2000]);
   assert.match(calls.summaries[0], /Removed 1.*1 were already absent/);
 });
 
@@ -171,10 +172,12 @@ test('exhausted throttles and long reset windows fail instead of hiding incomple
 });
 
 test('authorization errors are never retried and unsupported events never call the API', async () => {
-  const {args, calls} = harness({list() { throw error(403); }});
-  await assert.rejects(cleanup(args), {status: 403});
-  assert.equal(calls.lists.length, 1);
-  assert.deepEqual(calls.waits, []);
+  for (const status of [401, 403]) {
+    const {args, calls} = harness({list() { throw error(status); }});
+    await assert.rejects(cleanup(args), {status});
+    assert.equal(calls.lists.length, 1);
+    assert.deepEqual(calls.waits, []);
+  }
   for (const options of [{event: 'push'}, {event: 'pull_request', action: 'opened'}]) {
     const h = harness(options);
     await assert.rejects(cleanup(h.args));
@@ -223,4 +226,59 @@ test('falling delete budget reports completed progress and leaves later caches u
   assert.deepEqual(calls.deletes, [1]);
   assert.match(calls.summaries[0], /Removed 1/);
   assert.match(calls.summaries.join(' '), /deferred to a subsequent run/);
+});
+
+
+test('transient GET failures retry the same page before selection and deletion', async () => {
+  for (const status of [500, 502, 503, 504]) {
+    const {args, calls} = harness({list(params, history) {
+      if (history.lists.length === 1) throw error(status);
+      return {data: {actions_caches: [cache(1)]}};
+    }});
+    await cleanup(args);
+    assert.deepEqual(calls.lists.map(params => params.page), [1, 1]);
+    assert.deepEqual(calls.deletes, [1]);
+    assert.deepEqual(calls.waits, [1000, 1000]);
+    assert.match(calls.warnings[0], /transient request failure/);
+  }
+});
+
+test('ambiguous transport-reset deletion can retry to 404 and continue safely', async () => {
+  const {args, calls} = harness({pages: [[cache(1), cache(2)]], remove({cache_id}) {
+    if (cache_id === 1 && calls.deletes.length === 1) {
+      throw Object.assign(new Error('other side closed'), {status: 500,
+        cause: Object.assign(new Error('socket closed'), {code: 'UND_ERR_SOCKET'})});
+    }
+    if (cache_id === 1) throw error(404);
+  }});
+  await cleanup(args);
+  assert.deepEqual(calls.deletes, [1, 1, 2]);
+  assert.deepEqual(calls.waits, [1000, 1000, 1000]);
+  assert.match(calls.summaries[0], /Removed 1.*1 were already absent/);
+});
+
+test('exhausted transient reads fail after three attempts without deleting anything', async () => {
+  const {args, calls} = harness({list() { throw error(503); }});
+  await assert.rejects(cleanup(args), {status: 503});
+  assert.equal(calls.lists.length, 3);
+  assert.deepEqual(calls.waits, [1000, 2000]);
+  assert.deepEqual(calls.deletes, []);
+  assert.match(calls.summaries[0], /Removed 0/);
+});
+
+test('transient retries respect retry-after and reject waits over five minutes', async () => {
+  for (const seconds of [10, 301]) {
+    const {args, calls} = harness({pages: [[cache(1)]], remove() {
+      if (calls.deletes.length === 1) throw error(503, {'retry-after': String(seconds)});
+    }});
+    if (seconds > 300) {
+      await assert.rejects(cleanup(args), {status: 503});
+      assert.deepEqual(calls.deletes, [1]);
+      assert.deepEqual(calls.waits, [1000]);
+    } else {
+      await cleanup(args);
+      assert.deepEqual(calls.deletes, [1, 1]);
+      assert.deepEqual(calls.waits, [1000, 10000]);
+    }
+  }
 });
