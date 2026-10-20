@@ -67,17 +67,25 @@ test('closed event is scoped to its merge ref and rechecks whether the PR reopen
   }
 });
 
-test('UI queue-on-close mode scans all refs but only deletes that currently closed PR', async () => {
-  for (const state of ['open', 'closed']) {
-    const {args, calls} = harness({event: 'pull_request', states: {12: state}, pages: [[
-      cache(1), cache(2, 'refs/heads/gh-readonly-queue/main/pr-12-abc'),
-      cache(3, 'refs/heads/gh-readonly-queue/main/pr-13-def'), cache(4, 'refs/heads/main'),
-    ]]});
-    args.includeQueueOnClose = true;
-    await cleanup(args);
-    assert.equal(calls.lists[0].ref, undefined);
-    assert.deepEqual(calls.pulls, [12]);
-    assert.deepEqual(calls.deletes, state === 'closed' ? [1, 2] : []);
+test('UI queue mode preserves main, unrelated and active PR refs on close and manual sweeps', async t => {
+  // These cases previously executed UI's inline workflow script. Keep them
+  // with the production owner; callers only need to test their action wiring.
+  for (const event of ['pull_request', 'workflow_dispatch']) {
+    for (const state of ['open', 'closed']) {
+      await t.test(`${event}/${state}`, async () => {
+        const {args, calls} = harness({event, states: {12: state, 13: 'open'}, pages: [[
+          cache(1), cache(2, 'refs/heads/gh-readonly-queue/main/pr-12-abc'),
+          cache(3, 'refs/heads/main'), cache(4, 'refs/pull/13/merge'),
+          cache(5, 'refs/heads/gh-readonly-queue/main/pr-13-def'),
+          cache(6, 'refs/heads/feature'),
+        ]]});
+        args.includeQueueOnClose = true;
+        await cleanup(args);
+        assert.equal(calls.lists[0].ref, undefined);
+        assert.deepEqual(calls.pulls, event === 'pull_request' ? [12] : [12, 13]);
+        assert.deepEqual(calls.deletes, state === 'closed' ? [1, 2] : []);
+      });
+    }
   }
 });
 
