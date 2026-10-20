@@ -2,7 +2,8 @@
 
 const {setTimeout: sleep} = require('node:timers/promises');
 
-module.exports = async function cleanup({github, context, core, wait = sleep, now = Date.now}) {
+module.exports = async function cleanup({github, context, core,
+  includeQueueOnClose = false, wait = sleep, now = Date.now}) {
   const {owner, repo} = context.repo;
   const maxDeletions = 200;
   const closedNumber = context.eventName === 'pull_request'
@@ -49,7 +50,8 @@ module.exports = async function cleanup({github, context, core, wait = sleep, no
     pages: for (let page = 1; ; page += 1) {
       const {data} = await request(() => github.rest.actions.getActionsCacheList({
         owner, repo, per_page: 100, page,
-        ...(closedNumber === null ? {} : {ref: `refs/pull/${closedNumber}/merge`}),
+        ...(closedNumber === null || includeQueueOnClose
+          ? {} : {ref: `refs/pull/${closedNumber}/merge`}),
       }));
       const caches = data.actions_caches || [];
       for (const cache of caches) {

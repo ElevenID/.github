@@ -1,12 +1,18 @@
 name: Cleanup closed pull-request caches
 description: Bounded, paced cleanup that preserves main and open pull-request caches
+inputs:
+  include-queue-on-close:
+    description: Scan queue refs as well as the PR merge ref on closed events
+    default: "false"
 runs:
   using: composite
   steps:
     - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
       env:
         CACHE_CLEANUP_ACTION_PATH: ${{ github.action_path }}
+        CACHE_CLEANUP_INCLUDE_QUEUE: ${{ inputs.include-queue-on-close }}
       with:
         script: |
           const cleanup = require(process.env.CACHE_CLEANUP_ACTION_PATH + '/cleanup.cjs');
-          await cleanup({github, context, core});
+          await cleanup({github, context, core,
+            includeQueueOnClose: process.env.CACHE_CLEANUP_INCLUDE_QUEUE === 'true'});

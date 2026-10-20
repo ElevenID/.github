@@ -67,6 +67,20 @@ test('closed event is scoped to its merge ref and rechecks whether the PR reopen
   }
 });
 
+test('UI queue-on-close mode scans all refs but only deletes that currently closed PR', async () => {
+  for (const state of ['open', 'closed']) {
+    const {args, calls} = harness({event: 'pull_request', states: {12: state}, pages: [[
+      cache(1), cache(2, 'refs/heads/gh-readonly-queue/main/pr-12-abc'),
+      cache(3, 'refs/heads/gh-readonly-queue/main/pr-13-def'), cache(4, 'refs/heads/main'),
+    ]]});
+    args.includeQueueOnClose = true;
+    await cleanup(args);
+    assert.equal(calls.lists[0].ref, undefined);
+    assert.deepEqual(calls.pulls, [12]);
+    assert.deepEqual(calls.deletes, state === 'closed' ? [1, 2] : []);
+  }
+});
+
 test('selection paginates before deletion and leaves entries beyond the run bound', async () => {
   const {args, calls} = harness({pages: [
     Array.from({length: 100}, (_, i) => cache(i)),
