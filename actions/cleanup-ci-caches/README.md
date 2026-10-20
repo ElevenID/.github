@@ -17,8 +17,7 @@ current state is checked once per run. Already-missing caches are harmless.
 Each run defaults to at most 200 entries, one at a time with a one-second pause.
 Use `max-deletions: '300'` for Core and `max-deletions: '2000'` for the other
 current Marty callers to retain their existing batch limits. Values must be
-integers from 1 to 2000. Core and UI already pace deletes; four other callers
-use parallel batches.
+integers from 1 to 2000. All shared-action callers pace deletions serially.
 
 Successful API responses supply the remaining primary request budget. When
 that budget reaches 50, the action stops making API requests and explicitly
@@ -27,10 +26,14 @@ an upper bound, not a promise to empty the backlog in one run. Remaining
 eligible caches are left for subsequent scheduled/manual runs. Unknown budget
 headers do not suppress API errors; authorization failures, actual exhausted
 rate-limit retries, and other API failures still fail the job.
-Rate-limited requests retry at most twice, respecting `retry-after` and primary
-reset headers with at least a minute of exponential backoff. Delays over five
-minutes, exhausted retries, authorization failures and other API failures fail
-the job. The summary records completed deletions even on partial failure.
+Requests retry at most twice. Rate limits respect numeric `retry-after` seconds and primary
+reset headers with at least a minute of exponential backoff. Transient HTTP
+500/502/503/504 failures (including Octokit transport resets reported as 500)
+use one- then two-second backoff and respect numeric `retry-after` seconds. These retries are
+safe for the action's GET and delete-by-ID operations; an ambiguous deletion
+followed by 404 counts as already absent. Delays over five minutes, exhausted
+retries, authorization failures and other API failures fail the job. The
+summary records completed deletions even on partial failure.
 
 Run deterministic selection and failure tests with:
 
