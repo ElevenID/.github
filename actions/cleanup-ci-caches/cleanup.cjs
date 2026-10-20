@@ -3,9 +3,13 @@
 const {setTimeout: sleep} = require('node:timers/promises');
 
 module.exports = async function cleanup({github, context, core,
-  includeQueueOnClose = false, wait = sleep, now = Date.now}) {
+  maxDeletions = 200, includeQueueOnClose = false, wait = sleep, now = Date.now}) {
   const {owner, repo} = context.repo;
-  const maxDeletions = 200;
+  if (!Number.isInteger(maxDeletions) || maxDeletions < 1 || maxDeletions > 2000) {
+    throw new Error('max-deletions must be an integer from 1 to 2000.');
+  }
+  let remainingBudget = Infinity;
+  const budgetDeferred = new Error('Cache cleanup reserved the remaining GitHub API budget.');
   const closedNumber = context.eventName === 'pull_request'
     ? context.payload.pull_request.number : null;
   if (closedNumber !== null && context.payload.action !== 'closed') {
@@ -18,8 +22,13 @@ module.exports = async function cleanup({github, context, core,
   // Do not let an API-wide throttle turn into a parallel retry storm.
   const request = async operation => {
     for (let attempt = 0; ; attempt += 1) {
+      if (remainingBudget <= 50) throw budgetDeferred;
       try {
-        return await operation();
+        const response = await operation();
+        const header = response?.headers?.['x-ratelimit-remaining'];
+        const remaining = header === undefined ? NaN : Number(header);
+        if (Number.isFinite(remaining) && remaining >= 0) remainingBudget = remaining;
+        return response;
       } catch (error) {
         const headers = error.response?.headers || {};
         const limited = error.status === 429 || (error.status === 403 && (
@@ -45,6 +54,7 @@ module.exports = async function cleanup({github, context, core,
   const selected = [];
   let removed = 0;
   let alreadyRemoved = 0;
+  let deferred = false;
   try {
     // Finish selection before deletion so pagination cannot skip shifted entries.
     pages: for (let page = 1; ; page += 1) {
@@ -84,9 +94,14 @@ module.exports = async function cleanup({github, context, core,
       }
       core.info(`Processed ${removed + alreadyRemoved} of ${selected.length} selected cache entries.`);
     }
+  } catch (error) {
+    if (error !== budgetDeferred) throw error;
+    deferred = true;
+    core.warning('Cache cleanup stopped before exhausting the GitHub API budget; eligible caches remain for a subsequent run.');
   } finally {
     await core.summary.addHeading('CI cache cleanup')
       .addRaw(`Removed ${removed} cache entries for closed pull requests; ${alreadyRemoved} were already absent (limit ${maxDeletions} per run).`)
+      .addRaw(deferred ? ' Further API work was deferred to a subsequent run to preserve the remaining request budget.' : '')
       .write();
   }
 };

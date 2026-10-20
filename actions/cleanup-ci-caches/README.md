@@ -14,10 +14,19 @@ also select closed PRs' merge-queue caches. Main, unrelated refs, open PRs and
 reopened PRs are preserved. Selection is paginated before deletion; each PR's
 current state is checked once per run. Already-missing caches are harmless.
 
-Each run deletes at most 200 entries, one at a time with a one-second pause.
-This replaces the callers' old 300/2,000-entry caps to reserve API capacity for
-CI. Core and UI already pace deletes; four other callers use parallel batches.
-Remaining eligible caches are left for subsequent scheduled/manual runs.
+Each run defaults to at most 200 entries, one at a time with a one-second pause.
+Use `max-deletions: '300'` for Core and `max-deletions: '2000'` for the other
+current Marty callers to retain their existing batch limits. Values must be
+integers from 1 to 2000. Core and UI already pace deletes; four other callers
+use parallel batches.
+
+Successful API responses supply the remaining primary request budget. When
+that budget reaches 50, the action stops making API requests and explicitly
+warns/reports deferral, reserving capacity for CI. Thus a configured limit is
+an upper bound, not a promise to empty the backlog in one run. Remaining
+eligible caches are left for subsequent scheduled/manual runs. Unknown budget
+headers do not suppress API errors; authorization failures, actual exhausted
+rate-limit retries, and other API failures still fail the job.
 Rate-limited requests retry at most twice, respecting `retry-after` and primary
 reset headers with at least a minute of exponential backoff. Delays over five
 minutes, exhausted retries, authorization failures and other API failures fail
