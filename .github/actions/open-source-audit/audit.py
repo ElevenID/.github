@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 from pathlib import Path
+
+from private_forks_policy import workflow_secret_findings
 
 
 LICENSE_FILES = ("LICENSE", "LICENSE.md", "LICENSE-MIT", "LICENSE-APACHE")
@@ -45,8 +48,9 @@ def tracked_files(root: Path) -> list[Path]:
     return [root / item.decode() for item in result.stdout.split(b"\0") if item]
 
 
-def audit(root: Path) -> list[str]:
+def audit(root: Path, repository: str | None = None) -> list[str]:
     findings: list[str] = []
+    repository = repository if repository is not None else os.environ.get("GITHUB_REPOSITORY", "")
     if not any((root / name).is_file() for name in LICENSE_FILES):
         findings.append("missing repository license")
 
@@ -87,8 +91,8 @@ def audit(root: Path) -> list[str]:
             if re.search(r"^\s*pull_request\s*:", content, re.M):
                 if re.search(r"runs-on:[^\n]*self-hosted", content, re.I):
                     findings.append(f"fork workflow references self-hosted runner: {relative}")
-                if "${{ secrets." in content:
-                    findings.append(f"fork workflow references repository secrets: {relative}")
+            for finding in workflow_secret_findings(root, content, repository):
+                findings.append(f"{finding}: {relative}")
 
     return sorted(set(findings))
 
