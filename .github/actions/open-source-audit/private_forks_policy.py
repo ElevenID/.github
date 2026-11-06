@@ -31,6 +31,8 @@ CONDITIONS = {
     FLAG + " && needs.changes.outputs.rollback_test_only != 'true' && needs.changes.outputs.didcomm_release_test_only != 'true'",
     FLAG + " && steps.update.outputs.changed == 'true'",
     FLAG + " && steps.core-wheel-cache.outputs.cache-hit != 'true'",
+    FLAG + " && matrix.language == 'rust'",
+    FLAG + " && steps.scope.outputs.analyze == 'true' && steps.test_only.outputs.skip != 'true'",
 }
 HELPER_PATHS = {
     "ElevenID/marty-core": {HELPER},

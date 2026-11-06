@@ -17,6 +17,10 @@ import private_forks_policy as policy  # noqa: E402
 
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures/private_fork_workflows.json").read_text())
+CODEQL_CASES = (
+    (0, "preflight", "vars.PRIVATE_FORKS_ENABLED == 'true' && matrix.language == 'rust'"),
+    (1, "test-rust-services", "vars.PRIVATE_FORKS_ENABLED == 'true' && steps.scope.outputs.analyze == 'true' && steps.test_only.outputs.skip != 'true'"),
+)
 
 
 class PrivateForkPolicyTests(unittest.TestCase):
@@ -64,11 +68,64 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.job = self.document["jobs"]["build-services"]
         self.check, self.fetch, _ = self.job["steps"]
 
+    def codeql_fixture(self, fixture_index, job_name, condition):
+        self.fixture = copy.deepcopy(FIXTURES[fixture_index])
+        self.document = self.fixture["document"]
+        self.job = self.document["jobs"][job_name]
+        self.check = next(step for step in self.job["steps"] if " check" in step.get("run", ""))
+        self.fetch = next(step for step in self.job["steps"] if " fetch" in step.get("run", ""))
+        self.job["steps"] = [self.check, self.fetch]
+        self.document["jobs"] = {"analyze": self.job}
+        self.check["if"] = self.fetch["if"] = condition
+
     def test_actual_reviewed_step_patterns_from_all_four_consumers(self):
         self.assertEqual({f["repository"] for f in FIXTURES}, policy.REPOSITORIES)
         for fixture in FIXTURES:
             with self.subTest(repository=fixture["repository"], workflow=fixture["workflow"]):
                 self.assertEqual([], self.findings(fixture["document"], fixture["repository"]))
+
+    def test_codeql_conditions_accept_matching_or_broader_reviewed_check(self):
+        for case in CODEQL_CASES:
+            for check_condition in (case[2], policy.FLAG):
+                with self.subTest(condition=case[2], check=check_condition):
+                    self.codeql_fixture(*case)
+                    self.check["if"] = check_condition
+                    self.assertEqual([], self.findings())
+
+    def test_codeql_conditions_do_not_admit_unreviewed_predicates(self):
+        for case in CODEQL_CASES:
+            condition = case[2]
+            variants = (
+                condition + " || true",
+                condition.replace(policy.FLAG, "vars.PRIVATE_FORKS_ENABLED != 'true'"),
+                condition.replace("matrix.language == 'rust'", "matrix.language == 'python'")
+                if case[0] == 0 else condition.replace("steps.scope.outputs.analyze == 'true'", "steps.scope.outputs.analyze != 'true'"),
+                condition.replace("matrix.language == 'rust'", "matrix.language != 'rust'")
+                if case[0] == 0 else condition.replace("steps.test_only.outputs.skip != 'true'", "steps.test_only.outputs.skip == 'true'"),
+                condition + " && github.actor == 'trusted'",
+            )
+            for activation in variants:
+                with self.subTest(condition=condition, activation=activation):
+                    self.codeql_fixture(*case)
+                    self.fetch["if"] = activation
+                    self.reject("unreviewed activation condition")
+
+    def test_codeql_conditions_still_require_a_covering_prior_check(self):
+        for index, case in enumerate(CODEQL_CASES):
+            with self.subTest(condition=case[2]):
+                self.codeql_fixture(*case)
+                self.check["if"] = CODEQL_CASES[1 - index][2]
+                self.reject("lacks a prior credential-free trust check")
+                self.check["if"] = case[2]
+                self.job["steps"] = [self.fetch, self.check]
+                self.reject("lacks a prior credential-free trust check")
+
+    def test_codeql_conditions_do_not_allow_reader_in_analysis(self):
+        for case in CODEQL_CASES:
+            with self.subTest(condition=case[2]):
+                self.codeql_fixture(*case)
+                self.fetch["run"] = "codeql database analyze database queries"
+                self.reject("reader is not used by the reviewed fetch helper")
 
     def test_secret_in_compile_or_test_is_rejected(self):
         for command in ("cargo test --locked", "cargo build --locked", "python tests.py"):
