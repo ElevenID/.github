@@ -1060,5 +1060,120 @@
         }
       }
     }
+  },
+  {
+    "repository": "ElevenID/Marty",
+    "workflow": "ci.yml",
+    "document": {
+      "on": {
+        "pull_request": "",
+        "merge_group": {
+          "types": [
+            "checks_requested"
+          ]
+        }
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "jobs": {
+        "build-native-wheels": {
+          "steps": [
+            {
+              "name": "Require trusted private fork access",
+              "if": "vars.PRIVATE_FORKS_ENABLED == 'true' && steps.core-wheel-cache.outputs.cache-hit != 'true'",
+              "shell": "bash",
+              "working-directory": "${{ github.workspace }}",
+              "run": "python .github/scripts/private-forks.py check"
+            },
+            {
+              "name": "Fetch locked private fork dependencies",
+              "if": "vars.PRIVATE_FORKS_ENABLED == 'true' && steps.core-wheel-cache.outputs.cache-hit != 'true'",
+              "shell": "bash",
+              "working-directory": "${{ github.workspace }}",
+              "env": {
+                "PRIVATE_FORKS_READ_TOKEN": "${{ secrets.PRIVATE_FORKS_READ_TOKEN }}"
+              },
+              "run": "python .github/scripts/private-forks.py fetch --manifest-path marty-core/Cargo.toml"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "repository": "ElevenID/marty-authenticator",
+    "workflow": "rust-bridge-codegen.yml",
+    "document": {
+      "on": {
+        "workflow_dispatch": "",
+        "push": {
+          "branches": [
+            "main",
+            "rust/**"
+          ],
+          "paths": [
+            "rust/src/**",
+            "rust/Cargo.toml",
+            "rust/Cargo.lock",
+            "flutter_rust_bridge.yaml",
+            "pubspec.yaml",
+            "pubspec.lock",
+            "lib/**/*.dart",
+            "lib/services/qr_scanner_service_enhanced.dart",
+            "lib/services/spruce_client_extended.dart",
+            "lib/services/spruce_platform_service_extended.dart",
+            "lib/views/credential_selection_view.dart",
+            ".github/workflows/rust-bridge-codegen.yml",
+            ".github/scripts/private-forks.py",
+            ".github/scripts/test_private_forks.py"
+          ]
+        },
+        "pull_request": {
+          "paths": [
+            "rust/src/**",
+            "rust/Cargo.toml",
+            "rust/Cargo.lock",
+            "flutter_rust_bridge.yaml",
+            "pubspec.yaml",
+            "pubspec.lock",
+            "lib/**/*.dart",
+            "lib/services/qr_scanner_service_enhanced.dart",
+            "lib/services/spruce_client_extended.dart",
+            "lib/services/spruce_platform_service_extended.dart",
+            "lib/views/credential_selection_view.dart",
+            ".github/workflows/rust-bridge-codegen.yml",
+            ".github/scripts/private-forks.py",
+            ".github/scripts/test_private_forks.py"
+          ]
+        }
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "jobs": {
+        "generated-bindings": {
+          "steps": [
+            {
+              "name": "Require trusted private fork access",
+              "if": "vars.PRIVATE_FORKS_ENABLED == 'true'",
+              "shell": "bash",
+              "working-directory": "${{ github.workspace }}",
+              "run": "python .github/scripts/private-forks.py check"
+            },
+            {
+              "name": "Fetch locked private fork dependencies",
+              "if": "vars.PRIVATE_FORKS_ENABLED == 'true'",
+              "shell": "bash",
+              "working-directory": "${{ github.workspace }}",
+              "env": {
+                "PRIVATE_FORKS_READ_TOKEN": "${{ secrets.PRIVATE_FORKS_READ_TOKEN }}"
+              },
+              "run": "python .github/scripts/private-forks.py fetch --manifest-path rust/Cargo.toml"
+            }
+          ]
+        }
+      }
+    }
   }
 ]

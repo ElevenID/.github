@@ -34,7 +34,7 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.check, self.fetch = self.job["steps"]
         (self.root / "LICENSE").write_text("test license\n")
         # Unit tests use local stand-ins for reviewed implementations. The real
-        # four consumer trees are also audited as an integration validation.
+        # six consumer trees are also audited as an integration validation.
         targets = sorted({step.get("with", {}).get("target", "")
                           for fixture in FIXTURES for job in fixture["document"]["jobs"].values()
                           for step in job["steps"]})
@@ -50,6 +50,10 @@ class PrivateForkPolicyTests(unittest.TestCase):
             digests[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
         self.addCleanup(mock.patch.stopall)
         mock.patch.object(policy, "HELPER_SHA256", digests[policy.HELPER]).start()
+        mock.patch.dict(policy.ADDITIONAL_HELPER_SHA256, {
+            repository: digests[policy.HELPER]
+            for repository in policy.ADDITIONAL_HELPER_SHA256
+        }, clear=True).start()
         mock.patch.dict(policy.DOCKER_FILES, {p: digests[p] for p in policy.DOCKER_FILES}, clear=True).start()
         mock.patch.dict(policy.PRODUCT_FILES, {p: digests[p] for p in policy.PRODUCT_FILES}, clear=True).start()
 
@@ -78,11 +82,46 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.document["jobs"] = {"analyze": self.job}
         self.check["if"] = self.fetch["if"] = condition
 
-    def test_actual_reviewed_step_patterns_from_all_four_consumers(self):
+    def test_actual_reviewed_step_patterns_from_all_six_consumers(self):
         self.assertEqual({f["repository"] for f in FIXTURES}, policy.REPOSITORIES)
         for fixture in FIXTURES:
             with self.subTest(repository=fixture["repository"], workflow=fixture["workflow"]):
                 self.assertEqual([], self.findings(fixture["document"], fixture["repository"]))
+
+    def test_new_consumer_digest_cannot_change_the_original_consumer_boundary(self):
+        helper = self.root / policy.HELPER
+        original = helper.read_text()
+        extended = original + "reviewed six-consumer allowlist\n"
+        digest = hashlib.sha256(extended.encode()).hexdigest()
+        helper.write_text(extended)
+        for repository in policy.ADDITIONAL_HELPER_SHA256:
+            policy.ADDITIONAL_HELPER_SHA256[repository] = digest
+        for fixture in FIXTURES:
+            findings = self.findings(fixture["document"], fixture["repository"])
+            if fixture["repository"] in policy.ADDITIONAL_HELPER_SHA256:
+                self.assertEqual(findings, [])
+            else:
+                self.assertIn("reviewed file changed", "\n".join(findings))
+        helper.write_text(original)
+        for fixture in FIXTURES:
+            findings = self.findings(fixture["document"], fixture["repository"])
+            if fixture["repository"] in policy.ADDITIONAL_HELPER_SHA256:
+                self.assertIn("reviewed file changed", "\n".join(findings))
+            else:
+                self.assertEqual(findings, [])
+
+    def test_new_consumers_cannot_use_other_helper_paths_or_compile_with_the_reader(self):
+        for fixture in FIXTURES:
+            if fixture["repository"] not in policy.ADDITIONAL_HELPER_SHA256:
+                continue
+            for command in (
+                "python other/private-forks.py fetch --manifest-path rust/Cargo.toml",
+                "cargo test --locked --manifest-path rust/Cargo.toml",
+            ):
+                document = copy.deepcopy(fixture["document"])
+                job = next(iter(document["jobs"].values()))
+                job["steps"][-1]["run"] = command
+                self.assertTrue(self.findings(document, fixture["repository"]))
 
     def test_codeql_conditions_accept_matching_or_broader_reviewed_check(self):
         for case in CODEQL_CASES:
