@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+from contextlib import redirect_stdout, redirect_stderr
 import hashlib
+import io
 import json
 from pathlib import Path
 import sys
@@ -175,6 +177,21 @@ class PrivateForkPolicyTests(unittest.TestCase):
     def test_duplicate_yaml_mapping_is_rejected(self):
         result = policy.workflow_secret_findings(self.root, "on: [pull_request]\non: [push]\njobs: {}\n", self.fixture["repository"])
         self.assertIn("duplicate", "\n".join(result))
+
+    def test_malformed_yaml_diagnostic_does_not_return_source_content(self):
+        source = "on: [pull_request]\nname: [DIAGNOSTIC_SENTINEL_VALUE\n"
+        result = policy.workflow_secret_findings(self.root, source, self.fixture["repository"])
+        self.assertEqual(["workflow YAML could not be parsed"], result)
+        self.assertNotIn("DIAGNOSTIC_SENTINEL_VALUE", str(result))
+
+    def test_cli_rejects_tree_without_logging_finding_content(self):
+        output, errors = io.StringIO(), io.StringIO()
+        with mock.patch.object(audit, "audit", return_value=["rejected: DIAGNOSTIC_SENTINEL_VALUE"]), \
+                mock.patch.object(sys, "argv", ["audit.py", "--repo-root", str(self.root)]), \
+                redirect_stdout(output), redirect_stderr(errors):
+            self.assertEqual(1, audit.main())
+        self.assertEqual("Open-source policy audit failed. Repository policy validation rejected the current tree.\n", output.getvalue())
+        self.assertEqual("", errors.getvalue())
 
     def test_docker_argument_instead_of_secret_mount_is_rejected(self):
         self.docker_fixture()

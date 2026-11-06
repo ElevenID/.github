@@ -4,6 +4,9 @@ The action checks repository licenses, prohibited private billing markers,
 stale repository references, pinned Actions, and runner/event boundaries.
 It also parses workflow YAML with duplicate-key rejection. The action installs
 the same pinned PyYAML version used by the shared workflow-quality job.
+Failures retain a nonzero exit status and print a fixed message. CI output does
+not reproduce findings or parser source snippets that could contain literal
+credentials in malformed input.
 
 ## Reviewed dependency fetches
 

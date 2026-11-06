@@ -264,5 +264,9 @@ def workflow_secret_findings(root: Path, content: str, repository: str) -> list[
             if path not in consumed and (fork_workflow or TOKEN in value):
                 findings.append("repository secret is outside the reviewed source-fetch step")
         return findings
-    except (ValueError, TypeError, AttributeError, OSError, yaml.YAMLError) as error:
+    except yaml.YAMLError:
+        # PyYAML diagnostics can include the offending source line. Do not
+        # return that source text to callers or their logs.
+        return ["workflow YAML could not be parsed"]
+    except (ValueError, TypeError, AttributeError, OSError) as error:
         return [str(error)]

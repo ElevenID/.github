@@ -103,9 +103,10 @@ def main() -> int:
     args = parser.parse_args()
     findings = audit(args.repo_root.resolve())
     if findings:
-        print("Open-source policy audit failed:")
-        for finding in findings:
-            print(f"- {finding}")
+        # Findings can originate in untrusted workflow input. CI logs must not
+        # reproduce source fragments or exception text that might contain a
+        # literal credential, even when validation correctly rejects the input.
+        print("Open-source policy audit failed. Repository policy validation rejected the current tree.")
         return 1
     print("Open-source policy audit passed.")
     return 0
