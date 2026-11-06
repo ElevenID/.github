@@ -200,6 +200,13 @@ def workflow_secret_findings(root: Path, content: str, repository: str) -> list[
         references = secret_values(document)
         fork_workflow = "pull_request" in events
         readers = [(path, value) for path, value in references if TOKEN in value]
+        jobs = document.get("jobs", {})
+        for scope in (document, *jobs.values()):
+            require(TOKEN not in scope.get("env", {}), "source reader must not be a workflow/job environment variable")
+        for job in jobs.values():
+            for step in job.get("steps", []):
+                declares_reader = TOKEN in step.get("env", {}) or "private-forks-read-token" in step.get("with", {})
+                require(not declares_reader or any(TOKEN in value for _, value in secret_values(step)), "unreviewed reader binding")
         findings = []
         if "pull_request_target" in events:
             findings.append("pull_request_target is prohibited")
@@ -208,13 +215,11 @@ def workflow_secret_findings(root: Path, content: str, repository: str) -> list[
         require(repository in REPOSITORIES, "source reader is not approved for this repository")
         require(events <= EVENTS, "source reader has an unsupported workflow event")
         reviewed_file(root, HELPER, HELPER_SHA256)
-        jobs = document.get("jobs", {})
         consumed = set()
         for job_name, job in jobs.items():
             steps = job.get("steps", [])
             for scope in (document, job):
                 env = scope.get("env", {})
-                require(TOKEN not in env, "source reader must not be a workflow/job environment variable")
                 require(not (PROTECTED_ENV & set(env)), "workflow/job overrides trusted runner context")
             for index, step in enumerate(steps):
                 refs = secret_values(step)
