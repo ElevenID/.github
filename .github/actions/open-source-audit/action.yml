@@ -5,4 +5,6 @@ runs:
   steps:
     - name: Audit public repository policy
       shell: bash
-      run: python "${{ github.action_path }}/audit.py" --repo-root "$GITHUB_WORKSPACE"
+      run: |
+        python -m pip install --disable-pip-version-check --only-binary=:all: "PyYAML==6.0.3"
+        python "${{ github.action_path }}/audit.py" --repo-root "$GITHUB_WORKSPACE"

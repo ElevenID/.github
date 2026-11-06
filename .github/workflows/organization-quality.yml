@@ -17,6 +17,22 @@ permissions:
   contents: read
 
 jobs:
+  source-reader-policy-tests:
+    name: Source reader policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Test source-reader boundaries and existing secret prohibitions
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: "PyYAML==6.0.3"
+          python -m unittest discover -s tests -p test_private_forks_policy.py -v
+          python .github/actions/open-source-audit/audit.py --repo-root "$GITHUB_WORKSPACE"
+
   cache-cleanup-tests:
     name: Cache cleanup action tests
     runs-on: ubuntu-latest
