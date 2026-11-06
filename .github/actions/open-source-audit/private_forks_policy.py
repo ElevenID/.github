@@ -24,7 +24,11 @@ FLAG_VALUE = "${{ " + FLAG + " && 'true' || 'false' }}"
 RECORD_VALUE = "${{ vars.PRIVATE_FORKS_ENABLED != 'true' && 'true' || 'false' }}"
 HELPER = ".github/scripts/private-forks.py"
 HELPER_SHA256 = "dab5eb206c9548f3a1074f604b9e516058ed4094415cb05df0036eda935f8fc4"
-REPOSITORIES = {"ElevenID/marty-" + name for name in ("core", "ui", "verifier", "credentials")}
+ADDITIONAL_HELPER_SHA256 = {
+    "ElevenID/Marty": "664270ad7727c87bac5d8314c57a98e59e14e97412fc2f73b0c8a8a510b0d62c",
+    "ElevenID/marty-authenticator": "664270ad7727c87bac5d8314c57a98e59e14e97412fc2f73b0c8a8a510b0d62c",
+}
+REPOSITORIES = {"ElevenID/marty-" + name for name in ("core", "ui", "verifier", "credentials")} | set(ADDITIONAL_HELPER_SHA256)
 EVENTS = {"pull_request", "merge_group", "push", "workflow_dispatch", "schedule", "repository_dispatch"}
 CONDITIONS = {
     FLAG, NATIVE,
@@ -36,6 +40,8 @@ CONDITIONS = {
 }
 HELPER_PATHS = {
     "ElevenID/marty-core": {HELPER},
+    "ElevenID/Marty": {HELPER},
+    "ElevenID/marty-authenticator": {HELPER},
     "ElevenID/marty-ui": {HELPER, "marty-ui/" + HELPER, "$RUNNER_TEMP/marty-private-forks.py"},
     "ElevenID/marty-verifier": {"$GITHUB_WORKSPACE/" + HELPER, "$GITHUB_WORKSPACE/private-forks-ci/" + HELPER},
     "ElevenID/marty-credentials": {"$GITHUB_WORKSPACE/" + HELPER, "$GITHUB_WORKSPACE/marty-credentials/" + HELPER},
@@ -231,7 +237,7 @@ def workflow_secret_findings(root: Path, content: str, repository: str) -> list[
             return findings + (["fork workflow references repository secrets"] if fork_workflow and references else [])
         require(repository in REPOSITORIES, "source reader is not approved for this repository")
         require(events <= EVENTS, "source reader has an unsupported workflow event")
-        reviewed_file(root, HELPER, HELPER_SHA256)
+        reviewed_file(root, HELPER, ADDITIONAL_HELPER_SHA256.get(repository, HELPER_SHA256))
         consumed = set()
         for job_name, job in jobs.items():
             steps = job.get("steps", [])
