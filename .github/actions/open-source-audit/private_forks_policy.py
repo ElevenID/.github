@@ -88,6 +88,20 @@ def secret_values(value: object, prefix: tuple = ()) -> list[tuple[tuple, str]]:
     return []
 
 
+def validate_reader_expressions(value: object, prefix: tuple = ()) -> None:
+    """The reader's step environment must not flow into names, labels, or outputs."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            validate_reader_expressions(child, prefix + (key,))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            validate_reader_expressions(child, prefix + (index,))
+    elif isinstance(value, str):
+        for expression in EXPRESSION.findall(value):
+            if re.search(r"\benv\b", expression, re.I):
+                require(prefix == ("with", "outputs") and expression.strip() in {"env.SERVICES_IMAGE", "env.MIGRATIONS_IMAGE"}, "reader environment must not be disclosed through other step expressions")
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -182,7 +196,8 @@ def docker_fetch(root: Path, step: dict, job: dict, repository: str) -> tuple[st
     require("private_forks_read_token=" + TOKEN in bindings, "missing dedicated fetch secret")
     require(bindings <= {"private_forks_read_token=" + TOKEN, "sccache_token=SCCACHE_GHA_RUNTIME_TOKEN", "sccache_url=SCCACHE_GHA_CACHE_URL", "sccache_mode=SCCACHE_GHA_RW_MODE"}, "unreviewed BuildKit secret bindings")
     args = str(values.get("build-args", "")).splitlines()
-    require(args.count("PRIVATE_FORKS_ENABLED=" + FLAG_VALUE) == 1, "Docker private mode must match reader activation")
+    mode_arguments = [line for line in args if line.partition("=")[0].strip() == "PRIVATE_FORKS_ENABLED"]
+    require(mode_arguments == ["PRIVATE_FORKS_ENABLED=" + FLAG_VALUE], "Docker private mode must have one argument matching reader activation")
     require(not any(TOKEN in line or "secrets." in line for line in args), "reader may not be a Docker build argument")
     for key in ("cache-from", "cache-to"):
         value = values.get(key, "")
@@ -226,6 +241,7 @@ def workflow_secret_findings(root: Path, content: str, repository: str) -> list[
                 if not any(TOKEN in value for _, value in refs):
                     continue
                 normal_step(step)
+                validate_reader_expressions(step)
                 require(len(refs) == 1, "reader step must not receive other repository secrets")
                 require(refs[0][0] in {("env", TOKEN), ("with", "private-forks-read-token")}, "reader must use its dedicated step input")
                 if step.get("uses"):

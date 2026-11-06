@@ -181,6 +181,11 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.fetch["with"]["build-args"] += "\nPRIVATE_FORKS_READ_TOKEN=${{ secrets.PRIVATE_FORKS_READ_TOKEN }}"
         self.assertTrue(self.findings())
 
+    def test_conflicting_private_mode_argument_is_rejected(self):
+        self.docker_fixture()
+        self.fetch["with"]["build-args"] += "\nPRIVATE_FORKS_ENABLED=false"
+        self.reject("one argument matching reader activation")
+
     def test_docker_secret_mount_cannot_be_removed_or_rebound(self):
         self.docker_fixture()
         self.fetch["with"]["secret-envs"] = "compile_token=PRIVATE_FORKS_READ_TOKEN"
@@ -216,6 +221,16 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.fetch["uses"] = policy.BUILD_ACTION
         self.fetch["with"]["file"] = "other/Dockerfile"
         self.reject("unreviewed Docker context or recipe")
+
+    def test_indirect_reader_environment_cannot_reach_action_outputs(self):
+        self.docker_fixture()
+        for expression in ("${{ env.PRIVATE_FORKS_READ_TOKEN }}", "${{ env['PRIVATE_FORKS_READ_TOKEN'] }}", "${{ toJSON(env) }}", "${{ env.SERVICES_IMAGE }}"):
+            with self.subTest(expression=expression):
+                self.fetch["with"]["labels"] = expression
+                self.reject("reader environment must not be disclosed")
+        self.fetch["with"].pop("labels")
+        self.fetch["name"] = "${{ toJSON(env) }}"
+        self.reject("reader environment must not be disclosed")
 
     def test_product_token_condition_cannot_include_non_native_rows(self):
         fixture = copy.deepcopy(next(f for f in FIXTURES if f["workflow"] == "nightly-release.yml"))
