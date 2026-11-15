@@ -115,11 +115,11 @@ def require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
-def reviewed_file(root: Path, relative: str, digest: str) -> None:
+def reviewed_file(root: Path, relative: str, digest: str, *, approved_alternates: tuple[str, ...] = ()) -> None:
     path = root / relative
     require(path.is_file() and not path.is_symlink(), f"reviewed file missing: {relative}")
     require(path.resolve().is_relative_to(root.resolve()), "reviewed file escapes repository")
-    require(hashlib.sha256(path.read_bytes()).hexdigest() == digest, f"reviewed file changed: {relative}")
+    require(hashlib.sha256(path.read_bytes()).hexdigest() in (digest, *approved_alternates), f"reviewed file changed: {relative}")
 
 
 def normal_step(step: dict) -> None:
@@ -180,7 +180,11 @@ def docker_fetch(root: Path, step: dict, job: dict, repository: str) -> tuple[st
     require(repository == "ElevenID/marty-ui", "BuildKit reader is only reviewed for the UI consumer")
     require(not step.get("run") and step.get("uses") in {BUILD_ACTION, PRODUCT_ACTION}, "unreviewed reader action")
     for path, digest in DOCKER_FILES.items():
-        reviewed_file(root, path, digest)
+        # The reviewed public-demo candidate excludes four additional test-only
+        # sources. Keep the previous exact context valid during adoption; no
+        # arbitrary ignore-file or secret-reader change is admitted.
+        alternates = ("49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f",) if path == "services/Dockerfile.migrations.dockerignore" else ()
+        reviewed_file(root, path, digest, approved_alternates=alternates)
     values = step.get("with", {})
     if step["uses"] == PRODUCT_ACTION:
         require(not step.get("env"), "product reader may only use the dedicated action input")
