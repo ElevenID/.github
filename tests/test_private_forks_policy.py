@@ -72,6 +72,25 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.job = self.document["jobs"]["build-services"]
         self.check, self.fetch, _ = self.job["steps"]
 
+    def test_reviewed_public_demo_context_is_accepted_without_replacing_old_context(self):
+        self.docker_fixture()
+        self.assertEqual([], self.findings())
+        path = self.root / "services/Dockerfile.migrations.dockerignore"
+        approved = (Path(__file__).parent / "fixtures/marty-ui-public-demo-migrations.dockerignore").read_bytes()
+        self.assertEqual(hashlib.sha256(approved).hexdigest(), "49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f")
+        path.write_bytes(approved)
+        self.assertEqual([], self.findings())
+        for changed in (approved + b"\n", approved.replace(b"rust/crates/flow-acceptance/tests/public_demo_signing_live_kms.rs\n", b""), b"**\n"):
+            with self.subTest(changed_digest=hashlib.sha256(changed).hexdigest()):
+                path.write_bytes(changed)
+                self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
+
+    def test_public_demo_context_digest_cannot_authorize_another_reader_file(self):
+        self.docker_fixture()
+        approved = (Path(__file__).parent / "fixtures/marty-ui-public-demo-migrations.dockerignore").read_bytes()
+        (self.root / "services/Dockerfile.dockerignore").write_bytes(approved)
+        self.reject("reviewed file changed: services/Dockerfile.dockerignore")
+
     def codeql_fixture(self, fixture_index, job_name, condition):
         self.fixture = copy.deepcopy(FIXTURES[fixture_index])
         self.document = self.fixture["document"]
@@ -93,7 +112,7 @@ class PrivateForkPolicyTests(unittest.TestCase):
         original = helper.read_text()
         extended = original + "reviewed six-consumer allowlist\n"
         digest = hashlib.sha256(extended.encode()).hexdigest()
-        helper.write_text(extended)
+        helper.write_bytes(extended.encode())
         for repository in policy.ADDITIONAL_HELPER_SHA256:
             policy.ADDITIONAL_HELPER_SHA256[repository] = digest
         for fixture in FIXTURES:
