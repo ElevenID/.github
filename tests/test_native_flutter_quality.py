@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import copy
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parents[1] / ".github/actions/open-source-audit"))
 import private_forks_policy as policy  # noqa: E402
@@ -76,6 +78,90 @@ class NativeFlutterQualityTests(unittest.TestCase):
         self.assertEqual(len(policy.secret_values(document)), 1)
         self.assertNotIn(policy.TOKEN, document.get("env", {}))
         self.assertNotIn(policy.TOKEN, job.get("env", {}))
+
+
+class NativeFlutterCallerTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        helper = self.root / policy.HELPER
+        helper.parent.mkdir(parents=True)
+        # Structural policy fixture only; the real helper is checked separately
+        # in consumer-source auditing and by the pinned callee at runtime.
+        helper.write_bytes(b"reviewed runtime helper fixture\n")
+        self.addCleanup(mock.patch.stopall)
+        mock.patch.dict(policy.ADDITIONAL_HELPER_SHA256, {
+            "ElevenID/marty-authenticator": hashlib.sha256(helper.read_bytes()).hexdigest(),
+        }).start()
+        self.job = {
+            "uses": policy.NATIVE_FLUTTER_CALLEE,
+            "with": copy.deepcopy(policy.NATIVE_FLUTTER_INPUTS),
+            "secrets": {policy.TOKEN: policy.DIRECT},
+        }
+        self.document = {
+            "on": {"pull_request": {"branches": ["main"]}, "push": {"branches": ["main"]}, "workflow_dispatch": {}},
+            "jobs": {"flutter-quality": self.job},
+        }
+
+    def findings(self, repository="ElevenID/marty-authenticator", path=policy.NATIVE_FLUTTER_CALLER):
+        return policy.workflow_secret_findings(
+            self.root, policy.yaml.safe_dump(self.document), repository, workflow_path=path
+        )
+
+    def test_exact_pinned_caller_is_accepted(self):
+        self.assertEqual(self.findings(), [])
+        self.assertTrue(policy.NATIVE_FLUTTER_CALLEE.endswith("@bf660ca444c40b260b413d599f6504d4324227e8"))
+
+    def test_other_repository_path_or_job_cannot_delegate(self):
+        for repository, path in (
+            ("ElevenID/marty-ui", policy.NATIVE_FLUTTER_CALLER),
+            ("ElevenID/marty-authenticator", ".github/workflows/other.yml"),
+            ("ElevenID/marty-authenticator", None),
+        ):
+            with self.subTest(repository=repository, path=path):
+                self.assertTrue(self.findings(repository, path))
+        self.document["jobs"]["other"] = self.document["jobs"].pop("flutter-quality")
+        self.assertTrue(self.findings())
+
+    def test_mutable_other_or_unmerged_callee_is_rejected(self):
+        for ref in ("main", "022aa01bd7315f230563531cfe9812cd5a800a45", "0" * 40):
+            with self.subTest(ref=ref):
+                self.job["uses"] = policy.NATIVE_FLUTTER_CALLEE.split("@")[0] + "@" + ref
+                self.assertTrue(self.findings())
+        self.job["uses"] = "other/org/.github/workflows/quality-flutter.yml@bf660ca444c40b260b413d599f6504d4324227e8"
+        self.assertTrue(self.findings())
+
+    def test_input_commands_paths_and_native_mode_are_fixed(self):
+        for key, value in (
+            ("build-command", "printenv"), ("test-command", "true"),
+            ("working-directory", "other"), ("native-rust-bridge", "false"),
+            ("flutter-version", "stable"), ("extra", "unreviewed"),
+        ):
+            with self.subTest(key=key):
+                self.job["with"] = {**policy.NATIVE_FLUTTER_INPUTS, key: value}
+                self.assertTrue(self.findings())
+        self.job["with"] = dict(policy.NATIVE_FLUTTER_INPUTS)
+        del self.job["with"]["working-directory"]
+        self.assertTrue(self.findings())
+
+    def test_inheritance_other_secrets_and_job_context_are_rejected(self):
+        for secrets in ("inherit", {policy.TOKEN: policy.DIRECT, "ADMIN": "${{ secrets.ADMIN }}"}, {policy.TOKEN: "${{ secrets.ADMIN }}"}):
+            with self.subTest(secrets=secrets):
+                self.job["secrets"] = secrets
+                self.assertTrue(self.findings())
+        self.job["secrets"] = {policy.TOKEN: policy.DIRECT}
+        self.job["env"] = {"GITHUB_REF": "refs/heads/main"}
+        self.assertTrue(self.findings())
+
+    def test_helper_change_and_other_token_placement_remain_rejected(self):
+        helper = self.root / policy.HELPER
+        original = helper.read_bytes()
+        helper.write_bytes(original + b"changed")
+        self.assertTrue(self.findings())
+        helper.write_bytes(original)
+        self.document["jobs"]["unreviewed"] = {"runs-on": "ubuntu-latest", "env": {"LEAK": policy.DIRECT}}
+        self.assertTrue(self.findings())
 
 
 if __name__ == "__main__":

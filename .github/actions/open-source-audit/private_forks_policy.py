@@ -67,10 +67,20 @@ EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}", re.S)
 SECRET_CONTEXT = re.compile(r"\bsecrets\b", re.I)
 STATUS_FUNCTION = re.compile(r"\b(?:always|failure|cancelled|success)\s*\(", re.I)
 PROTECTED_ENV = {"GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_REF", "GITHUB_SHA", "GITHUB_ACTOR", "GITHUB_TRIGGERING_ACTOR", "GITHUB_WORKSPACE", "RUNNER_TEMP"}
-# Reviewed reusable definition only. Caller delegation is not admitted here;
-# a later policy change must name its actual protected-main commit.
+# Exact reviewed definition and its actual protected-main merge, never a
+# caller-selected reusable ref. Runtime event/helper checks remain in the callee.
 NATIVE_FLUTTER_DEFINITION = ".github/workflows/quality-flutter.yml"
 NATIVE_FLUTTER_DEFINITION_SHA256 = "c52b32824c0d48c95256e8584e938ad51fdb2650f84403a45ccabc05bb05e1e8"
+NATIVE_FLUTTER_CALLEE = "ElevenID/.github/" + NATIVE_FLUTTER_DEFINITION + "@bf660ca444c40b260b413d599f6504d4324227e8"
+NATIVE_FLUTTER_CALLER = ".github/workflows/code-quality.yml"
+NATIVE_FLUTTER_INPUTS = {
+    "flutter-version": "3.44.6",
+    "working-directory": ".",
+    "test-command": "flutter test --coverage",
+    "build-command": "flutter build apk --debug --flavor netknights -t lib/main_document.dart",
+    "android-api-level": "36",
+    "native-rust-bridge": "true",
+}
 
 
 class WorkflowLoader(yaml.BaseLoader):
@@ -248,6 +258,8 @@ def workflow_secret_findings(
         fork_workflow = "pull_request" in events
         readers = [(path, value) for path, value in references if TOKEN in value]
         jobs = document.get("jobs", {})
+        for job in jobs.values():
+            require(job.get("secrets") != "inherit", "implicit reusable secret inheritance is not a reviewed source reader")
         for scope in (document, *jobs.values()):
             require(TOKEN not in scope.get("env", {}), "source reader must not be a workflow/job environment variable")
         for job in jobs.values():
@@ -268,6 +280,15 @@ def workflow_secret_findings(
             for scope in (document, job):
                 env = scope.get("env", {})
                 require(not (PROTECTED_ENV & set(env)), "workflow/job overrides trusted runner context")
+            if job.get("uses") and any(TOKEN in value for _, value in secret_values(job)):
+                require(repository == "ElevenID/marty-authenticator" and workflow_path == NATIVE_FLUTTER_CALLER,
+                        "native Flutter reader delegation is restricted to the canonical Auth quality workflow")
+                require(job_name == "flutter-quality" and job == {
+                    "uses": NATIVE_FLUTTER_CALLEE,
+                    "with": NATIVE_FLUTTER_INPUTS,
+                    "secrets": {TOKEN: DIRECT},
+                }, "unreviewed native Flutter reader delegation, inputs or callee")
+                consumed.add(("jobs", job_name, "secrets", TOKEN))
             for index, step in enumerate(steps):
                 refs = secret_values(step)
                 if not any(TOKEN in value for _, value in refs):
