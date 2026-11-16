@@ -67,6 +67,10 @@ EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}", re.S)
 SECRET_CONTEXT = re.compile(r"\bsecrets\b", re.I)
 STATUS_FUNCTION = re.compile(r"\b(?:always|failure|cancelled|success)\s*\(", re.I)
 PROTECTED_ENV = {"GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_REF", "GITHUB_SHA", "GITHUB_ACTOR", "GITHUB_TRIGGERING_ACTOR", "GITHUB_WORKSPACE", "RUNNER_TEMP"}
+# Reviewed reusable definition only. Caller delegation is not admitted here;
+# a later policy change must name its actual protected-main commit.
+NATIVE_FLUTTER_DEFINITION = ".github/workflows/quality-flutter.yml"
+NATIVE_FLUTTER_DEFINITION_SHA256 = "c52b32824c0d48c95256e8584e938ad51fdb2650f84403a45ccabc05bb05e1e8"
 
 
 class WorkflowLoader(yaml.BaseLoader):
@@ -220,13 +224,26 @@ def docker_fetch(root: Path, step: dict, job: dict, repository: str) -> tuple[st
     return HELPER, FLAG
 
 
-def workflow_secret_findings(root: Path, content: str, repository: str) -> list[str]:
+def workflow_secret_findings(
+    root: Path, content: str, repository: str, *, workflow_path: str | None = None
+) -> list[str]:
     """Return structural policy findings, never execute helpers from the tree."""
     try:
         document = yaml.load(content, Loader=WorkflowLoader)
         require(isinstance(document, dict), "workflow must be a mapping")
         events = document.get("on", {})
         events = {events} if isinstance(events, str) else set(events or [])
+        if repository == "ElevenID/.github" and workflow_path == NATIVE_FLUTTER_DEFINITION:
+            normalized = content.replace("\r\n", "\n")
+            require(events == {"workflow_call"}, "native Flutter definition must only be reusable")
+            path = root / NATIVE_FLUTTER_DEFINITION
+            require(path.is_file() and not path.is_symlink(), "native Flutter definition must be a regular file")
+            require(path.read_text(encoding="utf-8").replace("\r\n", "\n") == normalized, "native Flutter definition source differs")
+            require(
+                hashlib.sha256(normalized.encode("utf-8")).hexdigest() == NATIVE_FLUTTER_DEFINITION_SHA256,
+                "unreviewed native Flutter reusable definition",
+            )
+            return []
         references = secret_values(document)
         fork_workflow = "pull_request" in events
         readers = [(path, value) for path, value in references if TOKEN in value]
