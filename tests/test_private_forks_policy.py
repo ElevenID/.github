@@ -129,6 +129,34 @@ class PrivateForkPolicyTests(unittest.TestCase):
             else:
                 self.assertEqual(findings, [])
 
+    def test_reviewed_wallet_context_is_exact_and_preserves_previous_approval(self):
+        self.docker_fixture()
+        path = self.root / "services/Dockerfile.migrations.dockerignore"
+        previous = (Path(__file__).parent / "fixtures/marty-ui-public-demo-migrations.dockerignore").read_bytes()
+        approved = (Path(__file__).parent / "fixtures/marty-ui-wallet-issuer-migrations.dockerignore").read_bytes()
+        self.assertEqual(hashlib.sha256(approved).hexdigest(), "34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee")
+        anchor = b"rust/crates/service-acceptance/tests/holder_remote_live_kms.rs\n"
+        added = (b"rust/crates/service-acceptance/tests/support/holder_issuer_authority.rs\n"
+                 b"rust/crates/service-acceptance/tests/support/holder_native_receipt.rs\n")
+        self.assertEqual(previous.count(anchor), 1)
+        self.assertEqual(approved, previous.replace(anchor, anchor + added))
+        self.assertEqual([], self.findings())
+        for content in (previous, approved):
+            path.write_bytes(content)
+            self.assertEqual([], self.findings())
+        for changed in (
+            approved + b"\n",
+            approved.replace(b"rust/crates/service-acceptance/tests/support/holder_native_receipt.rs\n", b""),
+            approved.replace(b"rust/crates/service-acceptance/tests/support/holder_native_receipt.rs", b"rust/services/issuance/src/lib.rs"),
+            b"**\n",
+        ):
+            with self.subTest(changed_digest=hashlib.sha256(changed).hexdigest()):
+                path.write_bytes(changed)
+                self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
+        path.write_bytes(approved)
+        (self.root / "services/Dockerfile.dockerignore").write_bytes(approved)
+        self.reject("reviewed file changed: services/Dockerfile.dockerignore")
+
     def test_new_consumers_cannot_use_other_helper_paths_or_compile_with_the_reader(self):
         for fixture in FIXTURES:
             if fixture["repository"] not in policy.ADDITIONAL_HELPER_SHA256:

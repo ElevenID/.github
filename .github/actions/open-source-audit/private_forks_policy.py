@@ -180,10 +180,13 @@ def docker_fetch(root: Path, step: dict, job: dict, repository: str) -> tuple[st
     require(repository == "ElevenID/marty-ui", "BuildKit reader is only reviewed for the UI consumer")
     require(not step.get("run") and step.get("uses") in {BUILD_ACTION, PRODUCT_ACTION}, "unreviewed reader action")
     for path, digest in DOCKER_FILES.items():
-        # The reviewed public-demo candidate excludes four additional test-only
-        # sources. Keep the previous exact context valid during adoption; no
-        # arbitrary ignore-file or secret-reader change is admitted.
-        alternates = ("49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f",) if path == "services/Dockerfile.migrations.dockerignore" else ()
+        # Preserve the earlier public-demo context and admit the wallet context
+        # that excludes exactly its two reviewed holder test-support modules.
+        # Each alternate is bound to this path; reader scope stays unchanged.
+        alternates = (
+            "49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f",
+            "34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee",
+        ) if path == "services/Dockerfile.migrations.dockerignore" else ()
         reviewed_file(root, path, digest, approved_alternates=alternates)
     values = step.get("with", {})
     if step["uses"] == PRODUCT_ACTION:

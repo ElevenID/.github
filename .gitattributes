@@ -8,3 +8,7 @@
 /tests/test_feature_regression_*.py text eol=lf
 /tests/test_rust_runtime_bundle.py text eol=lf
 /tests/test_rust_runtime_publication.py text eol=lf
+/tests/fixtures/marty-ui-public-demo-migrations.dockerignore text eol=lf
+/tests/fixtures/marty-ui-wallet-issuer-migrations.dockerignore text eol=lf
+/.github/actions/open-source-audit/private_forks_policy.py text eol=lf
+/tests/test_private_forks_policy.py text eol=lf
