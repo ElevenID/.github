@@ -91,7 +91,9 @@ def audit(root: Path, repository: str | None = None) -> list[str]:
             if re.search(r"^\s*pull_request\s*:", content, re.M):
                 if re.search(r"runs-on:[^\n]*self-hosted", content, re.I):
                     findings.append(f"fork workflow references self-hosted runner: {relative}")
-            for finding in workflow_secret_findings(root, content, repository):
+            for finding in workflow_secret_findings(
+                root, content, repository, workflow_path=relative
+            ):
                 findings.append(f"{finding}: {relative}")
 
     return sorted(set(findings))
