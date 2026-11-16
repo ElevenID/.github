@@ -20,6 +20,10 @@ on:
         description: Android SDK platform installed when the build targets Android
         type: string
         default: "37"
+      java-version:
+        description: JDK used for Android SDK tools and Gradle
+        type: string
+        default: "21"
 
 permissions:
   contents: read
@@ -39,11 +43,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
+      - name: Set up Android Java runtime
+        if: contains(inputs.build-command, 'flutter build apk') || contains(inputs.build-command, 'flutter build appbundle')
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: ${{ inputs.flutter-version }}
           channel: stable
           cache: true
+      - name: Select Android JDK for Flutter
+        if: contains(inputs.build-command, 'flutter build apk') || contains(inputs.build-command, 'flutter build appbundle')
+        shell: bash
+        run: flutter config --jdk-dir "$JAVA_HOME"
       - name: Install Android SDK platform
         if: contains(inputs.build-command, 'flutter build apk') || contains(inputs.build-command, 'flutter build appbundle')
         shell: bash
