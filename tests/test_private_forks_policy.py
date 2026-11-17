@@ -85,6 +85,54 @@ class PrivateForkPolicyTests(unittest.TestCase):
                 path.write_bytes(changed)
                 self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
 
+    def test_provider_neutral_service_image_removes_only_the_reviewed_binaries(self):
+        self.docker_fixture()
+        path = self.root / "services/Dockerfile"
+        approved = (Path(__file__).parent / "fixtures/marty-ui-provider-neutral.Dockerfile").read_bytes()
+        self.assertEqual(hashlib.sha256(approved).hexdigest(), "4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd")
+        anchor = b"COPY --from=rust-service-builder /build/rust/target/release/marty-passport-beta-bureau /usr/local/bin/marty-passport-beta-bureau\n"
+        removed = (b"COPY --from=rust-service-builder /build/rust/target/release/marty-canvas-sync-worker /usr/local/bin/marty-canvas-sync-worker\n"
+                   b"COPY --from=rust-service-builder /build/rust/target/release/marty-canvas-sandbox /usr/local/bin/marty-canvas-sandbox\n")
+        self.assertEqual(approved.count(anchor), 1)
+        self.assertEqual(hashlib.sha256(approved.replace(anchor, removed + anchor)).hexdigest(),
+                         "39a407063f7cbf89eb23c4d7121db3df69cfa826be1e2fb0e125733711e74362")
+        self.assertEqual([], self.findings())  # Original approval remains valid.
+        path.write_bytes(approved)
+        self.assertEqual([], self.findings())
+        for changed in (approved + b"\n", approved.replace(b"--mount=type=secret", b"--mount=type=bind")):
+            with self.subTest(changed_digest=hashlib.sha256(changed).hexdigest()):
+                self.assertNotEqual(changed, approved)
+                path.write_bytes(changed)
+                self.reject("reviewed file changed: services/Dockerfile")
+
+    def test_provider_neutral_contexts_are_exact_and_path_bound(self):
+        self.docker_fixture()
+        fixtures = {'services/Dockerfile': ('marty-ui-provider-neutral.Dockerfile', '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd'), 'rust/services/Dockerfile.ci': ('marty-ui-provider-neutral-rust-services-Dockerfile.ci', '7321a858f3e09c472ccd22d91ccc82dbf189f382eb3cbe05fc3a4650b436e137'), 'services/Dockerfile.dockerignore': ('marty-ui-provider-neutral-services-Dockerfile.dockerignore', 'affab88b0b8ad5c1ce4afe516c53d8288cc6cb52eba123744527632a4fad232a'), 'services/Dockerfile.migrations.dockerignore': ('marty-ui-provider-neutral-services-Dockerfile.migrations.dockerignore', 'a4657728c1cf90026a14268e8bf447e17c3caed8eb6d1406dc1ef4a359291e88'), 'rust/services/Dockerfile.ci.dockerignore': ('marty-ui-provider-neutral-rust-services-Dockerfile.ci.dockerignore', 'd5e6ec358829182d6be892c41e87335e9b0dce5cde37b69d29f88adb1454d8cd')}
+        for relative, (fixture, digest) in fixtures.items():
+            with self.subTest(path=relative):
+                approved = (Path(__file__).parent / "fixtures" / fixture).read_bytes()
+                self.assertEqual(hashlib.sha256(approved).hexdigest(), digest)
+                path = self.root / relative
+                previous = path.read_bytes()
+                path.write_bytes(approved)
+                self.assertEqual([], self.findings())
+                path.write_bytes(approved + b"\n")
+                self.reject("reviewed file changed: " + relative)
+                path.write_bytes(previous)
+                # A hash admitted at one path cannot authorize another reader file.
+                wrong = self.root / ("services/Dockerfile.migrations" if relative != "services/Dockerfile.migrations"
+                                     else "services/Dockerfile")
+                original_wrong = wrong.read_bytes()
+                wrong.write_bytes(approved)
+                self.reject("reviewed file changed: " + str(wrong.relative_to(self.root)).replace("\\", "/"))
+                wrong.write_bytes(original_wrong)
+
+    def test_provider_neutral_digest_cannot_authorize_another_reader_file(self):
+        self.docker_fixture()
+        approved = (Path(__file__).parent / "fixtures/marty-ui-provider-neutral.Dockerfile").read_bytes()
+        (self.root / "services/Dockerfile.migrations").write_bytes(approved)
+        self.reject("reviewed file changed: services/Dockerfile.migrations")
+
     def test_public_demo_context_digest_cannot_authorize_another_reader_file(self):
         self.docker_fixture()
         approved = (Path(__file__).parent / "fixtures/marty-ui-public-demo-migrations.dockerignore").read_bytes()
