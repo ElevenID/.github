@@ -61,6 +61,9 @@ DOCKER_FILES = {
 }
 # Provider retirement: exact recipe/context bytes; no caller-selected exemption.
 DOCKER_FILE_ALTERNATES = {
+    "services/Dockerfile.migrations": (
+        "3e7aa6d6c89b2cd93966b1eafd94930102ec2c55390d52cbe6d96c77abe93b4c",
+    ),
     'services/Dockerfile': (
         '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd',
     ),
