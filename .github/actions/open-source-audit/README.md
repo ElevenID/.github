@@ -58,3 +58,11 @@ actual consumer trees and actual reviewed file hashes.
 Do not automatically refresh the helper or Docker hashes when a test fails.
 Review the changed runtime access boundary and its tests first, then update the
 policy and consumer pin through the normal review process.
+
+Provider-neutral Marty service and CI image recipes and their three build contexts
+are admitted by exact, path-bound digests alongside their previous approvals.
+Recipes retire provider binaries and the provider-only image stage. Contexts remove
+now-absent provider exclusions and exclude two retained test-only platform wrappers.
+Source-reader mounts, helper, event trust, repository scope and secret handling
+retain their reviewed implementations. Every other recipe/context change requires
+a new independent review. These approvals do not qualify a built image or release.

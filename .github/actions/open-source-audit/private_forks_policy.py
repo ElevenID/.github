@@ -59,6 +59,26 @@ DOCKER_FILES = {
     "services/Dockerfile.migrations.dockerignore": "a104071b34eb62679bc002542d78373e74ee18f75a81307a94e87c6598ee42ea",
     "rust/services/Dockerfile.ci.dockerignore": "02f8efd45cb13431c6f60402f6298111f93f737c72800a1d7e08748a7d7921dd",
 }
+# Provider retirement: exact recipe/context bytes; no caller-selected exemption.
+DOCKER_FILE_ALTERNATES = {
+    'services/Dockerfile': (
+        '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd',
+    ),
+    'rust/services/Dockerfile.ci': (
+        '7321a858f3e09c472ccd22d91ccc82dbf189f382eb3cbe05fc3a4650b436e137',
+    ),
+    'services/Dockerfile.dockerignore': (
+        'affab88b0b8ad5c1ce4afe516c53d8288cc6cb52eba123744527632a4fad232a',
+    ),
+    'services/Dockerfile.migrations.dockerignore': (
+        '49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f',
+        '34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee',
+        'a4657728c1cf90026a14268e8bf447e17c3caed8eb6d1406dc1ef4a359291e88',
+    ),
+    'rust/services/Dockerfile.ci.dockerignore': (
+        'd5e6ec358829182d6be892c41e87335e9b0dce5cde37b69d29f88adb1454d8cd',
+    ),
+}
 PRODUCT_FILES = {
     ".github/actions/build-product-image/action.yml": "564ae35eb529c2d8a3da784b6d86d1bbca99e28469c141c633f84b0c092993c0",
     "scripts/product_image_build.py": "0342f2367082e4b07dbb9e4d6eaa2ec435cebe60a23b6d635009aa960a57b63e",
@@ -194,13 +214,9 @@ def docker_fetch(root: Path, step: dict, job: dict, repository: str) -> tuple[st
     require(repository == "ElevenID/marty-ui", "BuildKit reader is only reviewed for the UI consumer")
     require(not step.get("run") and step.get("uses") in {BUILD_ACTION, PRODUCT_ACTION}, "unreviewed reader action")
     for path, digest in DOCKER_FILES.items():
-        # Preserve the earlier public-demo context and admit the wallet context
-        # that excludes exactly its two reviewed holder test-support modules.
-        # Each alternate is bound to this path; reader scope stays unchanged.
-        alternates = (
-            "49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f",
-            "34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee",
-        ) if path == "services/Dockerfile.migrations.dockerignore" else ()
+        # Every alternate is independently reviewed and bound to one path.
+        # Original approvals and the source-reader checks remain in force.
+        alternates = DOCKER_FILE_ALTERNATES.get(path, ())
         reviewed_file(root, path, digest, approved_alternates=alternates)
     values = step.get("with", {})
     if step["uses"] == PRODUCT_ACTION:
