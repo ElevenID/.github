@@ -127,6 +127,33 @@ class PrivateForkPolicyTests(unittest.TestCase):
                 self.reject("reviewed file changed: " + str(wrong.relative_to(self.root)).replace("\\", "/"))
                 wrong.write_bytes(original_wrong)
 
+    def test_provider_neutral_migration_image_removes_only_the_retired_seed(self):
+        self.docker_fixture()
+        path = self.root / "services/Dockerfile.migrations"
+        approved = (Path(__file__).parent / "fixtures/marty-ui-provider-neutral-migration.Dockerfile").read_bytes()
+        self.assertEqual(hashlib.sha256(approved).hexdigest(), "3e7aa6d6c89b2cd93966b1eafd94930102ec2c55390d52cbe6d96c77abe93b4c")
+        vendor_build = b"    && cargo build --locked --release -p marty-demo-vendor-seed --bin marty-demo-vendor-seed\n"
+        retired_build = b"    && cargo build --locked --release -p marty-canvas-demo-seed --bin marty-canvas-demo-seed\n"
+        vendor_copy = b"COPY --from=rust-migration-builder /build/rust/target/release/marty-demo-vendor-seed /usr/local/bin/marty-demo-vendor-seed\n"
+        retired_copy = b"COPY --from=rust-migration-builder /build/rust/target/release/marty-canvas-demo-seed /usr/local/bin/marty-canvas-demo-seed\n"
+        self.assertEqual(approved.count(vendor_build), 1)
+        self.assertEqual(approved.count(vendor_copy), 1)
+        previous = approved.replace(vendor_build, vendor_build[:-1] + b" \\\n" + retired_build)
+        previous = previous.replace(vendor_copy, vendor_copy + retired_copy)
+        self.assertEqual(hashlib.sha256(previous).hexdigest(), "66cd05d2153f018cf1637a5f4a73864ff73ea01550ea06cc10d670a7df7bbb3d")
+        self.assertEqual([], self.findings())
+        path.write_bytes(approved)
+        self.assertEqual([], self.findings())
+        for changed in (approved + b"\n", approved.replace(b"--mount=type=secret", b"--mount=type=bind")):
+            path.write_bytes(changed)
+            self.reject("reviewed file changed: services/Dockerfile.migrations")
+
+    def test_migration_recipe_digest_cannot_authorize_another_reader_file(self):
+        self.docker_fixture()
+        approved = (Path(__file__).parent / "fixtures/marty-ui-provider-neutral-migration.Dockerfile").read_bytes()
+        (self.root / "services/Dockerfile").write_bytes(approved)
+        self.reject("reviewed file changed: services/Dockerfile")
+
     def test_provider_neutral_digest_cannot_authorize_another_reader_file(self):
         self.docker_fixture()
         approved = (Path(__file__).parent / "fixtures/marty-ui-provider-neutral.Dockerfile").read_bytes()

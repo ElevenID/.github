@@ -66,3 +66,7 @@ now-absent provider exclusions and exclude two retained test-only platform wrapp
 Source-reader mounts, helper, event trust, repository scope and secret handling
 retain their reviewed implementations. Every other recipe/context change requires
 a new independent review. These approvals do not qualify a built image or release.
+
+The migration image also admits an exact provider-neutral recipe that removes
+only the retired seed build and binary copy. The retained vendor seed and
+credential-reader implementation are unchanged; image qualification is separate.
