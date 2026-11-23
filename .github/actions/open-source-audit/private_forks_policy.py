@@ -77,6 +77,7 @@ DOCKER_FILE_ALTERNATES = {
         '49c4641b787b3fa7a1b57af9f39e588625b424da5945c92f3f4523894c9ddc2f',
         '34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee',
         'a4657728c1cf90026a14268e8bf447e17c3caed8eb6d1406dc1ef4a359291e88',
+        '0512510558ce407cf138d304a60a528d9bb0de70bea90706dbbf63cba2c3332d',
     ),
     'rust/services/Dockerfile.ci.dockerignore': (
         'd5e6ec358829182d6be892c41e87335e9b0dce5cde37b69d29f88adb1454d8cd',
