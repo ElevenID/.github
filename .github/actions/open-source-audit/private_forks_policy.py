@@ -66,6 +66,7 @@ DOCKER_FILE_ALTERNATES = {
     ),
     'services/Dockerfile': (
         '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd',
+        '1de631484400e92d58b87f93f57b5abbd3e902dfe7ed7c2f27d5a6dcee14e5bc',
     ),
     'rust/services/Dockerfile.ci': (
         '7321a858f3e09c472ccd22d91ccc82dbf189f382eb3cbe05fc3a4650b436e137',
