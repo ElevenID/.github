@@ -101,6 +101,46 @@ class PrivateForkPolicyTests(unittest.TestCase):
         path.write_bytes(candidate + b"COPY . /app\n")
         self.reject("reviewed file changed: services/Dockerfile")
 
+    def test_exact_delegated_owner_migration_recipe_and_contract_inputs(self):
+        self.docker_fixture()
+        fixtures = Path(__file__).parent / "fixtures"
+        recipe = (fixtures / "marty-ui-provider-neutral-migration.Dockerfile").read_bytes()
+        context = (fixtures / "marty-ui-provider-neutral-services-Dockerfile.migrations.dockerignore").read_bytes()
+        contracts = (
+            b"http-charset-headers-oracle.json", b"http-euc-kr-codec.json",
+            b"http-gb18030-codec.json", b"http-single-byte-codecs.json",
+            b"http-unicode-text-oracle.json", b"organization-permission-catalog.json",
+        )
+        folders = (b"http-iso2022-codecs", b"http-multibyte-codecs")
+        recipe_anchor = b"COPY contracts/issuer-identity-inspection-response.json /build/contracts/issuer-identity-inspection-response.json\n"
+        recipe = recipe.replace(recipe_anchor, recipe_anchor
+            + b"COPY " + b" ".join(b"contracts/" + name for name in contracts) + b" /build/contracts/\n"
+            + b"".join(b"COPY contracts/" + name + b" /build/contracts/" + name + b"\n" for name in folders))
+        command = b"marty-delegated-use-migrate"
+        recipe = recipe.replace(
+            b"--bin marty-demo-vendor-seed\n",
+            b"--bin marty-demo-vendor-seed \\\n    && cargo build --locked --release -p marty-delegated-use --bin " + command + b"\n",
+        )
+        copy_seed = b"COPY --from=rust-migration-builder /build/rust/target/release/marty-demo-vendor-seed /usr/local/bin/marty-demo-vendor-seed\n"
+        recipe = recipe.replace(copy_seed, copy_seed + copy_seed.replace(b"marty-demo-vendor-seed", command))
+        managed_anchor = b"rust/crates/selfhost-acceptance/tests/native_kms_schema_contract.rs\n"
+        context = context.replace(managed_anchor, managed_anchor
+            + b"rust/crates/selfhost-acceptance/tests/managed_postgres_contract.rs\n"
+            + b"rust/crates/selfhost-acceptance/tests/support/managed_postgres.rs\n")
+        context_anchor = b"!contracts/issuer-identity-inspection-response.json\n"
+        context = context.replace(context_anchor, context_anchor
+            + b"".join(b"!contracts/" + name + b"\n" for name in contracts)
+            + b"".join(b"!contracts/" + name + b"/\n!contracts/" + name + b"/*.json\n" for name in folders))
+        for path, candidate, broadening in (
+            ("services/Dockerfile.migrations", recipe, b"COPY . /app\n"),
+            ("services/Dockerfile.migrations.dockerignore", context, b"!contracts/**\n"),
+        ):
+            (self.root / path).write_bytes(candidate)
+            self.assertEqual([], self.findings())
+            (self.root / path).write_bytes(candidate + broadening)
+            self.reject("reviewed file changed: " + path)
+            (self.root / path).write_bytes(candidate)
+
     def test_reviewed_public_demo_context_is_accepted_without_replacing_old_context(self):
         self.docker_fixture()
         self.assertEqual([], self.findings())

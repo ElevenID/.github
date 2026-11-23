@@ -63,6 +63,7 @@ DOCKER_FILES = {
 DOCKER_FILE_ALTERNATES = {
     "services/Dockerfile.migrations": (
         "3e7aa6d6c89b2cd93966b1eafd94930102ec2c55390d52cbe6d96c77abe93b4c",
+        "782c9c5be7a391c233ac5c457c19e7967f851c455038ef66000534616732985a",
     ),
     'services/Dockerfile': (
         '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd',
@@ -79,6 +80,7 @@ DOCKER_FILE_ALTERNATES = {
         '34b5595a059971b3f88aec033e2a421149ebfaf5219440914ec0212b526b19ee',
         'a4657728c1cf90026a14268e8bf447e17c3caed8eb6d1406dc1ef4a359291e88',
         '0512510558ce407cf138d304a60a528d9bb0de70bea90706dbbf63cba2c3332d',
+        '37017e7ed1fffdd49e4e83c6213fb1c471768ae0377ca1c53bfe7877b6a986e5',
     ),
     'rust/services/Dockerfile.ci.dockerignore': (
         'd5e6ec358829182d6be892c41e87335e9b0dce5cde37b69d29f88adb1454d8cd',
