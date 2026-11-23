@@ -72,6 +72,21 @@ class PrivateForkPolicyTests(unittest.TestCase):
         self.job = self.document["jobs"]["build-services"]
         self.check, self.fetch, _ = self.job["steps"]
 
+    def test_managed_postgres_context_only_excludes_two_additional_test_sources(self):
+        self.docker_fixture()
+        fixture = Path(__file__).parent / "fixtures/marty-ui-provider-neutral-services-Dockerfile.migrations.dockerignore"
+        previous = fixture.read_bytes()
+        anchor = b"rust/crates/selfhost-acceptance/tests/native_kms_schema_contract.rs\n"
+        extra = (b"rust/crates/selfhost-acceptance/tests/managed_postgres_contract.rs\n"
+                 b"rust/crates/selfhost-acceptance/tests/support/managed_postgres.rs\n")
+        self.assertEqual(previous.count(anchor), 1)
+        candidate = previous.replace(anchor, anchor + extra)
+        path = self.root / "services/Dockerfile.migrations.dockerignore"
+        path.write_bytes(candidate)
+        self.assertEqual([], self.findings())
+        path.write_bytes(candidate + b"!**/.cargo\n")
+        self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
+
     def test_reviewed_public_demo_context_is_accepted_without_replacing_old_context(self):
         self.docker_fixture()
         self.assertEqual([], self.findings())

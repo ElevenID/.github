@@ -12,3 +12,4 @@
 /tests/fixtures/marty-ui-wallet-issuer-migrations.dockerignore text eol=lf
 /.github/actions/open-source-audit/private_forks_policy.py text eol=lf
 /tests/test_private_forks_policy.py text eol=lf
+/tests/fixtures/marty-ui-provider-neutral* text eol=lf
