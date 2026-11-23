@@ -87,6 +87,20 @@ class PrivateForkPolicyTests(unittest.TestCase):
         path.write_bytes(candidate + b"!**/.cargo\n")
         self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
 
+    def test_exact_delegated_use_runtime_copy_preserves_previous_recipe(self):
+        self.docker_fixture()
+        fixture = Path(__file__).parent / "fixtures/marty-ui-provider-neutral.Dockerfile"
+        original = fixture.read_bytes()
+        anchor = b"COPY --from=rust-service-builder /build/rust/target/release/marty-signing-keys /usr/local/bin/marty-signing-keys\n"
+        self.assertEqual(original.count(anchor), 1)
+        candidate = original.replace(anchor, anchor + anchor.replace(b"marty-signing-keys", b"marty-delegated-use"))
+        path = self.root / "services/Dockerfile"
+        for reviewed in (original, candidate):
+            path.write_bytes(reviewed)
+            self.assertEqual([], self.findings())
+        path.write_bytes(candidate + b"COPY . /app\n")
+        self.reject("reviewed file changed: services/Dockerfile")
+
     def test_reviewed_public_demo_context_is_accepted_without_replacing_old_context(self):
         self.docker_fixture()
         self.assertEqual([], self.findings())
