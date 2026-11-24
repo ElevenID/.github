@@ -1,0 +1,34 @@
+name: feature-regression-observation-producer
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  behavior-observations:
+    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@41ce275e615b9ca9be11fde292e6d3b84c8b8ef5
+    with:
+      policy-ref: 41ce275e615b9ca9be11fde292e6d3b84c8b8ef5
+      target-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      phase: ${{ github.event_name == 'pull_request' && 'after' || 'before' }}
+      workflow-path: .github/workflows/behavior-observations.yml
+      harness-path: .github/feature-regression/observation_harness.py
+      harness-sha256: sha256:c7d740ffadc6156c3cc560e33b4708e96b1db0fe69965fa20ddf6cca718ce12a
+      subject-path: .github/feature-regression/behavior_subject.py
+      subject-sha256: sha256:60c957e98fb938c2bc73a46ea61cd2ecd0bebb51001fd5d7b4b82d64440d79c3
+      subject-runtime: python
+      subject-args-json: '[]'
+      subject-env-json: '{}'
+      runtime-image: node:24.15.0-bookworm@sha256:f22d6a1f082c02f292e86929b5b0442ac2e5eaf438a5dea9b1566601c3e05940
+      job-name: behavior-observations / Behavior observation producer
+      artifact-name-prefix: feature-regression-observations
+      observation-path: feature-regression-observations.json
