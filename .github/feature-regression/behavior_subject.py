@@ -209,6 +209,30 @@ def probe_cases():
                          ("atomic-symlink", "symlink")]:
         case("producer.atomic-output", name, atomic_case(change))
 
+    def observation_case(change=None):
+        observed = {"id": "public-status", "operation_id": "fixture.validation",
+                    "case_id": "fixture", "dimension": "public_status", "value": "accepted"}
+        document = {"schema": "elevenid.behavior-observations-runtime/v2",
+                    "repository": "ElevenID/.github", "revision": "a" * 40,
+                    "phase": "before", "observations": [{
+                        **observed, "id": "fixture.public_status.before",
+                        "producer_test": "test:ElevenID/.github@" + "a" * 40 + ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries",
+                    }]}
+        if change == "value":
+            document["observations"][0]["value"] = "forged"
+        if change == "missing":
+            document["observations"] = []
+        if change == "phase":
+            document["phase"] = "after"
+        return lambda: runner._validate_observations(
+            document, repository="ElevenID/.github", revision="a" * 40,
+            phase="before", final=False, capture={"observations": [observed]},
+        )
+
+    for name, change in [("observation-valid", None), ("observation-forged-value", "value"),
+                         ("observation-missing", "missing"), ("observation-wrong-phase", "phase")]:
+        case("producer.observation-binding", name, observation_case(change))
+
     return cases
 
 
