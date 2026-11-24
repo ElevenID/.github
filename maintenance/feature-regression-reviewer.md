@@ -594,12 +594,56 @@ supports that endpoint. Publisher/admin private-visibility proof remains a
 separate qualified operation. [Actions package access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 must be explicitly limited to the intended consumer repository.
 
-This draft does not activate private publication, package permissions, a
-source-reader consumer, an image or an observation baseline. A separately
-reviewed publisher/access path and provenance/artifact contract remain required
-before any restricted image or grant can be activated. The existing public
-publication sequence remains in force for public dependencies only. Neither
-runtime image allowlist is changed here.
+### Restricted runtime publication sequence
+
+The separate `publish-restricted-rust-probe-runtime.yml` definition accepts
+manual dispatch on protected central main only, with private-fork mode enabled.
+The source-reader policy admits the exact workflow and its transitive helper,
+recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
+Python import namespace. No other central workflow gains source-reader access.
+Changes to this closure require independent review before admission.
+
+Before dispatch, an operator must precreate the fixed restricted package using
+source-free content, confirm private visibility, authorize the central publisher
+for package write, and provide the separate classic metadata-read credential.
+The publisher requires successful private-package metadata checks before any
+source-bearing push, after runtime publication, and after evidence publication.
+Missing packages, unavailable metadata, wrong owners/types and public visibility
+stop publication. It never switches a package to public.
+
+Only the locked dependency-fetch step receives the private-fork source reader.
+A preceding credential-free check binds the protected workflow revision and a
+pristine exact bundle checkout, including ignored inputs, and refuses links or
+Cargo configuration. The helper runs `cargo fetch --locked` from a fresh trusted
+directory, replaces inherited Cargo/Git configuration, disables credential
+redirects and hooks, and supplies credentials only for the three approved Git
+paths. It never compiles candidate code. The source token is absent from image
+build steps. A fresh cache supplies `cargo vendor --frozen --offline` under
+`RUN --network=none`; the final image includes the vendor output and toolchain,
+not source credentials or the original fetch cache. No shared cache is exported.
+
+Runtime publication captures the same fourteen structured build, platform,
+provenance, SBOM, label and runtime-manifest proofs as the public path, plus
+normalized private-package snapshots before and after the runtime push. The
+sixteen raw proofs stay private. A second scratch image in the same restricted
+package stores them. The publisher pulls that exact evidence digest, creates
+but never starts its container, copies out the proofs, revalidates them, and
+requires byte-identical prepublication and replayed receipts.
+
+Only a sanitized v2 receipt and the normalized post-evidence visibility snapshot
+are uploaded as public Actions artifacts. The final receipt binds both distinct
+immutable image digests, all raw proof hashes and that final snapshot, with
+`private_evidence_bound=true`. An earlier unbound receipt is not publication
+acceptance. Source-bearing provenance, SBOM, cache files and raw diagnostics
+must not be uploaded publicly. Independently retrieve the private evidence image
+and inspect its proofs before activating any runtime digest.
+
+This draft adds the publisher implementation but does not dispatch it, create
+packages, configure credentials/permissions, or activate a publishable bundle,
+source-access grant, image or baseline. The bundle catalog, source-access catalog
+and both runtime allowlists remain empty. Actual authenticated publication and
+independent private-evidence review remain required. The public sequence below
+applies only to dependencies authorized for public redistribution.
 
 ### Public runtime publication sequence
 

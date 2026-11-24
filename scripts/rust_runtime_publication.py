@@ -9,7 +9,10 @@ import sys
 from collections.abc import Mapping
 from typing import Any
 
-from scripts.rust_runtime_bundle import BundleError, load_bundle
+if __package__:
+    from .rust_runtime_bundle import BundleError, load_bundle
+else:
+    from rust_runtime_bundle import BundleError, load_bundle
 
 
 BUILDX_VERSION = "v0.37.1"
@@ -49,6 +52,7 @@ PYTHON_BASE_LINUX_AMD64_DIGEST = (
 )
 PYTHON_BASE_PROVENANCE_URI = "pkg:docker/python@3.11.16-bookworm?platform=linux%2Famd64"
 IMAGE_REPOSITORY = "ghcr.io/elevenid/feature-regression-rust-cargo"
+RESTRICTED_IMAGE_REPOSITORY = IMAGE_REPOSITORY + "-restricted"
 WRAPPER_PATH = (
     pathlib.Path(__file__).parents[1] / "runtime" / "rust-cargo" / "run-rust-probe"
 )
@@ -180,8 +184,9 @@ def validate_publication_evidence(
     *,
     image: str,
     publisher_revision: str,
+    restricted: bool = False,
 ) -> dict[str, Any]:
-    image_prefix = f"{IMAGE_REPOSITORY}@"
+    image_prefix = f"{RESTRICTED_IMAGE_REPOSITORY if restricted else IMAGE_REPOSITORY}@"
     if (
         not image.startswith(image_prefix)
         or DIGEST.fullmatch(image.removeprefix(image_prefix)) is None
@@ -206,6 +211,8 @@ def validate_publication_evidence(
         "sbom-generator-index.json",
         "sbom.json",
     }
+    if restricted:
+        required.update({"package-before.json", "package-after.json"})
     entries = list(evidence_dir.iterdir())
     if {path.name for path in entries} != required or any(
         path.is_symlink() or not path.is_file() for path in entries
@@ -435,7 +442,7 @@ def validate_publication_evidence(
     if runtime_path.read_bytes() != canonical_runtime:
         raise PublicationError("runtime manifest is not canonical JSON")
 
-    return {
+    result = {
         "build_metadata_sha256": _digest(evidence_dir / "build-metadata.json"),
         "buildkit_container_sha256": _digest(evidence_dir / "buildkit-container.json"),
         "buildkit_image_evidence_sha256": _digest(evidence_dir / "buildkit-image.json"),
@@ -469,6 +476,54 @@ def validate_publication_evidence(
         "sbom_sha256": _digest(evidence_dir / "sbom.json"),
         "schema": "elevenid.rust-cargo-publication/v1",
     }
+    if restricted:
+        for name in ("package-before.json", "package-after.json"):
+            metadata = _json(evidence_dir / name, "private package metadata")
+            if metadata != {
+                "name": "feature-regression-rust-cargo-restricted",
+                "owner": "ElevenID",
+                "package_type": "container",
+                "visibility": "private",
+            }:
+                raise PublicationError(
+                    "restricted runtime package was not proven private before and after publication"
+                )
+        result.update(
+            schema="elevenid.rust-cargo-publication/v2",
+            distribution="restricted",
+            private_evidence_bound=False,
+            package_before_sha256=_digest(evidence_dir / "package-before.json"),
+            package_after_sha256=_digest(evidence_dir / "package-after.json"),
+        )
+    return result
+
+
+def bind_private_evidence(
+    document: dict[str, Any], image: str, package_after: pathlib.Path
+) -> dict[str, Any]:
+    prefix = RESTRICTED_IMAGE_REPOSITORY + "@"
+    if (
+        document.get("schema") != "elevenid.rust-cargo-publication/v2"
+        or document.get("distribution") != "restricted"
+        or document.get("private_evidence_bound") is not False
+        or not image.startswith(prefix)
+        or DIGEST.fullmatch(image.removeprefix(prefix)) is None
+        or image == document.get("image")
+    ):
+        raise PublicationError("private publication evidence image identity is invalid")
+    if _json(package_after, "evidence package visibility") != {
+        "name": "feature-regression-rust-cargo-restricted",
+        "owner": "ElevenID",
+        "package_type": "container",
+        "visibility": "private",
+    }:
+        raise PublicationError("private evidence package visibility was not proven")
+    return {
+        **document,
+        "private_evidence_bound": True,
+        "private_evidence_image": image,
+        "private_evidence_package_after_sha256": _digest(package_after),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -479,6 +534,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--image", required=True)
     parser.add_argument("--publisher-revision", required=True)
     parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--restricted", action="store_true")
+    parser.add_argument("--private-evidence-image")
+    parser.add_argument("--evidence-package-after", type=pathlib.Path)
     args = parser.parse_args(argv)
     try:
         bundle = load_bundle(args.catalog, args.bundle_id)
@@ -487,7 +545,20 @@ def main(argv: list[str] | None = None) -> int:
             bundle,
             image=args.image,
             publisher_revision=args.publisher_revision,
+            restricted=args.restricted,
         )
+        if args.private_evidence_image or args.evidence_package_after:
+            if (
+                not args.restricted
+                or not args.private_evidence_image
+                or not args.evidence_package_after
+            ):
+                raise PublicationError(
+                    "private evidence binding requires both private arguments"
+                )
+            document = bind_private_evidence(
+                document, args.private_evidence_image, args.evidence_package_after
+            )
         args.output.write_bytes(
             json.dumps(
                 document,

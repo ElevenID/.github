@@ -22,6 +22,31 @@ REVISION = "b" * 40
 
 
 class RegistryTests(unittest.TestCase):
+    def test_metadata_cli_emits_only_normalized_proof_and_consumes_token(self) -> None:
+        metadata = {
+            "name": registry.PACKAGE,
+            "owner": "ElevenID",
+            "package_type": "container",
+            "visibility": "private",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            output = pathlib.Path(temporary) / "package.json"
+            with (
+                mock.patch.dict(
+                    os.environ, {"RUST_RUNTIME_PACKAGE_METADATA_TOKEN": TOKEN}
+                ),
+                mock.patch.object(
+                    registry, "require_private_package", return_value=metadata
+                ) as check,
+            ):
+                self.assertEqual(
+                    0, registry.main(["check-private-package", "--output", str(output)])
+                )
+                check.assert_called_once_with(TOKEN)
+                self.assertNotIn("RUST_RUNTIME_PACKAGE_METADATA_TOKEN", os.environ)
+            self.assertEqual(metadata, json.loads(output.read_text(encoding="utf-8")))
+            self.assertNotIn(TOKEN, output.read_text(encoding="utf-8"))
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

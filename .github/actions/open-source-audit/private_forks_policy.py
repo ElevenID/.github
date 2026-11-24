@@ -109,6 +109,31 @@ NATIVE_FLUTTER_INPUTS = {
     "native-rust-bridge": "true",
 }
 
+# Main-only publisher: whole workflow and transitive credential-bearing code,
+# recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
+RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
+RESTRICTED_PUBLISHER_FILES = {
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': '89a022c8b83acba7674d00dc355b5b2c9f3055f2d6dcaa5ec7de71698e95bb94',
+    'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
+    'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
+    'scripts/feature_regression_observation_runner.py': '28ecb298d4195f901277b8de30d5f2b6ab06f18fb70fdfdd752e600ff0c38fbe',
+    'scripts/rust_runtime_source_access.py': '7d87c3f9fc06e472666d59d0a582782ca8087563566bf2f421d8c49a27712969',
+    'scripts/rust_runtime_registry.py': '12a7f56004ca4bba81da36aab6eae4e373327c069414c57a4133847ca6c25336',
+    'scripts/rust_runtime_publication.py': '01ee4880f6739016b7497a7d3b8b0f4bc7b489260d82a214148f77f1f1b21edf',
+    'runtime/rust-cargo/bundles.json': '95cdb9f5004fd723e0a51afcc6ac3ed19af07b6d6ed10b5dafab1946a4b5180a',
+    'runtime/rust-cargo/Dockerfile.restricted': '91c5fb1cae6f58351fcfa203a36729e0ea03865309821b4b3ab58c3edc28d996',
+    'runtime/rust-cargo/Dockerfile.restricted.dockerignore': 'aa8ab9f5dc030bd71ecfd108dcb2215a51292356bb49562a31daf3c29aa528a5',
+    'runtime/rust-cargo/Dockerfile.evidence': 'd0a02b08c8c65d16e0710a798970adba09ddd3c7c48c2786b70c927eef0e042d',
+    'runtime/rust-cargo/run-rust-probe': '8c7f2863e811cab5d41ab047c33205b87edbda2bf98aa17130383439cd8df96b',
+}
+RESTRICTED_SCRIPT_NAMES = {
+    "dependency_health.py", "feature_regression_observation_runner.py",
+    "feature_regression_review.py", "prune_local_evidence.py",
+    "rust_runtime_bundle.py", "rust_runtime_publication.py",
+    "rust_runtime_registry.py", "rust_runtime_source_access.py",
+    "rust_runtime_source_fetch.py", "workflow_policy.py",
+}
+
 
 class WorkflowLoader(yaml.BaseLoader):
     """Keep Actions' `on` key a string and reject ambiguous duplicate mappings."""
@@ -266,6 +291,25 @@ def workflow_secret_findings(
         require(isinstance(document, dict), "workflow must be a mapping")
         events = document.get("on", {})
         events = {events} if isinstance(events, str) else set(events or [])
+        if repository == "ElevenID/.github" and workflow_path == RESTRICTED_PUBLISHER:
+            require(events == {"workflow_dispatch"}, "restricted publisher must only accept dispatch")
+            require(bool(RESTRICTED_PUBLISHER_FILES), "restricted publisher has no reviewed closure")
+            for relative, digest in RESTRICTED_PUBLISHER_FILES.items():
+                path = root / relative
+                require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root.resolve()), "restricted publisher input must be a regular in-tree file")
+                normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+                require(hashlib.sha256(normalized.encode("utf-8")).hexdigest() == digest, "unreviewed restricted publisher input")
+                if relative == RESTRICTED_PUBLISHER:
+                    require(normalized == content.replace("\r\n", "\n"), "restricted publisher definition source differs")
+            # Direct script execution avoids repository-root module lookup.
+            # Reject new sibling modules/packages that could shadow stdlib or
+            # reviewed imports before a credential-bearing helper starts.
+            scripts = root / "scripts"
+            require({path.name for path in scripts.iterdir() if path.name != "__pycache__"} == RESTRICTED_SCRIPT_NAMES,
+                    "restricted publisher script namespace changed")
+            require(all(not (scripts / name).is_symlink() and (scripts / name).is_file() for name in RESTRICTED_SCRIPT_NAMES),
+                    "restricted publisher script namespace contains a link or directory")
+            return []
         if repository == "ElevenID/.github" and workflow_path == NATIVE_FLUTTER_DEFINITION:
             normalized = content.replace("\r\n", "\n")
             require(events == {"workflow_call"}, "native Flutter definition must only be reusable")

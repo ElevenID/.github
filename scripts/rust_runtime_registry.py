@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+import argparse
 import json
 import os
 import pathlib
 import re
 import tempfile
+import sys
 import urllib.error
 import urllib.request
 import urllib.parse
@@ -29,7 +31,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def require_private_package(token: str) -> None:
+def require_private_package(token: str) -> dict[str, str]:
     """Publisher/admin metadata check; the REST endpoint requires a classic PAT.
 
     A workflow job token is used only for the consumer's registry pull below.
@@ -79,6 +81,12 @@ def require_private_package(token: str) -> None:
         raise RegistryAccessError(
             "restricted runtime package must already exist and be private"
         )
+    return {
+        "name": PACKAGE,
+        "owner": "ElevenID",
+        "package_type": "container",
+        "visibility": "private",
+    }
 
 
 def require_anonymous_pull_denied() -> None:
@@ -256,3 +264,29 @@ def private_pull_environment(
                 stdout_limit=65_536,
                 stderr_limit=65_536,
             )
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("check-private-package",))
+    parser.add_argument("--output", required=True, type=pathlib.Path)
+    args = parser.parse_args(argv)
+    token = os.environ.pop("RUST_RUNTIME_PACKAGE_METADATA_TOKEN", "")
+    try:
+        metadata = require_private_package(token)
+        token = ""
+        with args.output.open("xb") as stream:
+            stream.write(
+                json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()
+            )
+        return 0
+    except (RegistryAccessError, OSError):
+        print(
+            "ERROR: restricted runtime package must be precreated, private, and readable by the metadata credential",
+            file=sys.stderr,
+        )
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

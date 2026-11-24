@@ -251,6 +251,100 @@ class RustRuntimePublicationTests(unittest.TestCase):
         self.assertEqual(BUNDLE, document["bundle"])
         self.assertEqual(IMAGE, document["image"])
 
+    def private_evidence(self, root: pathlib.Path) -> pathlib.Path:
+        self.evidence(root)
+        for name in ("package-before.json", "package-after.json"):
+            write_json(
+                root / name,
+                {
+                    "name": "feature-regression-rust-cargo-restricted",
+                    "owner": "ElevenID",
+                    "package_type": "container",
+                    "visibility": "private",
+                },
+            )
+        return root
+
+    def validate_private(self, root: pathlib.Path) -> dict[str, object]:
+        return publication.validate_publication_evidence(
+            root,
+            BUNDLE,
+            image=f"{publication.RESTRICTED_IMAGE_REPOSITORY}@{IMAGE_DIGEST}",
+            publisher_revision=PUBLISHER_REVISION,
+            restricted=True,
+        )
+
+    def test_restricted_receipt_requires_separate_private_evidence_binding(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.private_evidence(pathlib.Path(temporary))
+            document = self.validate_private(root)
+            self.assertFalse(document["private_evidence_bound"])
+            self.assertEqual("elevenid.rust-cargo-publication/v2", document["schema"])
+            evidence_image = (
+                publication.RESTRICTED_IMAGE_REPOSITORY + "@sha256:" + "8" * 64
+            )
+            result = publication.bind_private_evidence(
+                document, evidence_image, root / "package-after.json"
+            )
+            self.assertTrue(result["private_evidence_bound"])
+            self.assertEqual(evidence_image, result["private_evidence_image"])
+            self.assertEqual(
+                publication._digest(root / "package-after.json"),
+                result["private_evidence_package_after_sha256"],
+            )
+            self.assertFalse(document["private_evidence_bound"])
+            with self.assertRaises(publication.PublicationError):
+                publication.bind_private_evidence(
+                    result, evidence_image, root / "package-after.json"
+                )
+
+    def test_private_publication_refuses_missing_or_public_package_proof(self) -> None:
+        for name in ("package-before.json", "package-after.json"):
+            for mutation in (
+                None,
+                {"visibility": "public"},
+                {"owner": "someone"},
+                {"unexpected": True},
+            ):
+                with (
+                    self.subTest(name=name, mutation=mutation),
+                    tempfile.TemporaryDirectory() as temporary,
+                ):
+                    root = self.private_evidence(pathlib.Path(temporary))
+                    if mutation is None:
+                        (root / name).unlink()
+                    else:
+                        metadata = json.loads((root / name).read_text(encoding="utf-8"))
+                        write_json(root / name, {**metadata, **mutation})
+                    with self.assertRaises(publication.PublicationError):
+                        self.validate_private(root)
+
+    def test_private_evidence_cannot_be_public_or_the_runtime_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.private_evidence(pathlib.Path(temporary))
+            document = self.validate_private(root)
+            for image in (
+                IMAGE,
+                document["image"],
+                publication.RESTRICTED_IMAGE_REPOSITORY + ":latest",
+            ):
+                with (
+                    self.subTest(image=image),
+                    self.assertRaises(publication.PublicationError),
+                ):
+                    publication.bind_private_evidence(
+                        document, image, root / "package-after.json"
+                    )
+            write_json(root / "package-after.json", {"visibility": "public"})
+            with self.assertRaises(publication.PublicationError):
+                publication.bind_private_evidence(
+                    document,
+                    publication.RESTRICTED_IMAGE_REPOSITORY + "@sha256:" + "8" * 64,
+                    root / "package-after.json",
+                )
+
     def test_current_platform_wrapped_attestation_shape_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = self.evidence(pathlib.Path(temporary))
