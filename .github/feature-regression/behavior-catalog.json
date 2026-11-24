@@ -3,12 +3,12 @@
   "repository": "ElevenID/.github",
   "producer": {
     "workflow_path": ".github/workflows/behavior-observations.yml",
-    "workflow_sha256": "sha256:bc81d3fec07cc9634f31892c094e53cbcda5ad1cc8c72472cb0433cc222975a0",
+    "workflow_sha256": "sha256:0e02dd8d277ae9735ec57f03bd3af5a48ef8ba9b2dd965a205a22332272730cf",
     "central_workflow_sha": "6fbbad37d4d48919ed7bcfaaaeb24fff92a99efd",
     "harness_path": ".github/feature-regression/observation_harness.py",
     "harness_sha256": "sha256:c7d740ffadc6156c3cc560e33b4708e96b1db0fe69965fa20ddf6cca718ce12a",
     "subject_path": ".github/feature-regression/behavior_subject.py",
-    "subject_sha256": "sha256:0f4a98d1ffeec7dbbacce9234ab68ef530951db413508357c9884420b7c4ddcf",
+    "subject_sha256": "sha256:f4b2c4919a5ada94789e0843aa206295be94a193ad6639a9f707772fac8dbc2d",
     "subject_runtime": "python",
     "subject_args": [],
     "subject_env": {},
@@ -512,6 +512,24 @@
           "id": "bundle-duplicate-json-key",
           "components": [
             "scripts/rust_runtime_bundle.py"
+          ],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime.bundle-live",
+      "name": "protected Auth and Flow bundle admission",
+      "cases": [
+        {
+          "id": "live-auth-flow-bundle",
+          "components": [
+            "runtime/rust-cargo/bundles.json",
+            ".github/feature-regression/behavior_subject.py"
           ],
           "invariants": [
             "public_status",
