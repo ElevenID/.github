@@ -1,0 +1,29 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "restricted-publisher-build-log-confinement",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "behavior",
+        "behavior": "Restricted runtime build output in public Actions logs"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "build_stream": "docker buildx build stdout and stderr are forwarded to the public Actions step log",
+        "failure_message": "Docker/BuildKit stdout and stderr are forwarded without a fixed sanitized replacement",
+        "success_message": "Docker/BuildKit stdout and stderr are forwarded"
+      },
+      "after_value": {
+        "build_stream": "docker buildx build stdout and stderr are captured in an ephemeral runner-local file removed on success and at step exit",
+        "failure_message": "Restricted runtime build failed; private diagnostics were not published.",
+        "success_message": "No Docker/BuildKit build stream is forwarded to the public Actions step log"
+      },
+      "before_sha256": "sha256:48762cb85834225a3b6fe6456926c7f33934d20781060a0d46c08b0742c7e11e",
+      "after_sha256": "sha256:9822d82d4ee923e2274c48ea7309aa20a084efcc649a1ae4f6a343b60271b9f0",
+      "compatibility_impact": "Public workflow viewers no longer receive raw Docker/BuildKit progress or diagnostics from the restricted runtime build. On build failure they receive a fixed failure category; success remains indicated by the job result. Other workflow steps and private publication gates retain their prior behavior.",
+      "replacement_behavior": "Capture the restricted build command's stdout and stderr in an ephemeral runner-local file, remove the file on success and step exit, and print only the fixed failure message on nonzero exit.",
+      "breaking_loss": false
+    }
+  ]
+}
