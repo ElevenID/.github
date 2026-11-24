@@ -165,6 +165,46 @@ def probe_cases():
     case("policy.restricted-publisher", "restricted-publisher-valid", publisher_case())
     case("policy.restricted-publisher", "restricted-publisher-tampered-input", publisher_case(True))
 
+    def producer_workflow_case(tamper=False):
+        path = ROOT / ".github/workflows/feature-regression-observation-producer-restricted.yml"
+        if not path.exists() and not path.is_symlink():
+            raise ProductionOwnerAbsent("restricted observation producer is absent at this revision")
+        raw = path.read_bytes().replace(b"\r\n", b"\n")
+        if tamper:
+            changed = raw.replace(b"actions: read", b"actions: write", 1)
+            if changed == raw:
+                raise ValueError("restricted producer permission fixture could not be changed")
+            raw = changed
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != "9482f2e9ba9696de7ae671b5be038600b80bc67d91c1587c08a2e645c91c2f19":
+            raise ValueError("restricted observation producer differs from reviewed public source")
+        document = policy.yaml.load(raw.decode("utf-8"), Loader=policy.WorkflowLoader)
+        event = document.get("on", {})
+        permissions = document.get("permissions")
+        secrets = event.get("workflow_call", {}).get("secrets", {}) if isinstance(event, dict) else None
+        steps = document.get("jobs", {}).get("generate", {}).get("steps", [])
+        produce = [step for step in steps if step.get("name") == "Produce trusted runtime observations atomically"]
+        expected_secrets = {"RUST_RUNTIME_PACKAGE_READ_TOKEN", "RUST_RUNTIME_PACKAGE_USERNAME"}
+        if (set(event) != {"workflow_call"}
+                or permissions != {"actions": "read", "contents": "read"}
+                or not isinstance(secrets, dict) or set(secrets) != expected_secrets
+                or any(item.get("required") != "true" for item in secrets.values())
+                or len(produce) != 1):
+            raise ValueError("restricted observation producer workflow boundary changed")
+        environment = produce[0].get("env", {})
+        if (
+            environment.get("RUST_RUNTIME_PULL_TOKEN") != "${{ secrets.RUST_RUNTIME_PACKAGE_READ_TOKEN }}"
+            or environment.get("RUST_RUNTIME_REGISTRY_USERNAME") != "${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}"
+            or environment.get("GITHUB_TOKEN") != "${{ github.token }}"
+        ):
+            raise ValueError("restricted observation producer secret mapping changed")
+        return {"sha256": digest, "permissions": permissions,
+                "private_secret_names": sorted(expected_secrets)}
+
+    case("policy.restricted-producer-source", "restricted-producer-valid", producer_workflow_case)
+    case("policy.restricted-producer-source", "restricted-producer-permission-tamper",
+         lambda: producer_workflow_case(True))
+
     for name, arguments, environment, runtime in [
         ("python-inputs", '["fixture"]', '{"PROBE_VALUE":"public"}', "python"),
         ("arguments-not-array", '{}', '{}', "python"),
@@ -502,6 +542,23 @@ def probe_cases():
          present_call(access, lambda module: module.require_access(
              **candidate, grants=module.parse_grants(grant_catalog([grant])),
          )))
+
+    def checked_in_catalog_case(tamper=False):
+        def invoke(module):
+            path = ROOT / "runtime/rust-cargo/source-access.json"
+            if not path.exists() and not path.is_symlink():
+                raise ProductionOwnerAbsent("checked-in source-access catalog is absent at this revision")
+            if tamper:
+                with tempfile.TemporaryDirectory() as directory:
+                    damaged = Path(directory) / "source-access.json"
+                    damaged.write_bytes(b'{"schema":"invalid","grants":[]}')
+                    return module.load_grants(damaged)
+            grants = module.load_grants(path)
+            return {"grant_count": len(grants), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        return present_call(access, invoke)
+
+    case("restricted.source-admission", "source-checked-in-catalog", checked_in_catalog_case())
+    case("restricted.source-admission", "source-invalid-catalog", checked_in_catalog_case(True))
 
     def protected_case(revoked):
         def invoke(module):

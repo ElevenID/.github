@@ -46,7 +46,9 @@ class EnrollmentSubjectTests(unittest.TestCase):
                 (root / "scripts" / source.name).write_bytes(source.read_bytes())
             for relative in (
                 ".github/workflows/publish-restricted-rust-probe-runtime.yml",
+                ".github/workflows/feature-regression-observation-producer-restricted.yml",
                 "runtime/rust-cargo/bundles.json",
+                "runtime/rust-cargo/source-access.json",
                 "runtime/rust-cargo/Dockerfile.restricted",
                 "runtime/rust-cargo/Dockerfile.restricted.dockerignore",
                 "runtime/rust-cargo/Dockerfile.evidence",
@@ -105,7 +107,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(183, len(document["observations"]))
+        self.assertEqual(195, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -122,7 +124,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(61, len(statuses))
+        self.assertEqual(65, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
@@ -133,6 +135,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
             "source-local-lock", "source-unpinned-git", "source-empty-grants",
             "source-duplicate-catalog-key", "source-unadmitted-candidate",
             "source-positive-grant", "source-protected-current", "source-protected-revoked",
+            "source-checked-in-catalog", "source-invalid-catalog",
             "fetch-untrusted-context", "fetch-wrong-credential-host",
             "fetch-missing-private-credential",
         }
@@ -147,6 +150,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
             self.assertEqual(set(), {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
                               "source-positive-grant", "source-protected-current",
+                              "source-checked-in-catalog",
                               "registry-pull-cleanup", "registry-login-failure-cleanup"},
                              {name for name in restricted if statuses[name] == "accepted"})
             self.assertEqual("accepted", statuses["source-positive-grant"])
@@ -156,12 +160,15 @@ class EnrollmentSubjectTests(unittest.TestCase):
                                                    "source-positive-grant", "source-protected-current",
                                                    "registry-pull-cleanup", "registry-login-failure-cleanup",
                                                    "private-evidence-bound", "restricted-publisher-valid",
-                                                   "producer-isolated-runtime-pull", "producer-denied-before-pull"}, accepted)
+                                                   "producer-isolated-runtime-pull", "producer-denied-before-pull",
+                                                   "source-checked-in-catalog", "restricted-producer-valid"}, accepted)
             self.assertEqual("rejected", statuses["restricted-publisher-tampered-input"])
+            self.assertEqual("rejected", statuses["restricted-producer-permission-tamper"])
         else:
             self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package",
                                            "restricted-publisher-valid", "restricted-publisher-tampered-input",
-                                           "producer-isolated-runtime-pull", "producer-denied-before-pull"},
+                                           "producer-isolated-runtime-pull", "producer-denied-before-pull",
+                                           "restricted-producer-valid", "restricted-producer-permission-tamper"},
                              {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
