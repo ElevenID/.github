@@ -259,6 +259,12 @@ def probe_cases():
         case("runtime.bundle-admission", name, catalog_case(document))
     case("runtime.bundle-admission", "bundle-duplicate-json-key", catalog_case('{"schema":"a","schema":"b","bundles":[]}'))
 
+    # Read the protected repository catalog, not a synthetic fixture. The
+    # current base has no such entry; a later admission changes this result.
+    case("runtime.bundle-live", "live-auth-flow-bundle",
+         lambda: bundle.load_bundle(ROOT / "runtime/rust-cargo/bundles.json",
+                                    "marty-ui-auth-flow-20261124"))
+
     def target_case(change=None):
         def run():
             with tempfile.TemporaryDirectory() as directory:

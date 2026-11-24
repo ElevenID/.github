@@ -111,7 +111,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(216, len(document["observations"]))
+        self.assertEqual(219, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -125,10 +125,37 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertNotEqual(0, rejected.returncode)
         self.assertIn(b"capture status is invalid", rejected.stderr)
 
+    def test_live_bundle_observation_reads_protected_catalog(self):
+        root = self.fixture()
+        before = self.run_subject(root)
+        self.assertEqual("rejected", self.statuses(before)["live-auth-flow-bundle"])
+        record = {
+            "id": "marty-ui-auth-flow-20261124",
+            "repository": "ElevenID/marty-ui",
+            "revision": "a" * 40,
+            "manifest_path": ".github/feature-regression/rust-probe/Cargo.toml",
+            "manifest_sha256": "sha256:" + "b" * 64,
+            "lock_path": ".github/feature-regression/rust-probe/Cargo.lock",
+            "lock_sha256": "sha256:" + "c" * 64,
+            "subject_path": ".github/feature-regression/rust-probe/behavior_subject.rs",
+            "subject_sha256": "sha256:" + "d" * 64,
+        }
+        (root / "runtime/rust-cargo/bundles.json").write_text(json.dumps({
+            "schema": "elevenid.rust-cargo-runtime-bundles/v1", "bundles": [record],
+        }), encoding="utf-8")
+        after = self.run_subject(root)
+        self.assertEqual("accepted", self.statuses(after)["live-auth-flow-bundle"])
+        observations = json.loads(after.stdout)["observations"]
+        returned = next(item["value"]["returned"] for item in observations
+                        if item["case_id"] == "live-auth-flow-bundle"
+                        and item["dimension"] == "safe_server_diagnostic")
+        self.assertEqual(record, returned)
+
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(72, len(statuses))
+        self.assertEqual(73, len(statuses))
+        self.assertEqual("rejected", statuses["live-auth-flow-bundle"])
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         identity_repaired = statuses["reviewer-multicase-valid"] == "accepted"
         identity_accepted = {"reviewer-multicase-valid"} if identity_repaired else {"reviewer-id-name-conflict"}
