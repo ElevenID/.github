@@ -17,9 +17,11 @@ No `not_applicable` or fabricated preserved disposition resolves this defect.
 
 Permit one separately reviewed, source-free policy change to add four fixed
 reviewer operation/case identity observations and repair only the validation
-of repeated human names across distinct cases. The repair must continue to
+of repeated human names across distinct cases. The repaired helper must
 reject duplicate case IDs, two operation IDs sharing a name, and one operation
-ID changing names. This is a review-contract repair, not an authorization to
+ID changing names. Its old helper accepted the latter conflict, although the
+full phase-bound catalog check rejected it later; the repair enforces this
+identity boundary earlier. This is a review-contract repair, not an authorization to
 admit source, publish a runtime, enable a repository or deploy a service.
 
 The candidate must preserve every one of the existing 68 cases and 204
