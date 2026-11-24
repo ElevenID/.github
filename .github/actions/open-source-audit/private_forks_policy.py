@@ -113,7 +113,7 @@ NATIVE_FLUTTER_INPUTS = {
 # recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
-    '.github/workflows/publish-restricted-rust-probe-runtime.yml': '260c2bbd28f721234828eed92f37a0f9d3b2bd59d51856a50d64380723875628',
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'b216f281f46fd9f3a8ba5675943c6dcd5e4fe5cbc47aa662cf8ecd363851f1cf',
     'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
     'scripts/feature_regression_observation_runner.py': '6f9a1ae03df671b46b33a78dd0528a36170aed7600ba60039c886f23f3d29e34',
@@ -305,7 +305,7 @@ def workflow_secret_findings(
             # Reject new sibling modules/packages that could shadow stdlib or
             # reviewed imports before a credential-bearing helper starts.
             scripts = root / "scripts"
-            require({path.name for path in scripts.iterdir() if path.name != "__pycache__"} == RESTRICTED_SCRIPT_NAMES,
+            require({path.name for path in scripts.iterdir()} == RESTRICTED_SCRIPT_NAMES,
                     "restricted publisher script namespace changed")
             require(all(not (scripts / name).is_symlink() and (scripts / name).is_file() for name in RESTRICTED_SCRIPT_NAMES),
                     "restricted publisher script namespace contains a link or directory")

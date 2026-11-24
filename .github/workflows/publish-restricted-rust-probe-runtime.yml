@@ -12,6 +12,7 @@ permissions:
   contents: read
 
 env:
+  PYTHONDONTWRITEBYTECODE: "1"
   RUST_BUILDX_VERSION: v0.37.1
   RUST_BUILDX_LINUX_AMD64_SHA256: sha256:9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b
   RUST_BUILDX_ASSET_URL: https://github.com/docker/buildx/releases/download/v0.37.1/buildx-v0.37.1.linux-amd64
@@ -35,6 +36,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
+      - name: Reject Python import caches before running repository helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d scripts && test ! -L scripts
+          unexpected="$(find scripts -mindepth 1 -maxdepth 1 \( ! -type f -o -name '*.pyc' -o -name '*.pyo' \) -print)"
+          test -z "$unexpected"
       - name: Resolve reviewed runtime bundle
         id: bundle
         shell: bash
@@ -66,6 +74,10 @@ jobs:
         env:
           RUST_RUNTIME_PACKAGE_METADATA_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_METADATA_TOKEN }}
         run: |
+          set -euo pipefail
+          test -d scripts && test ! -L scripts
+          unexpected="$(find scripts -mindepth 1 -maxdepth 1 \( ! -type f -o -name '*.pyc' -o -name '*.pyo' \) -print)"
+          test -z "$unexpected"
           mkdir -p "$RUNNER_TEMP/rust-runtime-private-evidence" "$RUNNER_TEMP/rust-runtime-public-receipt"
           python scripts/rust_runtime_registry.py check-private-package --output "$RUNNER_TEMP/rust-runtime-private-evidence/package-before.json"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
@@ -81,7 +93,12 @@ jobs:
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
           PRIVATE_FORKS_READ_TOKEN: ${{ secrets.PRIVATE_FORKS_READ_TOKEN }}
-        run: python scripts/rust_runtime_source_fetch.py fetch --bundle-id "$BUNDLE_ID"
+        run: |
+          set -euo pipefail
+          test -d scripts && test ! -L scripts
+          unexpected="$(find scripts -mindepth 1 -maxdepth 1 \( ! -type f -o -name '*.pyc' -o -name '*.pyo' \) -print)"
+          test -z "$unexpected"
+          python scripts/rust_runtime_source_fetch.py fetch --bundle-id "$BUNDLE_ID"
       - name: Build and publish content-addressed runtime
         id: publish
         shell: bash

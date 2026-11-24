@@ -620,6 +620,13 @@ recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
 Python import namespace. No other central workflow gains source-reader access.
 Changes to this closure require independent review before admission.
 
+The publisher rejects cache directories, linked script inputs and precompiled
+Python files in a shell-only check before its first repository Python import.
+It repeats this check before package metadata credentials and private source
+credentials are used. The workflow disables bytecode writes, and the source
+policy rejects the entire cache namespace rather than ignoring it. Disabling
+bytecode writes alone does not prevent imports from existing bytecode caches.
+
 Before dispatch, an operator must precreate the fixed restricted package using
 source-free content, confirm private visibility and no repository link or Actions
 access grants, and provide the separate classic metadata-read credential.
