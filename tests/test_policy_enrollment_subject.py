@@ -107,7 +107,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(204, len(document["observations"]))
+        self.assertEqual(216, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -124,12 +124,18 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(68, len(statuses))
+        self.assertEqual(72, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
+        identity_repaired = statuses["reviewer-multicase-valid"] == "accepted"
+        identity_accepted = {"reviewer-multicase-valid"} if identity_repaired else {"reviewer-id-name-conflict"}
+        self.assertEqual("rejected", statuses["reviewer-duplicate-case-id"])
+        self.assertEqual("rejected", statuses["reviewer-name-id-conflict"])
+        self.assertEqual("rejected" if identity_repaired else "accepted",
+                         statuses["reviewer-id-name-conflict"])
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
                              "reviewer-public-caller", "reviewer-restricted-caller",
-                             "reviewer-missing-source-receipt"}
+                             "reviewer-missing-source-receipt"} | identity_accepted
         restricted = {
             "registry-invalid-credential", "registry-untrusted-context",
             "registry-pull-cleanup", "registry-login-failure-cleanup",
