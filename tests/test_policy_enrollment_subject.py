@@ -51,11 +51,18 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(36, len(statuses))
+        self.assertEqual(46, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         self.assertEqual({"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                           "target-valid", "github-output-valid", "atomic-new", "observation-valid"}, accepted)
-        self.assertTrue(all(status in {"accepted", "rejected"} for status in statuses.values()))
+        self.assertEqual({
+            "registry-invalid-credential", "registry-untrusted-context",
+            "source-local-lock", "source-unpinned-git", "source-empty-grants",
+            "source-duplicate-catalog-key", "source-unadmitted-candidate",
+            "fetch-untrusted-context", "fetch-wrong-credential-host",
+            "fetch-missing-private-credential",
+        }, {name for name, status in statuses.items() if status == "not_present"})
+        self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
         self.assertNotIn(b"DIAGNOSTIC_SENTINEL_VALUE", result.stdout)
 
     def test_actual_production_owner_drift_changes_observations(self):

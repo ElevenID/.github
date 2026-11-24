@@ -32,6 +32,10 @@ SCRIPT_NAMES = {
 }
 
 
+class ProductionOwnerAbsent(Exception):
+    """The new production module does not exist at this exact revision."""
+
+
 def verified_dependencies():
     for path in (VENDOR, *VENDOR.parents):
         if path.is_symlink():
@@ -81,6 +85,21 @@ def production_module(name, relative):
     sys.modules[name] = module
     specification.loader.exec_module(module)
     return module
+
+
+def optional_production_module(name, relative):
+    path = ROOT / relative
+    if not path.exists() and not path.is_symlink():
+        return None
+    return production_module(name, relative)
+
+
+def present_call(module, function):
+    def run():
+        if module is None:
+            raise ProductionOwnerAbsent("production owner is absent at this revision")
+        return function(module)
+    return run
 
 
 def probe_cases():
@@ -233,6 +252,49 @@ def probe_cases():
                          ("observation-missing", "missing"), ("observation-wrong-phase", "phase")]:
         case("producer.observation-binding", name, observation_case(change))
 
+    registry = optional_production_module("scripts.rust_runtime_registry", "scripts/rust_runtime_registry.py")
+    access = optional_production_module("scripts.rust_runtime_source_access", "scripts/rust_runtime_source_access.py")
+    fetch = optional_production_module("scripts.rust_runtime_source_fetch", "scripts/rust_runtime_source_fetch.py")
+
+    case("restricted.registry-boundary", "registry-invalid-credential",
+         present_call(registry, lambda module: module.require_private_package("invalid")))
+    case("restricted.registry-boundary", "registry-untrusted-context",
+         present_call(registry, lambda module: module.require_execution_context(
+             repository="ElevenID/.github", revision="a" * 40,
+             event_name="workflow_dispatch", environment={},
+         )))
+
+    local_lock = b'[[package]]\nname = "public-fixture"\nversion = "0.1.0"\n'
+    unpinned_lock = local_lock + b'source = "git+https://github.com/ElevenID/example"\n'
+    case("restricted.source-admission", "source-local-lock",
+         present_call(access, lambda module: sorted(module.locked_git_sources(local_lock))))
+    case("restricted.source-admission", "source-unpinned-git",
+         present_call(access, lambda module: module.locked_git_sources(unpinned_lock)))
+    case("restricted.source-admission", "source-empty-grants",
+         present_call(access, lambda module: module.parse_grants(
+             b'{"schema":"elevenid.rust-runtime-source-access/v1","grants":[]}')))
+    case("restricted.source-admission", "source-duplicate-catalog-key",
+         present_call(access, lambda module: module.parse_grants(
+             b'{"schema":"a","schema":"b","grants":[]}')))
+    case("restricted.source-admission", "source-unadmitted-candidate",
+         present_call(access, lambda module: module.require_access(
+             repository="ElevenID/example", revision="a" * 40,
+             runtime_image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "b" * 64,
+             runtime_manifest_sha256="sha256:" + "c" * 64,
+             lock=local_lock, grants=[],
+         )))
+
+    case("restricted.source-fetch", "fetch-untrusted-context",
+         present_call(fetch, lambda module: module.require_context({}, {})))
+    case("restricted.source-fetch", "fetch-wrong-credential-host",
+         present_call(fetch, lambda module: module.credential_response(
+             "get", "protocol=https\nhost=unapproved.example\npath=ElevenID/ssi-elevenid\n", {},
+         )))
+    case("restricted.source-fetch", "fetch-missing-private-credential",
+         present_call(fetch, lambda module: module.credential_response(
+             "get", "protocol=https\nhost=github.com\npath=ElevenID/ssi-elevenid\n", {},
+         )))
+
     return cases
 
 
@@ -248,6 +310,9 @@ def observe():
             values = {"public_status": "rejected" if rejected else "accepted",
                       "public_message": result if rejected else None,
                       "safe_server_diagnostic": {"returned": result}}
+        except ProductionOwnerAbsent:
+            values = {"public_status": "not_present", "public_message": None,
+                      "safe_server_diagnostic": {"availability": "absent"}}
         except Exception as error:
             values = {"public_status": "rejected", "public_message": str(error),
                       "safe_server_diagnostic": {"exception": type(error).__name__}}
