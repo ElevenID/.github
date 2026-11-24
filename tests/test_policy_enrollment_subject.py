@@ -40,6 +40,21 @@ class EnrollmentSubjectTests(unittest.TestCase):
         ):
             if (ROOT / relative).exists():
                 (root / relative).write_bytes((ROOT / relative).read_bytes())
+        publisher = ROOT / ".github/workflows/publish-restricted-rust-probe-runtime.yml"
+        if publisher.exists():
+            for source in (ROOT / "scripts").glob("*.py"):
+                (root / "scripts" / source.name).write_bytes(source.read_bytes())
+            for relative in (
+                ".github/workflows/publish-restricted-rust-probe-runtime.yml",
+                "runtime/rust-cargo/bundles.json",
+                "runtime/rust-cargo/Dockerfile.restricted",
+                "runtime/rust-cargo/Dockerfile.restricted.dockerignore",
+                "runtime/rust-cargo/Dockerfile.evidence",
+                "runtime/rust-cargo/run-rust-probe",
+            ):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / relative).read_bytes())
         return root
 
     def run_subject(self, root):
@@ -90,7 +105,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(156, len(document["observations"]))
+        self.assertEqual(162, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -107,7 +122,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(52, len(statuses))
+        self.assertEqual(54, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
@@ -131,9 +146,11 @@ class EnrollmentSubjectTests(unittest.TestCase):
             self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"},
                              {name for name in restricted if statuses[name] == "accepted"})
             self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
-                                                   "private-evidence-bound"}, accepted)
+                                                   "private-evidence-bound", "restricted-publisher-valid"}, accepted)
+            self.assertEqual("rejected", statuses["restricted-publisher-tampered-input"])
         else:
-            self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package"},
+            self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package",
+                                           "restricted-publisher-valid", "restricted-publisher-tampered-input"},
                              {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))

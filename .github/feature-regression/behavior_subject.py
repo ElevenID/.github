@@ -133,6 +133,35 @@ def probe_cases():
     ]:
         case("policy.source-reader", name, policy_call(text, repository))
 
+    publisher = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
+
+    def publisher_case(tamper=False):
+        def run():
+            path = ROOT / publisher
+            if not path.exists() and not path.is_symlink():
+                raise ProductionOwnerAbsent("restricted publisher does not exist at this revision")
+            text = path.read_text(encoding="utf-8")
+            if not tamper:
+                return policy.workflow_secret_findings(ROOT, text, "ElevenID/.github", workflow_path=publisher)
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative in policy.RESTRICTED_PUBLISHER_FILES:
+                    target = root / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes((ROOT / relative).read_bytes())
+                scripts = root / "scripts"
+                for name in policy.RESTRICTED_SCRIPT_NAMES:
+                    target = scripts / name
+                    if not target.exists():
+                        target.write_bytes((ROOT / "scripts" / name).read_bytes())
+                with (root / "scripts/rust_runtime_source_fetch.py").open("ab") as stream:
+                    stream.write(b"\n# public fixture tamper\n")
+                return policy.workflow_secret_findings(root, text, "ElevenID/.github", workflow_path=publisher)
+        return run
+
+    case("policy.restricted-publisher", "restricted-publisher-valid", publisher_case())
+    case("policy.restricted-publisher", "restricted-publisher-tampered-input", publisher_case(True))
+
     for name, arguments, environment, runtime in [
         ("python-inputs", '["fixture"]', '{"PROBE_VALUE":"public"}', "python"),
         ("arguments-not-array", '{}', '{}', "python"),
