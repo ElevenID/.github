@@ -1,6 +1,9 @@
-# Proposed maintainer decision: reviewer case identity bootstrap
+# Maintainer decision: reviewer case identity bootstrap
 
-**Status: proposed; maintainer approval has not been recorded.**
+**Status: approved on 2026-11-24 by `burdettadam` for this bounded source-free
+bootstrap.** GitHub reports `admin` permission and `admin` role for this
+repository. Independent exact-head review, required checks and the protected
+merge path remain required.
 
 ## Current contract defect
 
@@ -13,9 +16,9 @@ phase-bound review therefore cannot truthfully qualify this repair using
 the old approved implementation and byte-identical old/new subject inputs.
 No `not_applicable` or fabricated preserved disposition resolves this defect.
 
-## Bounded bootstrap requested
+## Approved bounded bootstrap
 
-Permit one separately reviewed, source-free policy change to add four fixed
+The maintainer permits one separately reviewed, source-free policy change to add four fixed
 reviewer operation/case identity observations and repair only the validation
 of repeated human names across distinct cases. The repaired helper must
 reject duplicate case IDs, two operation IDs sharing a name, and one operation
