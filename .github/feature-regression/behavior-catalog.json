@@ -3,8 +3,8 @@
   "repository": "ElevenID/.github",
   "producer": {
     "workflow_path": ".github/workflows/behavior-observations.yml",
-    "workflow_sha256": "sha256:6cac7082aac97befc572854134f91514a83b4bc420e523ebcddb7a8a4d9566da",
-    "central_workflow_sha": "41ce275e615b9ca9be11fde292e6d3b84c8b8ef5",
+    "workflow_sha256": "sha256:bc81d3fec07cc9634f31892c094e53cbcda5ad1cc8c72472cb0433cc222975a0",
+    "central_workflow_sha": "6fbbad37d4d48919ed7bcfaaaeb24fff92a99efd",
     "harness_path": ".github/feature-regression/observation_harness.py",
     "harness_sha256": "sha256:c7d740ffadc6156c3cc560e33b4708e96b1db0fe69965fa20ddf6cca718ce12a",
     "subject_path": ".github/feature-regression/behavior_subject.py",
