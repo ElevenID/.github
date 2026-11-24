@@ -30,6 +30,13 @@ class EnrollmentSubjectTests(unittest.TestCase):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / relative).read_bytes())
+        for relative in (
+            "scripts/rust_runtime_registry.py",
+            "scripts/rust_runtime_source_access.py",
+            "scripts/rust_runtime_source_fetch.py",
+        ):
+            if (ROOT / relative).exists():
+                (root / relative).write_bytes((ROOT / relative).read_bytes())
         return root
 
     def run_subject(self, root):
@@ -64,15 +71,30 @@ class EnrollmentSubjectTests(unittest.TestCase):
         statuses = self.statuses(result)
         self.assertEqual(46, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
-        self.assertEqual({"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
-                          "target-valid", "github-output-valid", "atomic-new", "observation-valid"}, accepted)
-        self.assertEqual({
+        baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
+                             "target-valid", "github-output-valid", "atomic-new", "observation-valid"}
+        restricted = {
             "registry-invalid-credential", "registry-untrusted-context",
             "source-local-lock", "source-unpinned-git", "source-empty-grants",
             "source-duplicate-catalog-key", "source-unadmitted-candidate",
             "fetch-untrusted-context", "fetch-wrong-credential-host",
             "fetch-missing-private-credential",
-        }, {name for name, status in statuses.items() if status == "not_present"})
+        }
+        available = [
+            (ROOT / relative).exists() for relative in (
+                "scripts/rust_runtime_registry.py", "scripts/rust_runtime_source_access.py",
+                "scripts/rust_runtime_source_fetch.py",
+            )
+        ]
+        self.assertEqual(1, len(set(available)), "restricted source modules must arrive together")
+        if available[0]:
+            self.assertEqual(set(), {name for name, status in statuses.items() if status == "not_present"})
+            self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"},
+                             {name for name in restricted if statuses[name] == "accepted"})
+            self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"}, accepted)
+        else:
+            self.assertEqual(restricted, {name for name, status in statuses.items() if status == "not_present"})
+            self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
         self.assertNotIn(b"DIAGNOSTIC_SENTINEL_VALUE", result.stdout)
 
