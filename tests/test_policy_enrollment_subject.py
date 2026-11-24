@@ -14,6 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SUBJECT = Path(".github/feature-regression/behavior_subject.py")
+HARNESS = Path(".github/feature-regression/observation_harness.py")
 
 
 class EnrollmentSubjectTests(unittest.TestCase):
@@ -65,6 +66,41 @@ class EnrollmentSubjectTests(unittest.TestCase):
         identities = [(item["operation_id"], item["case_id"], item["dimension"]) for item in document["observations"]]
         self.assertEqual(len(identities), len(set(identities)))
         return {item["case_id"]: item["value"] for item in document["observations"] if item["dimension"] == "public_status"}
+
+    def run_harness(self, root, command, capture):
+        environment = {key: os.environ[key] for key in ("PATH", "SystemRoot", "SYSTEMROOT") if key in os.environ}
+        args = [sys.executable, "-B", str(root / HARNESS), command, "--phase", "before"]
+        if command == "emit":
+            args.extend(("--repository", "ElevenID/.github", "--revision", "a" * 40))
+        return subprocess.run(args, cwd=root, env=environment, input=json.dumps(capture).encode(),
+                              capture_output=True, timeout=15)
+
+    def test_real_subject_capture_round_trip_and_tamper_rejection(self):
+        root = self.fixture()
+        subject = self.run_subject(root)
+        self.statuses(subject)
+        capture = {"schema": "elevenid.behavior-subject-capture/v2", "receipt": {},
+                   "observations": json.loads(subject.stdout)["observations"]}
+        tested = self.run_harness(root, "test", capture)
+        self.assertEqual(0, tested.returncode, tested.stderr.decode(errors="replace"))
+        self.assertEqual(b"", tested.stdout)
+        emitted = self.run_harness(root, "emit", capture)
+        self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
+        document = json.loads(emitted.stdout)
+        self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
+        self.assertEqual(138, len(document["observations"]))
+        self.assertTrue(all(item["producer_test"].endswith(
+            ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
+        ) for item in document["observations"]))
+        from scripts.feature_regression_observation_runner import _validate_observations
+        self.assertEqual(document, _validate_observations(
+            document, repository="ElevenID/.github", revision="a" * 40,
+            phase="before", final=False, capture=capture,
+        ))
+        capture["observations"][0]["value"] = "fabricated-status"
+        rejected = self.run_harness(root, "test", capture)
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertIn(b"capture status is invalid", rejected.stderr)
 
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
