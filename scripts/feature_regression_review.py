@@ -1005,7 +1005,9 @@ def _validate_operations(
     operations = _list(value, "operations")
     if not operations:
         raise EvidenceError("operations must describe every affected operation")
-    names: set[str] = set()
+    case_ids: set[str] = set()
+    names_by_id: dict[str, str] = {}
+    ids_by_name: dict[str, str] = {}
     for index, value in enumerate(operations):
         path = f"operations[{index}]"
         operation = _mapping(value, path)
@@ -1021,13 +1023,19 @@ def _validate_operations(
             },
             path,
         )
-        _text(operation.get("id"), f"{path}.id")
-        _text(operation.get("case_id"), f"{path}.case_id")
+        operation_id = _text(operation.get("id"), f"{path}.id")
+        case_id = _text(operation.get("case_id"), f"{path}.case_id")
         name = _text(operation.get("name"), f"{path}.name")
         normalized = name.casefold()
-        if normalized in names:
-            raise EvidenceError(f"{path}.name duplicates another operation")
-        names.add(normalized)
+        if case_id in case_ids:
+            raise EvidenceError(f"{path}.case_id duplicates another catalog case")
+        case_ids.add(case_id)
+        if operation_id in names_by_id and names_by_id[operation_id] != normalized:
+            raise EvidenceError(f"{path}.name conflicts with its operation id")
+        if normalized in ids_by_name and ids_by_name[normalized] != operation_id:
+            raise EvidenceError(f"{path}.name belongs to another operation id")
+        names_by_id[operation_id] = normalized
+        ids_by_name[normalized] = operation_id
         for field in ("public_status", "public_message", "safe_server_diagnostic"):
             _validate_comparison(
                 operation.get(field),

@@ -752,6 +752,33 @@ class FeatureRegressionReviewTests(unittest.TestCase):
         result = self.validate(applicable_evidence())
         self.assertEqual("applicable", result["applicability"]["decision"])
 
+    def test_multiple_cases_share_one_catalog_operation_name(self) -> None:
+        first = copy.deepcopy(applicable_evidence()["operations"][0])
+        second = copy.deepcopy(first)
+        second["case_id"] = "second-catalog-case"
+
+        def validate(operations):
+            review._validate_operations(
+                operations, reviewer_login="reviewer", repository=REPOSITORY,
+                reviewed_base=BASE, allow_not_applicable=False,
+                authority_resolver=lambda login: {"permission": "maintain", "role_name": "maintain"},
+                decision_fetcher=lambda reference: b"{}",
+            )
+
+        validate([first, second])
+        duplicate = copy.deepcopy(second)
+        duplicate["case_id"] = first["case_id"]
+        with self.assertRaisesRegex(EvidenceError, "case_id duplicates"):
+            validate([first, duplicate])
+        other_id = copy.deepcopy(second)
+        other_id["id"] = "another.operation"
+        with self.assertRaisesRegex(EvidenceError, "name belongs to another operation id"):
+            validate([first, other_id])
+        other_name = copy.deepcopy(second)
+        other_name["name"] = "unrelated operation"
+        with self.assertRaisesRegex(EvidenceError, "name conflicts with its operation id"):
+            validate([first, other_name])
+
     def test_rejects_unknown_schema_fields(self) -> None:
         evidence = applicable_evidence()
         evidence["unverified_claim"] = True
