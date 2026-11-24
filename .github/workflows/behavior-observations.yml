@@ -15,9 +15,9 @@ permissions:
 
 jobs:
   behavior-observations:
-    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@41ce275e615b9ca9be11fde292e6d3b84c8b8ef5
+    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@6fbbad37d4d48919ed7bcfaaaeb24fff92a99efd
     with:
-      policy-ref: 41ce275e615b9ca9be11fde292e6d3b84c8b8ef5
+      policy-ref: 6fbbad37d4d48919ed7bcfaaaeb24fff92a99efd
       target-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       phase: ${{ github.event_name == 'pull_request' && 'after' || 'before' }}
       workflow-path: .github/workflows/behavior-observations.yml
