@@ -11,6 +11,10 @@ import sys
 import tempfile
 import unittest
 
+# The source-reader audit runs after this suite in the same checkout and must
+# inspect the original script namespace, not import bytecode from these tests.
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SUBJECT = Path(".github/feature-regression/behavior_subject.py")
