@@ -1,0 +1,2 @@
+# Preserve the upstream bytes that the immutable subject verifies before import.
+vendor/** -text
