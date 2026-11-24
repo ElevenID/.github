@@ -625,6 +625,14 @@ def probe_cases():
     publication = production_module("scripts.rust_runtime_publication", "scripts/rust_runtime_publication.py")
 
     def caller_case(restricted):
+        rust_build = reviewer.RustBuildContract(
+            profile="rust-cargo-v1",
+            manifest_path=".github/feature-regression/probe/Cargo.toml",
+            manifest_sha256="sha256:" + "1" * 64,
+            lock_path=".github/feature-regression/probe/Cargo.lock",
+            lock_sha256="sha256:" + "2" * 64,
+            runtime_manifest_sha256="sha256:" + "3" * 64,
+        ) if restricted else None
         contract = reviewer.ProducerContract(
             workflow_path=".github/workflows/behavior-observations.yml",
             workflow_sha256="sha256:" + "a" * 64,
@@ -639,7 +647,7 @@ def probe_cases():
                 "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "e" * 64
                 if restricted else "node:24.15.0-bookworm@sha256:" + "f" * 64
             ),
-            rust_build=None,
+            rust_build=rust_build,
             job_name="behavior-observations / Behavior observation producer",
             produce_step_name="Produce trusted runtime observations atomically",
             upload_step_name="Upload runtime observations",
@@ -695,7 +703,7 @@ def observe():
             # A policy findings list is itself the production diagnostic and
             # rejection decision, not a successful admission merely because the
             # Python function returned normally.
-            rejected = operation.startswith("policy.") and bool(result)
+            rejected = operation in {"policy.source-reader", "policy.restricted-publisher"} and bool(result)
             values = {"public_status": "rejected" if rejected else "accepted",
                       "public_message": result if rejected else None,
                       "safe_server_diagnostic": {"returned": result}}
