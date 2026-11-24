@@ -107,7 +107,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(195, len(document["observations"]))
+        self.assertEqual(201, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -124,11 +124,12 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(65, len(statuses))
+        self.assertEqual(67, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
-                             "reviewer-public-caller", "reviewer-restricted-caller"}
+                             "reviewer-public-caller", "reviewer-restricted-caller",
+                             "reviewer-missing-source-receipt"}
         restricted = {
             "registry-invalid-credential", "registry-untrusted-context",
             "registry-pull-cleanup", "registry-login-failure-cleanup",
@@ -161,14 +162,16 @@ class EnrollmentSubjectTests(unittest.TestCase):
                                                    "registry-pull-cleanup", "registry-login-failure-cleanup",
                                                    "private-evidence-bound", "restricted-publisher-valid",
                                                    "producer-isolated-runtime-pull", "producer-denied-before-pull",
-                                                   "source-checked-in-catalog", "restricted-producer-valid"}, accepted)
+                                                   "source-checked-in-catalog", "restricted-producer-valid",
+                                                   "reviewer-denied-before-artifact"}, accepted)
             self.assertEqual("rejected", statuses["restricted-publisher-tampered-input"])
             self.assertEqual("rejected", statuses["restricted-producer-permission-tamper"])
         else:
             self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package",
                                            "restricted-publisher-valid", "restricted-publisher-tampered-input",
                                            "producer-isolated-runtime-pull", "producer-denied-before-pull",
-                                           "restricted-producer-valid", "restricted-producer-permission-tamper"},
+                                           "restricted-producer-valid", "restricted-producer-permission-tamper",
+                                           "reviewer-denied-before-artifact"},
                              {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))

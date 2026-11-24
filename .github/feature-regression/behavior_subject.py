@@ -660,6 +660,116 @@ def probe_cases():
     case("reviewer.caller-selection", "reviewer-public-caller", lambda: caller_case(False))
     case("reviewer.caller-selection", "reviewer-restricted-caller", lambda: caller_case(True))
 
+    def restricted_reviewer_contract():
+        build = reviewer.RustBuildContract(
+            profile="rust-cargo-v1", manifest_path=".github/feature-regression/probe/Cargo.toml",
+            manifest_sha256="sha256:" + "1" * 64,
+            lock_path=".github/feature-regression/probe/Cargo.lock",
+            lock_sha256="sha256:" + "2" * 64,
+            runtime_manifest_sha256="sha256:" + "3" * 64,
+        )
+        return reviewer.ProducerContract(
+            workflow_path=".github/workflows/behavior-observations.yml",
+            workflow_sha256="sha256:" + "4" * 64,
+            central_workflow_sha="b" * 40,
+            harness_path=".github/feature-regression/observation_harness.py",
+            harness_sha256="sha256:" + "5" * 64,
+            subject_path=".github/feature-regression/behavior_subject.py",
+            subject_sha256="sha256:" + "6" * 64,
+            subject_runtime="rust-cargo", subject_args=(), subject_env={},
+            runtime_image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "7" * 64,
+            rust_build=build,
+            job_name="behavior-observations / Behavior observation producer",
+            produce_step_name="Produce trusted runtime observations atomically",
+            upload_step_name="Upload runtime observations",
+            artifact_name_prefix="feature-regression-observations",
+            observation_path="feature-regression-observations.json",
+        )
+
+    def reviewer_admission_case():
+        if not hasattr(reviewer, "source_access"):
+            raise ProductionOwnerAbsent("restricted reviewer admission is absent at this revision")
+        original = reviewer.source_access.admit_from_protected_main
+        events = []
+
+        def lock_source(repository, path, commit):
+            events.append("public-lock")
+            if (repository, path, commit) != (
+                "ElevenID/.github", ".github/feature-regression/probe/Cargo.lock", "a" * 40,
+            ):
+                raise ValueError("reviewer requested an unexpected source")
+            return b"public fixture lock"
+
+        def deny_admission(**arguments):
+            events.append("source-admission")
+            raise reviewer.source_access.SourceAccessError("public fixture denied")
+
+        def forbid_artifact(*arguments, **keywords):
+            events.append("artifact-fetched")
+            raise ValueError("reviewer fetched an artifact before admission")
+
+        reviewer.source_access.admit_from_protected_main = deny_admission
+        try:
+            try:
+                reviewer._validate_artifact_observation(
+                    "artifact-observation:ElevenID/.github@123:fixture.public_status.before",
+                    "public fixture", expected_repository="ElevenID/.github",
+                    expected_commit="a" * 40, expected_phase="before",
+                    producer=restricted_reviewer_contract(),
+                    operation_id="fixture.validation", case_id="fixture",
+                    dimension="public_status", expected_value="accepted",
+                    fetch_content=lock_source, fetch_run=forbid_artifact,
+                    fetch_jobs=forbid_artifact, fetch_artifacts=forbid_artifact,
+                    download_artifact=forbid_artifact,
+                )
+            except reviewer.EvidenceError as error:
+                if str(error) != "public fixture denied":
+                    raise
+            else:
+                raise ValueError("reviewer ignored protected source denial")
+            if events != ["public-lock", "source-admission"]:
+                raise ValueError("reviewer fetched an artifact before protected source admission")
+            return {"events": events, "artifact_fetched": False}
+        finally:
+            reviewer.source_access.admit_from_protected_main = original
+
+    case("reviewer.restricted-admission", "reviewer-denied-before-artifact", reviewer_admission_case)
+
+    def reviewer_receipt_case():
+        contract = restricted_reviewer_contract()
+        image = contract.runtime_image
+        receipt = {
+            "runtime_image": image,
+            "subject_path": contract.subject_path,
+            "subject_sha256": contract.subject_sha256,
+            "runtime": "rust-cargo", "arguments": [], "environment": {}, "exit_code": 0,
+            "stdout_sha256": "sha256:" + "8" * 64,
+            "stderr_sha256": "sha256:" + "9" * 64,
+            "resolved_image_digest": image.rsplit("@", 1)[1],
+            "rust_build": contract.rust_build.document(),
+            "runtime_manifest": {name: "public-fixture" for name in reviewer.RUST_RUNTIME_MANIFEST_FIELDS},
+        }
+        observed = {
+            "id": "fixture.public_status.before", "operation_id": "fixture.validation",
+            "case_id": "fixture", "dimension": "public_status", "value": "accepted",
+            "producer_test": "test:ElevenID/.github@" + "a" * 40
+            + ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries",
+        }
+        document = {
+            "schema": "elevenid.behavior-observations/v3", "repository": "ElevenID/.github",
+            "revision": "a" * 40, "phase": "before", "producer": {},
+            "runtime_receipt": receipt, "observations": [observed],
+        }
+        return reviewer._select_observation(
+            document, path="public fixture", observation_id=observed["id"],
+            expected_repository="ElevenID/.github", expected_revision="a" * 40,
+            expected_phase="before", operation_id="fixture.validation",
+            case_id="fixture", dimension="public_status", expected_value="accepted",
+            record_fields=set(observed),
+        )
+
+    case("reviewer.restricted-admission", "reviewer-missing-source-receipt", reviewer_receipt_case)
+
     public_image = "ghcr.io/elevenid/feature-regression-rust-cargo@sha256:" + "a" * 64
     case("runtime.publication-validation", "publication-wrong-image",
          lambda: publication.validate_publication_evidence(
