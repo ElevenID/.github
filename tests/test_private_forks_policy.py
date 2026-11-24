@@ -4,8 +4,12 @@ import copy
 from contextlib import redirect_stdout, redirect_stderr
 import hashlib
 import io
+import importlib.util
 import json
 from pathlib import Path
+import py_compile
+import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,6 +25,87 @@ CODEQL_CASES = (
     (0, "preflight", "vars.PRIVATE_FORKS_ENABLED == 'true' && matrix.language == 'rust'"),
     (1, "test-rust-services", "vars.PRIVATE_FORKS_ENABLED == 'true' && steps.scope.outputs.analyze == 'true' && steps.test_only.outputs.skip != 'true'"),
 )
+
+
+class RestrictedPublisherPolicyTests(unittest.TestCase):
+    def test_exact_publisher_and_transitive_closure_are_required(self):
+        source = Path(__file__).resolve().parents[1]
+        content = (source / policy.RESTRICTED_PUBLISHER).read_text(encoding="utf-8")
+        def findings(root, text=content, repository="ElevenID/.github", workflow_path=policy.RESTRICTED_PUBLISHER):
+            return policy.workflow_secret_findings(root, text, repository, workflow_path=workflow_path)
+        self.assertEqual([], findings(source))
+        self.assertTrue(findings(source, repository="ElevenID/marty-ui"))
+        self.assertTrue(findings(source, workflow_path=".github/workflows/other.yml"))
+        self.assertTrue(findings(source, text=content + "\n# changed workflow\n"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in policy.RESTRICTED_PUBLISHER_FILES:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text((source / relative).read_text(encoding="utf-8"), encoding="utf-8")
+            for name in policy.RESTRICTED_SCRIPT_NAMES:
+                target = root / "scripts" / name
+                if not target.exists():
+                    target.write_text("# unused sibling\n", encoding="utf-8")
+            self.assertEqual([], findings(root))
+            for relative in policy.RESTRICTED_PUBLISHER_FILES:
+                with self.subTest(relative=relative):
+                    target = root / relative
+                    original = target.read_bytes()
+                    target.write_bytes(original + b"\n# unreviewed\n")
+                    self.assertTrue(findings(root))
+                    target.write_bytes(original)
+            for name in ("json.py", "__init__.py"):
+                target = root / "scripts" / name
+                target.write_text("# import injection\n", encoding="utf-8")
+                self.assertTrue(findings(root))
+                target.unlink()
+            document = policy.yaml.load(content, Loader=policy.WorkflowLoader)
+            self.assertEqual("1", document["env"]["PYTHONDONTWRITEBYTECODE"])
+            steps = document["jobs"]["publish"]["steps"]
+            guard = steps[1]["run"]
+            self.assertIn("Reject Python import caches", steps[1]["name"])
+            self.assertNotIn("python", guard.lower())
+            for step in steps:
+                if (step.get("env", {}).get("PRIVATE_FORKS_READ_TOKEN")
+                        or step.get("name") == "Require existing private runtime package"):
+                    self.assertTrue(step["run"].startswith(guard))
+            self.assertEqual(0, subprocess.run(["bash", "-c", guard], cwd=root).returncode)
+            # Unchecked-hash caches execute even when the reviewed .py bytes
+            # remain identical. Prove the attack, then prove shell admission
+            # stops it before the first repository Python import.
+            trusted = root / "scripts/rust_runtime_bundle.py"
+            original = trusted.read_bytes()
+            marker = root / "bytecode-executed"
+            payload = root / "payload.py"
+            payload.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
+            cached = Path(importlib.util.cache_from_source(str(trusted)))
+            py_compile.compile(str(payload), cfile=str(cached), doraise=True,
+                               invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+            command = shlex.quote(sys.executable) + " -B -c " + shlex.quote(
+                f"import sys; sys.path.insert(0, {str(root / 'scripts')!r}); import rust_runtime_bundle")
+            self.assertEqual(0, subprocess.run(["bash", "-c", command], cwd=root).returncode)
+            self.assertTrue(marker.exists())
+            marker.unlink()
+            self.assertEqual(original, trusted.read_bytes())
+            self.assertTrue(findings(root))
+            self.assertNotEqual(0, subprocess.run(["bash", "-c", guard + command], cwd=root).returncode)
+            self.assertFalse(marker.exists())
+            cached.unlink()
+            cached.parent.rmdir()
+            for name in ("injected.pyc", "injected.pyo"):
+                target = root / "scripts" / name
+                target.write_bytes(b"unreviewed bytecode")
+                self.assertTrue(findings(root))
+                self.assertNotEqual(0, subprocess.run(["bash", "-c", guard], cwd=root).returncode)
+                target.unlink()
+            for name in ("__pycache__", "linked.py"):
+                target = root / "scripts" / name
+                target.symlink_to(root)
+                self.assertTrue(findings(root))
+                self.assertNotEqual(0, subprocess.run(["bash", "-c", guard], cwd=root).returncode)
+                target.unlink()
+            self.assertEqual([], findings(root))
 
 
 class PrivateForkPolicyTests(unittest.TestCase):

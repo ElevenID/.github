@@ -536,6 +536,148 @@ Rust remains double fail-closed until a real reviewed runtime is published.
 runtime-image allowlists are empty. Do not invent a digest and do not activate a
 catalog before completing all of these steps:
 
+### Restricted vendor source is a separate admission boundary
+
+The public publisher below is for dependencies authorized for public
+redistribution. Do not use it for a vendor tree containing private source, and
+do not make such a package public to satisfy its anonymous-pull check. A private
+registry pull alone also does not authorize a candidate to read that source:
+Cargo build scripts and procedural macros can inspect the vendor tree and emit
+its contents through otherwise public observations.
+
+The reserved restricted-image repository is
+`ghcr.io/elevenid/feature-regression-rust-cargo-restricted`. Before the producer
+pulls a digest in that repository, and independently before the reviewer accepts
+its observation artifact, the protected central `main` version of
+`runtime/rust-cargo/source-access.json` must admit the
+exact target repository and revision, runtime image and manifest digests, raw
+Cargo.lock digest, and complete set of locked Git repository/commit identities.
+No repository-wide, branch, mutable tag, wildcard or transitive-source omission
+grant is accepted. Multiple explicitly locked revisions of one dependency remain
+distinct. Unknown source registries/transports fail closed.
+
+The protected catalog starts empty. Grant data is separate from the frozen
+runner implementation: putting a future candidate SHA inside that frozen
+revision would create a circular pin. The host resolves only
+`ElevenID/.github:refs/heads/main`, reads the catalog at that immutable resolved
+commit, checks its Git blob bytes, and records the policy revision, catalog hash
+and exact grant hash in the trusted receipt. The independent reviewer checks
+that historical policy's ancestry in protected main and requires the same
+candidate to remain admitted by current main; removing its grant revokes old
+receipts. Only immutable public catalog bytes are cached, never a token or the
+current main pointer. Candidate code cannot select a grant ref or supply proof.
+
+An image activation is not a source-access
+grant. An independent source-authorized reviewer must inspect the complete
+candidate, including build scripts, procedural macros, Cargo configuration and
+locked dependencies, before its exact revision is admitted. The immutable
+central producer checks out that exact revision before running its trusted
+controller; this admission helper is not a general local-worktree custody proof.
+No credentials, registry configuration or Docker socket may be passed to the
+candidate or harness containers. Review raw failures and any source-bearing
+publication evidence privately; only reviewed sanitized results may be public.
+
+The restricted producer and its exact caller request no `packages` permission.
+GitHub warns that granting a public repository Actions access to a private
+package may also expose it to forks. Do not grant the public publisher or
+consumer repository package access, link this package to either repository,
+or add the `org.opencontainers.image.source` label to restricted images.
+Keep the package unlinked with no repository Actions-access grants; confirm
+these settings before dispatch and after publication. Private visibility and
+anonymous denial alone do not prove that repository job tokens lack access.
+See [GitHub's package access-control documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+Registry access instead uses a dedicated classic PAT with `read:packages` and
+package-read access, supplied as `RUST_RUNTIME_PACKAGE_READ_TOKEN`, with the
+PAT owner's username in `RUST_RUNTIME_PACKAGE_USERNAME`. The caller maps only
+these two declared reusable-workflow secrets; `secrets: inherit` and job-token
+fallback are not permitted. Fork PRs do not receive these repository secrets.
+Before pulling, the host additionally requires an internal human-authored
+exact-head PR or current-main baseline and rejects forks, Dependabot, wrong
+refs and mismatched revisions. These execution gates supplement the package
+access boundary; they cannot repair an overbroad package grant.
+
+The host removes both the registry credential and the separate contents-read
+job token from its environment. Only the job token reads the protected-main
+source-grant catalog. Only the package-read PAT is supplied to Docker login
+through standard input in a private temporary host configuration, which is
+discarded before any candidate or harness container starts. Anonymous registry
+authorization must be explicitly denied before and after a successful pull
+of the exact digest; network failure is not denial evidence. No credentials,
+registry configuration or Docker socket enter candidate or harness containers.
+
+The [package REST metadata endpoint](https://docs.github.com/en/rest/packages/packages#get-a-package-for-an-organization)
+uses a separate qualified classic metadata-read PAT. It must confirm the fixed
+private package is unlinked. It does not enumerate Actions-access grants, so
+the explicit settings inspection above remains required.
+
+### Restricted runtime publication sequence
+
+The separate `publish-restricted-rust-probe-runtime.yml` definition accepts
+manual dispatch on protected central main only, with private-fork mode enabled.
+The source-reader policy admits the exact workflow and its transitive helper,
+recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
+Python import namespace. No other central workflow gains source-reader access.
+Changes to this closure require independent review before admission.
+
+The publisher rejects cache directories, linked script inputs and precompiled
+Python files in a shell-only check before its first repository Python import.
+It repeats this check before package metadata credentials and private source
+credentials are used. The workflow disables bytecode writes, and the source
+policy rejects the entire cache namespace rather than ignoring it. Disabling
+bytecode writes alone does not prevent imports from existing bytecode caches.
+
+Before dispatch, an operator must precreate the fixed restricted package using
+source-free content, confirm private visibility and no repository link or Actions
+access grants, and provide the separate classic metadata-read credential.
+Publication uses a dedicated classic `write:packages` PAT whose account has
+write access only to the intended package, stored as
+`RUST_RUNTIME_PACKAGE_WRITE_TOKEN`, with its owner username in
+`RUST_RUNTIME_PACKAGE_USERNAME`. Do not reuse a broad human repository token
+or the dependency source-reader credential. Do not provision credentials or
+publish source-bearing images until this access boundary has been independently
+reviewed and qualified. No registry credential is supplied to a build container.
+The publisher requires successful private-package metadata checks before any
+source-bearing push, after runtime publication, and after evidence publication.
+Missing packages, unavailable metadata, wrong owners/types and public visibility
+stop publication. It never switches a package to public.
+
+Only the locked dependency-fetch step receives the private-fork source reader.
+A preceding credential-free check binds the protected workflow revision and a
+pristine exact bundle checkout, including ignored inputs, and refuses links or
+Cargo configuration. The helper runs `cargo fetch --locked` from a fresh trusted
+directory, replaces inherited Cargo/Git configuration, disables credential
+redirects and hooks, and supplies credentials only for the three approved Git
+paths. It never compiles candidate code. The source token is absent from image
+build steps. A fresh cache supplies `cargo vendor --frozen --offline` under
+`RUN --network=none`; the final image includes the vendor output and toolchain,
+not source credentials or the original fetch cache. No shared cache is exported.
+
+Runtime publication captures the same fourteen structured build, platform,
+provenance, SBOM, label and runtime-manifest proofs as the public path, plus
+normalized private-package snapshots before and after the runtime push. The
+sixteen raw proofs stay private. A second scratch image in the same restricted
+package stores them. The publisher pulls that exact evidence digest, creates
+but never starts its container, copies out the proofs, revalidates them, and
+requires byte-identical prepublication and replayed receipts.
+
+Only a sanitized v2 receipt and the normalized post-evidence visibility snapshot
+are uploaded as public Actions artifacts. The final receipt binds both distinct
+immutable image digests, all raw proof hashes and that final snapshot, with
+`private_evidence_bound=true`. An earlier unbound receipt is not publication
+acceptance. Source-bearing provenance, SBOM, cache files and raw diagnostics
+must not be uploaded publicly. Independently retrieve the private evidence image
+and inspect its proofs before activating any runtime digest.
+
+This draft adds the publisher implementation but does not dispatch it, create
+packages, configure credentials/permissions, or activate a publishable bundle,
+source-access grant, image or baseline. The bundle catalog, source-access catalog
+and both runtime allowlists remain empty. Actual authenticated publication and
+independent private-evidence review remain required. The public sequence below
+applies only to dependencies authorized for public redistribution.
+
+### Public runtime publication sequence
+
 1. At an immutable target-repository commit, add the reserved Rust subject,
    `Cargo.toml`, and sibling `Cargo.lock`; review that the subject calls the real
    candidate behavior and does not hard-code expected output.

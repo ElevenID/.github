@@ -1,0 +1,13 @@
+**
+!.rust-runtime-target
+!.rust-runtime-target/**
+!.rust-runtime-cargo-cache
+!.rust-runtime-cargo-cache/**
+!runtime
+!runtime/rust-cargo
+!runtime/rust-cargo/Dockerfile.restricted
+!runtime/rust-cargo/run-rust-probe
+.rust-runtime-target/.git
+.rust-runtime-target/.git/**
+.rust-runtime-cargo-cache/credentials
+.rust-runtime-cargo-cache/credentials.toml

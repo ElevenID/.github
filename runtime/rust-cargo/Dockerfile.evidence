@@ -1,0 +1,4 @@
+FROM scratch
+COPY . /evidence/
+USER 65534:65534
+ENTRYPOINT []
