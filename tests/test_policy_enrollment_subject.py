@@ -51,9 +51,10 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(24, len(statuses))
+        self.assertEqual(32, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
-        self.assertEqual({"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid"}, accepted)
+        self.assertEqual({"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
+                          "target-valid", "github-output-valid", "atomic-new"}, accepted)
         self.assertTrue(all(status in {"accepted", "rejected"} for status in statuses.values()))
         self.assertNotIn(b"DIAGNOSTIC_SENTINEL_VALUE", result.stdout)
 

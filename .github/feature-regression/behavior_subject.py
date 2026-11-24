@@ -159,6 +159,56 @@ def probe_cases():
         case("runtime.bundle-admission", name, catalog_case(document))
     case("runtime.bundle-admission", "bundle-duplicate-json-key", catalog_case('{"schema":"a","schema":"b","bundles":[]}'))
 
+    def target_case(change=None):
+        def run():
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest = b'[[bin]]\nname = "elevenid-feature-regression-probe"\npath = "subject.rs"\n'
+                paths = {
+                    "manifest": ".github/feature-regression/probe/Cargo.toml",
+                    "lock": ".github/feature-regression/probe/Cargo.lock",
+                    "subject": ".github/feature-regression/probe/subject.rs",
+                }
+                content = {"manifest": manifest, "lock": b"# public fixture\n", "subject": b"fn main() {}\n"}
+                target = dict(record)
+                for name, relative in paths.items():
+                    path = root / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(content[name])
+                    target[f"{name}_sha256"] = "sha256:" + hashlib.sha256(content[name]).hexdigest()
+                if change == "digest":
+                    target["subject_sha256"] = "sha256:" + "0" * 64
+                if change == "binary":
+                    path = root / paths["manifest"]
+                    path.write_bytes(manifest.replace(b"subject.rs", b"other.rs"))
+                    target["manifest_sha256"] = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+                return bundle.verify_target(root, target)
+        return run
+
+    for name, change in [("target-valid", None), ("target-bad-digest", "digest"),
+                         ("target-wrong-binary", "binary")]:
+        case("runtime.bundle-target", name, target_case(change))
+
+    case("runtime.bundle-output", "github-output-valid", lambda: bundle.github_output_bytes(record).decode("ascii"))
+    case("runtime.bundle-output", "github-output-control-character",
+         lambda: bundle.github_output_bytes({**record, "id": "public\nunsafe"}))
+
+    def atomic_case(change=None):
+        def run():
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "observations.json"
+                if change == "existing":
+                    output.write_bytes(b"prior evidence")
+                if change == "symlink":
+                    output.symlink_to(Path(directory) / "private-target")
+                runner._atomic_write(output, b"public observation\n")
+                return output.read_bytes().decode("ascii")
+        return run
+
+    for name, change in [("atomic-new", None), ("atomic-existing", "existing"),
+                         ("atomic-symlink", "symlink")]:
+        case("producer.atomic-output", name, atomic_case(change))
+
     return cases
 
 
