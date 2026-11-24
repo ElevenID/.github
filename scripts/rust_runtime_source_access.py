@@ -8,11 +8,13 @@ source closure before exposing that image to any candidate process.
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import pathlib
 import re
 import tomllib
 import urllib.parse
+import urllib.request
 
 
 CATALOG = pathlib.Path(__file__).parents[1] / "runtime/rust-cargo/source-access.json"
@@ -30,6 +32,7 @@ FIELDS = {
     "lock_sha256",
     "git_sources",
 }
+_REMOTE_CATALOGS: dict[str, tuple[bytes, list[dict[str, object]]]] = {}
 
 
 class SourceAccessError(ValueError):
@@ -118,6 +121,13 @@ def locked_git_sources(lock: bytes) -> set[tuple[str, str]]:
 def load_grants(path: pathlib.Path = CATALOG) -> list[dict[str, object]]:
     try:
         raw = path.read_bytes()
+    except OSError as error:
+        raise SourceAccessError("source-access catalog cannot be read") from error
+    return parse_grants(raw)
+
+
+def parse_grants(raw: bytes) -> list[dict[str, object]]:
+    try:
         if len(raw) > 1_048_576:
             raise SourceAccessError("source-access catalog exceeds its bound")
         document = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs)
@@ -165,11 +175,12 @@ def require_access(
     runtime_image: str,
     runtime_manifest_sha256: str,
     lock: bytes,
-) -> None:
+    grants: list[dict[str, object]] | None = None,
+) -> str:
     identity = _identity({"repository": repository, "revision": revision})
     matches = [
         grant
-        for grant in load_grants()
+        for grant in (load_grants() if grants is None else grants)
         if _identity({key: grant[key] for key in ("repository", "revision")})
         == identity
         and grant["runtime_image"] == runtime_image
@@ -188,3 +199,144 @@ def require_access(
         raise SourceAccessError(
             "restricted Rust source access differs from the admitted source closure"
         )
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(grant, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _policy_api(path: str, token: str) -> dict:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "ElevenID-source-access",
+        "Cache-Control": "no-cache",
+    }
+    if token:
+        if re.fullmatch(r"[A-Za-z0-9_.\-]{8,512}", token) is None:
+            raise SourceAccessError("source-access API credential is invalid")
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(
+        "https://api.github.com/repos/ElevenID/.github/" + path, headers=headers
+    )
+    try:
+        with urllib.request.build_opener(_NoRedirect()).open(
+            request, timeout=30
+        ) as response:
+            raw = response.read(2_097_153)
+            if response.status != 200 or len(raw) > 2_097_152:
+                raise SourceAccessError("protected source-access policy is unavailable")
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs)
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise SourceAccessError(
+            "protected source-access policy is unavailable"
+        ) from error
+    if not isinstance(value, dict):
+        raise SourceAccessError("protected source-access API object is invalid")
+    return value
+
+
+def _main_revision(token: str) -> str:
+    value = _policy_api("git/ref/heads/main", token)
+    obj = value.get("object")
+    if (
+        value.get("ref") != "refs/heads/main"
+        or not isinstance(obj, dict)
+        or obj.get("type") != "commit"
+        or not isinstance(obj.get("sha"), str)
+        or SHA.fullmatch(obj["sha"]) is None
+    ):
+        raise SourceAccessError("protected source-access main identity is invalid")
+    return obj["sha"]
+
+
+def _remote_catalog(revision: str, token: str) -> tuple[bytes, list[dict[str, object]]]:
+    if SHA.fullmatch(revision) is None:
+        raise SourceAccessError("source-access policy revision is invalid")
+    if revision in _REMOTE_CATALOGS:
+        return _REMOTE_CATALOGS[revision]
+    value = _policy_api(
+        "contents/runtime/rust-cargo/source-access.json?ref=" + revision, token
+    )
+    if (
+        value.get("type") != "file"
+        or value.get("path") != "runtime/rust-cargo/source-access.json"
+        or value.get("encoding") != "base64"
+        or not isinstance(value.get("content"), str)
+    ):
+        raise SourceAccessError("protected source-access catalog metadata is invalid")
+    try:
+        raw = base64.b64decode("".join(value["content"].splitlines()), validate=True)
+    except ValueError as error:
+        raise SourceAccessError(
+            "protected source-access catalog encoding is invalid"
+        ) from error
+    if (
+        len(raw) != value.get("size")
+        or len(raw) > 1_048_576
+        or hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        != value.get("sha")
+    ):
+        raise SourceAccessError("protected source-access catalog bytes differ")
+    result = raw, parse_grants(raw)
+    # Cache only immutable public data, never credentials or the main pointer.
+    if len(_REMOTE_CATALOGS) >= 128:
+        _REMOTE_CATALOGS.pop(next(iter(_REMOTE_CATALOGS)))
+    _REMOTE_CATALOGS[revision] = result
+    return result
+
+
+def admit_from_protected_main(*, token: str, **candidate) -> dict[str, str]:
+    revision = _main_revision(token)
+    raw, grants = _remote_catalog(revision, token)
+    grant = require_access(**candidate, grants=grants)
+    return {
+        "policy_repository": "ElevenID/.github",
+        "policy_revision": revision,
+        "catalog_sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+        "grant_sha256": grant,
+    }
+
+
+def verify_protected_admission(proof: object, *, token: str, **candidate) -> None:
+    fields = {"policy_repository", "policy_revision", "catalog_sha256", "grant_sha256"}
+    if (
+        not isinstance(proof, dict)
+        or set(proof) != fields
+        or proof.get("policy_repository") != "ElevenID/.github"
+        or not all(isinstance(proof.get(name), str) for name in fields)
+        or SHA.fullmatch(proof["policy_revision"]) is None
+        or any(
+            DIGEST.fullmatch(proof[name]) is None
+            for name in ("catalog_sha256", "grant_sha256")
+        )
+    ):
+        raise SourceAccessError("source-access receipt identity is invalid")
+    raw, grants = _remote_catalog(proof["policy_revision"], token)
+    if (
+        "sha256:" + hashlib.sha256(raw).hexdigest() != proof["catalog_sha256"]
+        or require_access(**candidate, grants=grants) != proof["grant_sha256"]
+    ):
+        raise SourceAccessError(
+            "source-access receipt does not match its immutable policy"
+        )
+    current = _main_revision(token)
+    if current != proof["policy_revision"]:
+        comparison = _policy_api(
+            "compare/" + proof["policy_revision"] + "..." + current, token
+        )
+        if comparison.get("status") not in {"ahead", "identical"}:
+            raise SourceAccessError(
+                "source-access policy was not integrated into protected main"
+            )
+    _, current_grants = _remote_catalog(current, token)
+    # Revocation applies even to a previously valid historical receipt.
+    require_access(**candidate, grants=current_grants)

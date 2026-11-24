@@ -18,8 +18,10 @@ import tomllib
 from typing import Any, BinaryIO
 
 if __package__:
+    from . import rust_runtime_registry as runtime_registry
     from . import rust_runtime_source_access as source_access
 else:
+    import rust_runtime_registry as runtime_registry
     import rust_runtime_source_access as source_access
 
 
@@ -475,10 +477,12 @@ def _container_command(
     return [*command, image, *workload]
 
 
-def _prepare_runtime_image(docker: str, image: str) -> str:
+def _prepare_runtime_image(
+    docker: str, image: str, *, pull_environment: dict[str, str] | None = None
+) -> str:
     _run_process(
         [docker, "pull", image],
-        os.environ.copy(),
+        pull_environment if pull_environment is not None else os.environ.copy(),
         label="runtime image pull",
         timeout=300,
         stdout_limit=65_536,
@@ -653,6 +657,7 @@ def _capture_document(
     rust_build: dict[str, str] | None,
     resolved_image_digest: str,
     runtime_manifest: dict[str, str] | None,
+    source_access_proof: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     receipt: dict[str, Any] = {
         "arguments": arguments,
@@ -669,6 +674,8 @@ def _capture_document(
         receipt["resolved_image_digest"] = resolved_image_digest
         receipt["rust_build"] = rust_build
         receipt["runtime_manifest"] = runtime_manifest
+    if source_access_proof is not None:
+        receipt["source_access"] = source_access_proof
     return {
         "schema": "elevenid.behavior-subject-capture/v2",
         "receipt": receipt,
@@ -848,6 +855,7 @@ def _atomic_write(output: pathlib.Path, content: bytes) -> None:
 
 
 def _produce(args: argparse.Namespace) -> None:
+    registry_token = os.environ.pop("RUST_RUNTIME_PULL_TOKEN", "")
     harness = _safe_path(args.harness_path, "harness-path")
     subject = _safe_path(args.subject_path, "subject-path")
     output = _safe_path(args.output, "output")
@@ -856,9 +864,15 @@ def _produce(args: argparse.Namespace) -> None:
     _verify_file(harness, args.harness_sha256, "observation harness")
     _verify_file(subject, args.subject_sha256, "observation subject")
     rust_build = _rust_build(args)
-    if rust_build is not None and source_access.is_restricted_image(args.runtime_image):
+    source_access_proof = None
+    if source_access.is_restricted_image(args.runtime_image):
+        if rust_build is None:
+            raise RunnerError(
+                "restricted runtime images require the fixed Rust build profile"
+            )
         try:
-            source_access.require_access(
+            source_access_proof = source_access.admit_from_protected_main(
+                token=registry_token,
                 repository=args.repository,
                 revision=args.revision,
                 runtime_image=args.runtime_image,
@@ -867,7 +881,32 @@ def _produce(args: argparse.Namespace) -> None:
             )
         except source_access.SourceAccessError as error:
             raise RunnerError(str(error)) from error
-    resolved_image_digest = _prepare_runtime_image(_docker_binary(), args.runtime_image)
+        try:
+            runtime_registry.require_execution_context(
+                repository=args.repository,
+                revision=args.revision,
+                event_name=args.event_name,
+                environment=os.environ,
+            )
+            with runtime_registry.private_pull_environment(
+                docker=_docker_binary(),
+                image=args.runtime_image,
+                token=registry_token,
+                actor=os.environ.get("GITHUB_ACTOR", ""),
+                run_process=_run_process,
+            ) as pull_environment:
+                resolved_image_digest = _prepare_runtime_image(
+                    _docker_binary(),
+                    args.runtime_image,
+                    pull_environment=pull_environment,
+                )
+        except runtime_registry.RegistryAccessError as error:
+            raise RunnerError(str(error)) from error
+    else:
+        resolved_image_digest = _prepare_runtime_image(
+            _docker_binary(), args.runtime_image
+        )
+    registry_token = ""
     runtime_manifest = (
         _runtime_manifest(args, rust_build) if rust_build is not None else None
     )
@@ -917,6 +956,7 @@ def _produce(args: argparse.Namespace) -> None:
         rust_build=rust_build,
         resolved_image_digest=resolved_image_digest,
         runtime_manifest=runtime_manifest,
+        source_access_proof=source_access_proof,
     )
     capture_content = _canonical(capture)
 

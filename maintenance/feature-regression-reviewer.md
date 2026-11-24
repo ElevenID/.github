@@ -548,14 +548,26 @@ its contents through otherwise public observations.
 The reserved restricted-image repository is
 `ghcr.io/elevenid/feature-regression-rust-cargo-restricted`. Before the producer
 pulls a digest in that repository, and independently before the reviewer accepts
-its observation artifact, `runtime/rust-cargo/source-access.json` must admit the
+its observation artifact, the protected central `main` version of
+`runtime/rust-cargo/source-access.json` must admit the
 exact target repository and revision, runtime image and manifest digests, raw
 Cargo.lock digest, and complete set of locked Git repository/commit identities.
 No repository-wide, branch, mutable tag, wildcard or transitive-source omission
 grant is accepted. Multiple explicitly locked revisions of one dependency remain
 distinct. Unknown source registries/transports fail closed.
 
-The protected catalog starts empty. An image activation is not a source-access
+The protected catalog starts empty. Grant data is separate from the frozen
+runner implementation: putting a future candidate SHA inside that frozen
+revision would create a circular pin. The host resolves only
+`ElevenID/.github:refs/heads/main`, reads the catalog at that immutable resolved
+commit, checks its Git blob bytes, and records the policy revision, catalog hash
+and exact grant hash in the trusted receipt. The independent reviewer checks
+that historical policy's ancestry in protected main and requires the same
+candidate to remain admitted by current main; removing its grant revokes old
+receipts. Only immutable public catalog bytes are cached, never a token or the
+current main pointer. Candidate code cannot select a grant ref or supply proof.
+
+An image activation is not a source-access
 grant. An independent source-authorized reviewer must inspect the complete
 candidate, including build scripts, procedural macros, Cargo configuration and
 locked dependencies, before its exact revision is admitted. The immutable
@@ -565,13 +577,29 @@ No credentials, registry configuration or Docker socket may be passed to the
 candidate or harness containers. Review raw failures and any source-bearing
 publication evidence privately; only reviewed sanitized results may be public.
 
-This admission boundary does not implement or activate private publication,
-registry credentials, package access, a source-reader consumer, a restricted
-execution workflow, or an observation baseline. Those require a separately
-reviewed publisher/access path and provenance/artifact contract before any
-restricted image or grant can be activated. The existing public publication
-sequence remains in force for public dependencies only. Neither runtime image
-allowlist is changed here.
+The restricted producer requests `packages: read`; its exact caller template is
+selected only for restricted Rust images. Before pulling, the host requires an
+internal human-authored exact-head PR or current-main baseline and rejects
+forks, Dependabot, wrong refs and mismatched revisions. The job token is removed
+from the process environment, supplied to Docker login through standard input
+in a private temporary host configuration, and discarded with that configuration
+before any candidate or harness container starts. Anonymous registry
+authorization must be explicitly denied both before and after a successful
+authenticated pull of the exact digest; a network failure is not denial
+evidence. No registry configuration is mounted into a container.
+
+The [package REST metadata endpoint](https://docs.github.com/en/rest/packages/packages#get-a-package-for-an-organization)
+documents classic-PAT authentication. The consumer does not assume its job token
+supports that endpoint. Publisher/admin private-visibility proof remains a
+separate qualified operation. [Actions package access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
+must be explicitly limited to the intended consumer repository.
+
+This draft does not activate private publication, package permissions, a
+source-reader consumer, an image or an observation baseline. A separately
+reviewed publisher/access path and provenance/artifact contract remain required
+before any restricted image or grant can be activated. The existing public
+publication sequence remains in force for public dependencies only. Neither
+runtime image allowlist is changed here.
 
 ### Public runtime publication sequence
 

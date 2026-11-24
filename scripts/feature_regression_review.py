@@ -1164,6 +1164,13 @@ def _expected_producer_workflow(producer: ProducerContract) -> bytes:
         producer.subject_env, sort_keys=True, separators=(",", ":")
     )
     rust_build_input = ""
+    restricted = source_access.is_restricted_image(producer.runtime_image)
+    producer_filename = (
+        "feature-regression-observation-producer"
+        + ("-restricted" if restricted else "")
+        + ".yml"
+    )
+    packages_permission = "  packages: read\n" if restricted else ""
     if producer.rust_build is not None:
         rust_build_json = json.dumps(
             producer.rust_build.document(), sort_keys=True, separators=(",", ":")
@@ -1183,10 +1190,10 @@ on:
 permissions:
   actions: read
   contents: read
-
+{packages_permission}
 jobs:
   behavior-observations:
-    uses: ElevenID/.github/.github/workflows/feature-regression-observation-producer.yml@{producer.central_workflow_sha}
+    uses: ElevenID/.github/.github/workflows/{producer_filename}@{producer.central_workflow_sha}
     with:
       policy-ref: {producer.central_workflow_sha}
       target-ref: ${{{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}}}
@@ -1556,6 +1563,13 @@ def _validate_behavior_catalog(
         raise EvidenceError(
             "behavior catalog producer runtime_image must be pinned by sha256 digest"
         )
+    if (
+        source_access.is_restricted_image(runtime_image)
+        and subject_runtime != "rust-cargo"
+    ):
+        raise EvidenceError(
+            "restricted runtime images require the fixed Rust build profile"
+        )
     rust_build: RustBuildContract | None = None
     if subject_runtime == "rust-cargo":
         rust_value = _mapping(
@@ -1872,6 +1886,12 @@ def _select_observation(
         receipt_fields.update(
             {"resolved_image_digest", "rust_build", "runtime_manifest"}
         )
+    if source_access.is_restricted_image(str(receipt.get("runtime_image"))):
+        if receipt_runtime != "rust-cargo":
+            raise EvidenceError(
+                "restricted runtime images require the fixed Rust build profile"
+            )
+        receipt_fields.add("source_access")
     _exact_keys(
         receipt,
         receipt_fields,
@@ -2011,11 +2031,14 @@ def _validate_artifact_observation(
     download_artifact: ArtifactDownloader,
 ) -> None:
     reference = _parse_artifact_observation_reference(value, path)
-    if producer.rust_build is not None and source_access.is_restricted_image(
-        producer.runtime_image
-    ):
+    if source_access.is_restricted_image(producer.runtime_image):
+        if producer.rust_build is None:
+            raise EvidenceError(
+                "restricted runtime images require the fixed Rust build profile"
+            )
         try:
-            source_access.require_access(
+            source_access.admit_from_protected_main(
+                token=os.environ.get("GITHUB_TOKEN", ""),
                 repository=expected_repository,
                 revision=expected_commit,
                 runtime_image=producer.runtime_image,
@@ -2264,6 +2287,23 @@ def _validate_artifact_observation(
             )
         if receipt.get("rust_build") != producer.rust_build.document():
             raise EvidenceError(f"{path} runtime receipt Rust build does not match")
+        if source_access.is_restricted_image(producer.runtime_image):
+            try:
+                source_access.verify_protected_admission(
+                    receipt.get("source_access"),
+                    token=os.environ.get("GITHUB_TOKEN", ""),
+                    repository=expected_repository,
+                    revision=expected_commit,
+                    runtime_image=producer.runtime_image,
+                    runtime_manifest_sha256=producer.rust_build.runtime_manifest_sha256,
+                    lock=fetch_content(
+                        expected_repository,
+                        producer.rust_build.lock_path,
+                        expected_commit,
+                    ),
+                )
+            except source_access.SourceAccessError as error:
+                raise EvidenceError(str(error)) from error
         runtime_manifest = _mapping(
             receipt.get("runtime_manifest"),
             f"{path} runtime receipt runtime_manifest",

@@ -660,6 +660,11 @@ class ObservationRunnerTests(unittest.TestCase):
                 },
             ),
             mock.patch.object(runner, "_prepare_runtime_image") as pull,
+            mock.patch.object(
+                runner.source_access,
+                "admit_from_protected_main",
+                side_effect=runner.source_access.SourceAccessError("not admitted"),
+            ),
         ):
             self.assertEqual(
                 1,
@@ -674,6 +679,71 @@ class ObservationRunnerTests(unittest.TestCase):
         pull.assert_not_called()
         self.container_mock.assert_not_called()
         self.assertFalse((self.root / OUTPUT_PATH).exists())
+
+    def test_non_rust_subject_cannot_bypass_restricted_source_admission(self) -> None:
+        image = RUST_RUNTIME_IMAGE.replace("rust-cargo@", "rust-cargo-restricted@")
+        with mock.patch.object(runner, "_prepare_runtime_image") as pull:
+            self.assertEqual(1, self.produce(runtime_image=image))
+        pull.assert_not_called()
+        self.container_mock.assert_not_called()
+
+    def test_restricted_pull_discards_host_credentials_before_candidate_execution(
+        self,
+    ) -> None:
+        subject, _, _, build = self.rust_fixture()
+        image = RUST_RUNTIME_IMAGE.replace("rust-cargo@", "rust-cargo-restricted@")
+        commands = []
+        config_paths = []
+
+        def host_process(command, environment, **options):
+            commands.append(command)
+            self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", environment)
+            self.assertNotIn("fixture-runtime-credential", " ".join(command))
+            return b"", b""
+
+        def pull(docker, selected, *, pull_environment):
+            self.assertEqual(image, selected)
+            config_paths.append(pathlib.Path(pull_environment["DOCKER_CONFIG"]))
+            self.assertTrue(config_paths[-1].is_dir())
+            self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", os.environ)
+            return selected.rsplit("@", 1)[1]
+
+        def before_candidate(*_):
+            self.assertFalse(config_paths[-1].exists())
+            self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", os.environ)
+            raise RuntimeError("unit-test stop before candidate execution")
+
+        with (
+            mock.patch.dict(
+                runner.APPROVED_RUST_RUNTIME_IMAGES,
+                {image: build["runtime_manifest_sha256"]},
+            ),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "RUST_RUNTIME_PULL_TOKEN": "fixture-runtime-credential",
+                    "GITHUB_ACTOR": "author",
+                },
+            ),
+            mock.patch.object(runner.source_access, "admit_from_protected_main"),
+            mock.patch.object(runner.runtime_registry, "require_execution_context"),
+            mock.patch.object(runner.runtime_registry, "require_anonymous_pull_denied"),
+            mock.patch.object(runner, "_run_process", side_effect=host_process),
+            mock.patch.object(runner, "_prepare_runtime_image", side_effect=pull),
+            mock.patch.object(
+                runner, "_runtime_manifest", side_effect=before_candidate
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "stop before candidate"):
+                self.produce(
+                    subject_path=subject.relative_to(self.root).as_posix(),
+                    subject_sha256=self.digest(subject),
+                    subject_runtime="rust-cargo",
+                    runtime_image=image,
+                    rust_build_json=json.dumps(build),
+                )
+        self.assertEqual(["login", "logout"], [command[1] for command in commands])
+        self.container_mock.assert_not_called()
 
     def test_rust_build_rejects_lexical_escape_wrong_binary_and_toolchain_env(
         self,

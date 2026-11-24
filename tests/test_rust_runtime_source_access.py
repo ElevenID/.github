@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import base64
 import json
 import pathlib
 import tempfile
@@ -37,6 +38,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 class SourceAccessTests(unittest.TestCase):
     def setUp(self) -> None:
+        access._REMOTE_CATALOGS.clear()
+        self.addCleanup(access._REMOTE_CATALOGS.clear)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = pathlib.Path(self.temp.name) / "access.json"
@@ -201,6 +204,104 @@ class SourceAccessTests(unittest.TestCase):
             access.is_restricted_image("ghcr.io/other/runtime@sha256:" + "a" * 64)
         )
 
+    def remote_catalog(self, grants):
+        raw = json.dumps(
+            {"schema": "elevenid.rust-runtime-source-access/v1", "grants": grants},
+            sort_keys=True,
+        ).encode()
+        return {
+            "type": "file",
+            "path": "runtime/rust-cargo/source-access.json",
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+            "size": len(raw),
+            "sha": hashlib.sha1(
+                b"blob " + str(len(raw)).encode() + b"\0" + raw
+            ).hexdigest(),
+        }
+
+    def candidate(self):
+        return dict(
+            repository="ElevenID/example",
+            revision=REVISION,
+            runtime_image=IMAGE,
+            runtime_manifest_sha256=MANIFEST,
+            lock=LOCK,
+        )
+
+    def test_grant_data_can_advance_without_changing_the_frozen_runner_revision(
+        self,
+    ) -> None:
+        first, second = "1" * 40, "2" * 40
+        state = {
+            "main": first,
+            "catalogs": {
+                first: self.remote_catalog([self.grant]),
+                second: self.remote_catalog([self.grant]),
+            },
+        }
+
+        def api(path, token):
+            if path == "git/ref/heads/main":
+                return {
+                    "ref": "refs/heads/main",
+                    "object": {"type": "commit", "sha": state["main"]},
+                }
+            if path.startswith("contents/"):
+                return state["catalogs"][path.split("?ref=")[1]]
+            if path in {
+                "compare/" + first + "..." + second,
+                "compare/" + first + "..." + "3" * 40,
+            }:
+                return {"status": "ahead"}
+            self.fail("unexpected policy API request")
+
+        with (
+            mock.patch.object(access, "_policy_api", side_effect=api),
+            mock.patch.object(
+                access,
+                "load_grants",
+                side_effect=AssertionError(
+                    "frozen local catalog must not authorize future candidates"
+                ),
+            ),
+        ):
+            proof = access.admit_from_protected_main(token="", **self.candidate())
+            self.assertEqual(first, proof["policy_revision"])
+            state["main"] = second
+            access.verify_protected_admission(proof, token="", **self.candidate())
+            newer = access.admit_from_protected_main(token="", **self.candidate())
+            self.assertEqual(second, newer["policy_revision"])
+            # A later protected removal revokes even the historical proof.
+            state["main"] = "3" * 40
+            state["catalogs"]["3" * 40] = self.remote_catalog([])
+            with self.assertRaisesRegex(access.SourceAccessError, "not admitted"):
+                access.verify_protected_admission(proof, token="", **self.candidate())
+
+    def test_unmerged_policy_and_changed_catalog_blob_are_refused(self) -> None:
+        first, second = "1" * 40, "2" * 40
+        catalog = self.remote_catalog([self.grant])
+
+        def api(path, token):
+            if path == "git/ref/heads/main":
+                return {
+                    "ref": "refs/heads/main",
+                    "object": {"type": "commit", "sha": second},
+                }
+            if path.startswith("contents/"):
+                return catalog
+            return {"status": "diverged"}
+
+        with mock.patch.object(access, "_policy_api", side_effect=api):
+            proof = access.admit_from_protected_main(token="", **self.candidate())
+            proof["policy_revision"] = first
+            with self.assertRaisesRegex(access.SourceAccessError, "not integrated"):
+                access.verify_protected_admission(proof, token="", **self.candidate())
+            catalog["sha"] = "0" * 40
+            access._REMOTE_CATALOGS.clear()
+            with self.assertRaisesRegex(access.SourceAccessError, "bytes differ"):
+                access.admit_from_protected_main(token="", **self.candidate())
+
     def test_reviewer_refuses_artifact_before_run_or_download_without_admission(
         self,
     ) -> None:
@@ -214,7 +315,14 @@ class SourceAccessTests(unittest.TestCase):
                 lock_path=".github/feature-regression/probe/Cargo.lock",
             ),
         )
-        with self.assertRaisesRegex(review.EvidenceError, "not admitted"):
+        with (
+            mock.patch.object(
+                access,
+                "admit_from_protected_main",
+                side_effect=access.SourceAccessError("not admitted"),
+            ),
+            self.assertRaisesRegex(review.EvidenceError, "not admitted"),
+        ):
             review._validate_artifact_observation(
                 "artifact-observation:ElevenID/example@123:example",
                 "fixture",
