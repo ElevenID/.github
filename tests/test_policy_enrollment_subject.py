@@ -127,6 +127,9 @@ class EnrollmentSubjectTests(unittest.TestCase):
 
     def test_live_bundle_observation_reads_protected_catalog(self):
         root = self.fixture()
+        (root / "runtime/rust-cargo/bundles.json").write_text(json.dumps({
+            "schema": "elevenid.rust-cargo-runtime-bundles/v1", "bundles": [],
+        }), encoding="utf-8")
         before = self.run_subject(root)
         self.assertEqual("rejected", self.statuses(before)["live-auth-flow-bundle"])
         record = {
@@ -155,7 +158,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
         self.assertEqual(73, len(statuses))
-        self.assertEqual("rejected", statuses["live-auth-flow-bundle"])
+        self.assertEqual("accepted", statuses["live-auth-flow-bundle"])
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         identity_repaired = statuses["reviewer-multicase-valid"] == "accepted"
         identity_accepted = {"reviewer-multicase-valid"} if identity_repaired else {"reviewer-id-name-conflict"}
@@ -164,6 +167,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual("rejected" if identity_repaired else "accepted",
                          statuses["reviewer-id-name-conflict"])
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
+                             "live-auth-flow-bundle",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
                              "reviewer-public-caller", "reviewer-restricted-caller",
                              "reviewer-missing-source-receipt"} | identity_accepted
