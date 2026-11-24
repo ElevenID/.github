@@ -21,6 +21,7 @@ import os  # noqa: E402
 from pathlib import Path  # noqa: E402
 import tempfile  # noqa: E402
 import types  # noqa: E402
+import zipfile  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -769,6 +770,140 @@ def probe_cases():
         )
 
     case("reviewer.restricted-admission", "reviewer-missing-source-receipt", reviewer_receipt_case)
+
+    def reviewer_late_proof_case():
+        if not hasattr(reviewer, "source_access"):
+            raise ProductionOwnerAbsent("restricted reviewer proof is absent at this revision")
+        contract = restricted_reviewer_contract()
+        commit = "a" * 40
+        run_id = 123
+        attempt = 1
+        name = f"{contract.artifact_name_prefix}-{run_id}-{attempt}"
+        observation = {
+            "id": "fixture.public_status.before", "operation_id": "fixture.validation",
+            "case_id": "fixture", "dimension": "public_status", "value": "accepted",
+            "producer_test": f"test:ElevenID/.github@{commit}:tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries",
+        }
+        document = {
+            "schema": "elevenid.behavior-observations/v3", "repository": "ElevenID/.github",
+            "revision": commit, "phase": "before", "observations": [observation],
+            "producer": {
+                "workflow_path": contract.workflow_path,
+                "workflow_sha256": contract.workflow_sha256,
+                "central_workflow_sha": contract.central_workflow_sha,
+                "harness_path": contract.harness_path,
+                "harness_sha256": contract.harness_sha256,
+                "subject_path": contract.subject_path,
+                "subject_sha256": contract.subject_sha256,
+                "subject_runtime": contract.subject_runtime,
+                "subject_args": [], "subject_env": {},
+                "runtime_image": contract.runtime_image,
+                "rust_build": contract.rust_build.document(),
+                "job_name": contract.job_name, "artifact_name": name,
+                "run_id": run_id, "run_attempt": attempt, "head_sha": commit,
+                "phase": "before", "event_name": "push", "head_branch": "main",
+            },
+            "runtime_receipt": {
+                "runtime_image": contract.runtime_image,
+                "subject_path": contract.subject_path,
+                "subject_sha256": contract.subject_sha256,
+                "runtime": "rust-cargo", "arguments": [],
+                "environment": {
+                    "LC_ALL": "C.UTF-8", "PYTHONHASHSEED": "0", "TZ": "UTC",
+                    "CARGO_HOME": "/build/cargo-home", "CARGO_NET_OFFLINE": "true",
+                    "CARGO_TARGET_DIR": "/build/target", "HOME": "/build/home",
+                    "PATH": "/opt/elevenid/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+                    "RUSTUP_HOME": "/usr/local/rustup", "TMPDIR": "/tmp",
+                },
+                "exit_code": 0,
+                "stdout_sha256": "sha256:" + "8" * 64,
+                "stderr_sha256": "sha256:" + "9" * 64,
+                "resolved_image_digest": contract.runtime_image.rsplit("@", 1)[1],
+                "rust_build": contract.rust_build.document(),
+                "source_access": {"public_fixture": "revoked"},
+                "runtime_manifest": {},
+            },
+        }
+        payload = reviewer._deterministic_json_bytes(document)
+        archive_stream = io.BytesIO()
+        with zipfile.ZipFile(archive_stream, "w", zipfile.ZIP_STORED) as archive:
+            archive.writestr(contract.observation_path, payload)
+        archive = archive_stream.getvalue()
+        events = []
+
+        def lock_source(repository, path, revision):
+            events.append("public-lock")
+            if (repository, path, revision) != (
+                "ElevenID/.github", contract.rust_build.lock_path, commit,
+            ):
+                raise ValueError("unexpected proof source")
+            return b"public fixture lock"
+
+        def admit(**arguments):
+            events.append("source-admission")
+            return {"public_fixture": "admitted"}
+
+        def revoke(receipt, **arguments):
+            events.append("source-proof")
+            raise reviewer.source_access.SourceAccessError("public fixture late proof revoked")
+
+        def run(repository, requested_id):
+            events.append("run")
+            return {
+                "status": "completed", "conclusion": "success", "head_sha": commit,
+                "event": "push", "head_branch": "main", "run_attempt": attempt,
+                "path": contract.workflow_path + "@refs/heads/main",
+                "repository": {"id": 9}, "head_repository": {"id": 9},
+            }
+
+        def jobs(repository, requested_id, requested_attempt):
+            events.append("jobs")
+            return [{"name": contract.job_name, "status": "completed",
+                     "conclusion": "success", "run_id": run_id, "head_sha": commit,
+                     "steps": [{"name": step, "status": "completed", "conclusion": "success"}
+                               for step in (contract.produce_step_name, contract.upload_step_name)]}]
+
+        def artifacts(repository, requested_id):
+            events.append("artifacts")
+            return [{"name": name, "id": 5, "expired": False,
+                     "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+                     "workflow_run": {"id": run_id, "head_sha": commit,
+                                      "head_branch": "main", "repository_id": 9,
+                                      "head_repository_id": 9}}]
+
+        def download(repository, artifact_id):
+            events.append("download")
+            return archive
+
+        original_admit = reviewer.source_access.admit_from_protected_main
+        original_verify = reviewer.source_access.verify_protected_admission
+        reviewer.source_access.admit_from_protected_main = admit
+        reviewer.source_access.verify_protected_admission = revoke
+        try:
+            try:
+                reviewer._validate_artifact_observation(
+                    f"artifact-observation:ElevenID/.github@{run_id}:{observation['id']}",
+                    "public fixture", expected_repository="ElevenID/.github",
+                    expected_commit=commit, expected_phase="before", producer=contract,
+                    operation_id="fixture.validation", case_id="fixture",
+                    dimension="public_status", expected_value="accepted",
+                    fetch_content=lock_source, fetch_run=run, fetch_jobs=jobs,
+                    fetch_artifacts=artifacts, download_artifact=download,
+                )
+            except reviewer.EvidenceError as error:
+                if str(error) != "public fixture late proof revoked":
+                    raise
+            else:
+                raise ValueError("reviewer ignored late protected source revocation")
+            if events != ["public-lock", "source-admission", "run", "jobs",
+                          "artifacts", "download", "public-lock", "source-proof"]:
+                raise ValueError("reviewer did not verify protected source after artifact receipt")
+            return {"events": events, "late_proof_rejected": True}
+        finally:
+            reviewer.source_access.admit_from_protected_main = original_admit
+            reviewer.source_access.verify_protected_admission = original_verify
+
+    case("reviewer.restricted-admission", "reviewer-revoked-late-proof", reviewer_late_proof_case)
 
     public_image = "ghcr.io/elevenid/feature-regression-rust-cargo@sha256:" + "a" * 64
     case("runtime.publication-validation", "publication-wrong-image",

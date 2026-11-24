@@ -107,7 +107,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(201, len(document["observations"]))
+        self.assertEqual(204, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -124,7 +124,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(67, len(statuses))
+        self.assertEqual(68, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
@@ -163,7 +163,8 @@ class EnrollmentSubjectTests(unittest.TestCase):
                                                    "private-evidence-bound", "restricted-publisher-valid",
                                                    "producer-isolated-runtime-pull", "producer-denied-before-pull",
                                                    "source-checked-in-catalog", "restricted-producer-valid",
-                                                   "reviewer-denied-before-artifact"}, accepted)
+                                                   "reviewer-denied-before-artifact",
+                                                   "reviewer-revoked-late-proof"}, accepted)
             self.assertEqual("rejected", statuses["restricted-publisher-tampered-input"])
             self.assertEqual("rejected", statuses["restricted-producer-permission-tamper"])
         else:
@@ -171,7 +172,8 @@ class EnrollmentSubjectTests(unittest.TestCase):
                                            "restricted-publisher-valid", "restricted-publisher-tampered-input",
                                            "producer-isolated-runtime-pull", "producer-denied-before-pull",
                                            "restricted-producer-valid", "restricted-producer-permission-tamper",
-                                           "reviewer-denied-before-artifact"},
+                                           "reviewer-denied-before-artifact",
+                                           "reviewer-revoked-late-proof"},
                              {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
