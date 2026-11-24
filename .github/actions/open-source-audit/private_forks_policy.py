@@ -120,7 +120,7 @@ RESTRICTED_PUBLISHER_FILES = {
     'scripts/rust_runtime_source_access.py': '7d87c3f9fc06e472666d59d0a582782ca8087563566bf2f421d8c49a27712969',
     'scripts/rust_runtime_registry.py': '64f5b79413fcce7cafb651364324925530f4e6eb688e63ba6dd6e7d23b2390f9',
     'scripts/rust_runtime_publication.py': '0fdfc05f972df4611ab045cc6cb49024b0be30b38922a7127100eba0a7f6e0e4',
-    'runtime/rust-cargo/bundles.json': '95cdb9f5004fd723e0a51afcc6ac3ed19af07b6d6ed10b5dafab1946a4b5180a',
+    'runtime/rust-cargo/bundles.json': 'e7a4655865456eba2eb7bcf1a128828e61163779d691eabea8d48630e4755fb0',
     'runtime/rust-cargo/Dockerfile.restricted': '8642bbeadc4163ec15e3c02e16ceb0e604e2550979c498fc3ea97177b46a7de9',
     'runtime/rust-cargo/Dockerfile.restricted.dockerignore': 'aa8ab9f5dc030bd71ecfd108dcb2215a51292356bb49562a31daf3c29aa528a5',
     'runtime/rust-cargo/Dockerfile.evidence': 'd0a02b08c8c65d16e0710a798970adba09ddd3c7c48c2786b70c927eef0e042d',

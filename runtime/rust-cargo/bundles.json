@@ -1,1 +1,16 @@
-{"bundles":[],"schema":"elevenid.rust-cargo-runtime-bundles/v1"}
+{
+  "schema": "elevenid.rust-cargo-runtime-bundles/v1",
+  "bundles": [
+    {
+      "id": "marty-ui-auth-flow-20261124",
+      "repository": "ElevenID/marty-ui",
+      "revision": "7a636da20f86e519e37b1ab0f79ddec5dfe7e2c9",
+      "manifest_path": ".github/feature-regression/rust-probe/Cargo.toml",
+      "manifest_sha256": "sha256:e3218975ed0aade3e6bc13d2ae704e630d3f28c060160ef4e7f8e0b35252ab0f",
+      "lock_path": ".github/feature-regression/rust-probe/Cargo.lock",
+      "lock_sha256": "sha256:f885b0355e114bc669b0b520c28f6d334cdf62a56db009d6cfae8666b184934b",
+      "subject_path": ".github/feature-regression/rust-probe/behavior_subject.rs",
+      "subject_sha256": "sha256:5116385ef1d9c8600646e1ee33721913207fc963ddeada28ed2a209e6a445d31"
+    }
+  ]
+}
