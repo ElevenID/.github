@@ -1,0 +1,108 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "runtime.bundle-live.live-auth-flow-bundle.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected Auth and Flow bundle admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "bundle id is not uniquely activated",
+      "after_value": null,
+      "before_sha256": "sha256:35a9051e4cf59ed0fa2cd1ddd2000f8b53031487628a573874448528cff1ebaa",
+      "after_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "compatibility_impact": "The reviewed restricted publisher can resolve one exact Auth/Flow source bundle; existing callers and all other bundle IDs retain their prior behavior. No runtime is published or activated by this catalog change.",
+      "replacement_behavior": "The catalog returns the pinned ElevenID/marty-ui revision and raw manifest, lock, and subject digests for marty-ui-auth-flow-20261124; publication still requires separate private credential, package, provenance, and activation gates.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.bundle-live.live-auth-flow-bundle.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected Auth and Flow bundle admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "rejected",
+      "after_value": "accepted",
+      "before_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "The reviewed restricted publisher can resolve one exact Auth/Flow source bundle; existing callers and all other bundle IDs retain their prior behavior. No runtime is published or activated by this catalog change.",
+      "replacement_behavior": "The catalog returns the pinned ElevenID/marty-ui revision and raw manifest, lock, and subject digests for marty-ui-auth-flow-20261124; publication still requires separate private credential, package, provenance, and activation gates.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.bundle-live.live-auth-flow-bundle.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected Auth and Flow bundle admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "exception": "BundleError"
+      },
+      "after_value": {
+        "returned": {
+          "id": "marty-ui-auth-flow-20261124",
+          "lock_path": ".github/feature-regression/rust-probe/Cargo.lock",
+          "lock_sha256": "sha256:f885b0355e114bc669b0b520c28f6d334cdf62a56db009d6cfae8666b184934b",
+          "manifest_path": ".github/feature-regression/rust-probe/Cargo.toml",
+          "manifest_sha256": "sha256:e3218975ed0aade3e6bc13d2ae704e630d3f28c060160ef4e7f8e0b35252ab0f",
+          "repository": "ElevenID/marty-ui",
+          "revision": "7a636da20f86e519e37b1ab0f79ddec5dfe7e2c9",
+          "subject_path": ".github/feature-regression/rust-probe/behavior_subject.rs",
+          "subject_sha256": "sha256:5116385ef1d9c8600646e1ee33721913207fc963ddeada28ed2a209e6a445d31"
+        }
+      },
+      "before_sha256": "sha256:33efc51733cd2cb5a164c47b1a7ec401aec9b69038fe8823f93104b1ee6245b4",
+      "after_sha256": "sha256:307ddfea12999d4e365118f9e9a069fce52cd8c769ab6374fccaebf3ed8b5670",
+      "compatibility_impact": "The reviewed restricted publisher can resolve one exact Auth/Flow source bundle; existing callers and all other bundle IDs retain their prior behavior. No runtime is published or activated by this catalog change.",
+      "replacement_behavior": "The catalog returns the pinned ElevenID/marty-ui revision and raw manifest, lock, and subject digests for marty-ui-auth-flow-20261124; publication still requires separate private credential, package, provenance, and activation gates.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.bundle-live.live-auth-flow-bundle.behavior",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "behavior",
+        "behavior": "Auth/Flow restricted bundle admission"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "public_status": "rejected",
+        "public_message": "bundle id is not uniquely activated",
+        "safe_server_diagnostic": {
+          "exception": "BundleError"
+        }
+      },
+      "after_value": {
+        "public_status": "accepted",
+        "public_message": null,
+        "safe_server_diagnostic": {
+          "returned": {
+            "id": "marty-ui-auth-flow-20261124",
+            "lock_path": ".github/feature-regression/rust-probe/Cargo.lock",
+            "lock_sha256": "sha256:f885b0355e114bc669b0b520c28f6d334cdf62a56db009d6cfae8666b184934b",
+            "manifest_path": ".github/feature-regression/rust-probe/Cargo.toml",
+            "manifest_sha256": "sha256:e3218975ed0aade3e6bc13d2ae704e630d3f28c060160ef4e7f8e0b35252ab0f",
+            "repository": "ElevenID/marty-ui",
+            "revision": "7a636da20f86e519e37b1ab0f79ddec5dfe7e2c9",
+            "subject_path": ".github/feature-regression/rust-probe/behavior_subject.rs",
+            "subject_sha256": "sha256:5116385ef1d9c8600646e1ee33721913207fc963ddeada28ed2a209e6a445d31"
+          }
+        }
+      },
+      "before_sha256": "sha256:a2d8ac8929385344fb0600d4422e6b365ed075b5342f6a57a5616000b8658297",
+      "after_sha256": "sha256:93d737d8494d5e081dec5befef1e577b87fecd3ec45cf9ad76cf12775a0543e1",
+      "compatibility_impact": "The reviewed restricted publisher can resolve one exact Auth/Flow source bundle; existing callers and all other bundle IDs retain their prior behavior. No runtime is published or activated by this catalog change.",
+      "replacement_behavior": "The catalog returns the pinned ElevenID/marty-ui revision and raw manifest, lock, and subject digests for marty-ui-auth-flow-20261124; publication still requires separate private credential, package, provenance, and activation gates.",
+      "breaking_loss": false
+    }
+  ]
+}
