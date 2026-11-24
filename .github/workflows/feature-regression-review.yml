@@ -37,6 +37,7 @@ jobs:
         run: >-
           python -m unittest tests.test_feature_regression_review
           tests.test_feature_regression_observation_runner
+          tests.test_rust_runtime_source_access
       - name: Validate exact-head reviewer evidence
         shell: bash
         env:

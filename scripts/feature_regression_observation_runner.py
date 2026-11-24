@@ -17,6 +17,11 @@ import threading
 import tomllib
 from typing import Any, BinaryIO
 
+if __package__:
+    from . import rust_runtime_source_access as source_access
+else:
+    import rust_runtime_source_access as source_access
+
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -851,6 +856,17 @@ def _produce(args: argparse.Namespace) -> None:
     _verify_file(harness, args.harness_sha256, "observation harness")
     _verify_file(subject, args.subject_sha256, "observation subject")
     rust_build = _rust_build(args)
+    if rust_build is not None and source_access.is_restricted_image(args.runtime_image):
+        try:
+            source_access.require_access(
+                repository=args.repository,
+                revision=args.revision,
+                runtime_image=args.runtime_image,
+                runtime_manifest_sha256=rust_build["runtime_manifest_sha256"],
+                lock=_safe_path(rust_build["lock_path"], "Rust lock path").read_bytes(),
+            )
+        except source_access.SourceAccessError as error:
+            raise RunnerError(str(error)) from error
     resolved_image_digest = _prepare_runtime_image(_docker_binary(), args.runtime_image)
     runtime_manifest = (
         _runtime_manifest(args, rust_build) if rust_build is not None else None

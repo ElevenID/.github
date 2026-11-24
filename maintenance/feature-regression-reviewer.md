@@ -536,6 +536,45 @@ Rust remains double fail-closed until a real reviewed runtime is published.
 runtime-image allowlists are empty. Do not invent a digest and do not activate a
 catalog before completing all of these steps:
 
+### Restricted vendor source is a separate admission boundary
+
+The public publisher below is for dependencies authorized for public
+redistribution. Do not use it for a vendor tree containing private source, and
+do not make such a package public to satisfy its anonymous-pull check. A private
+registry pull alone also does not authorize a candidate to read that source:
+Cargo build scripts and procedural macros can inspect the vendor tree and emit
+its contents through otherwise public observations.
+
+The reserved restricted-image repository is
+`ghcr.io/elevenid/feature-regression-rust-cargo-restricted`. Before the producer
+pulls a digest in that repository, and independently before the reviewer accepts
+its observation artifact, `runtime/rust-cargo/source-access.json` must admit the
+exact target repository and revision, runtime image and manifest digests, raw
+Cargo.lock digest, and complete set of locked Git repository/commit identities.
+No repository-wide, branch, mutable tag, wildcard or transitive-source omission
+grant is accepted. Multiple explicitly locked revisions of one dependency remain
+distinct. Unknown source registries/transports fail closed.
+
+The protected catalog starts empty. An image activation is not a source-access
+grant. An independent source-authorized reviewer must inspect the complete
+candidate, including build scripts, procedural macros, Cargo configuration and
+locked dependencies, before its exact revision is admitted. The immutable
+central producer checks out that exact revision before running its trusted
+controller; this admission helper is not a general local-worktree custody proof.
+No credentials, registry configuration or Docker socket may be passed to the
+candidate or harness containers. Review raw failures and any source-bearing
+publication evidence privately; only reviewed sanitized results may be public.
+
+This admission boundary does not implement or activate private publication,
+registry credentials, package access, a source-reader consumer, a restricted
+execution workflow, or an observation baseline. Those require a separately
+reviewed publisher/access path and provenance/artifact contract before any
+restricted image or grant can be activated. The existing public publication
+sequence remains in force for public dependencies only. Neither runtime image
+allowlist is changed here.
+
+### Public runtime publication sequence
+
 1. At an immutable target-repository commit, add the reserved Rust subject,
    `Cargo.toml`, and sibling `Cargo.lock`; review that the subject calls the real
    candidate behavior and does not hard-code expected output.

@@ -18,6 +18,11 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+if __package__:
+    from . import rust_runtime_source_access as source_access
+else:
+    import rust_runtime_source_access as source_access
+
 
 MARKER = "<!-- elevenid-feature-regression-review:v2 -->"
 SCHEMA = "elevenid.feature-regression-review/v2"
@@ -2006,6 +2011,21 @@ def _validate_artifact_observation(
     download_artifact: ArtifactDownloader,
 ) -> None:
     reference = _parse_artifact_observation_reference(value, path)
+    if producer.rust_build is not None and source_access.is_restricted_image(
+        producer.runtime_image
+    ):
+        try:
+            source_access.require_access(
+                repository=expected_repository,
+                revision=expected_commit,
+                runtime_image=producer.runtime_image,
+                runtime_manifest_sha256=producer.rust_build.runtime_manifest_sha256,
+                lock=fetch_content(
+                    expected_repository, producer.rust_build.lock_path, expected_commit
+                ),
+            )
+        except source_access.SourceAccessError as error:
+            raise EvidenceError(str(error)) from error
     if reference.repository.casefold() != expected_repository.casefold():
         raise EvidenceError(f"{path} artifact repository does not match")
     run = _mapping(

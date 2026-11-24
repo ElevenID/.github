@@ -46,6 +46,7 @@ def namespace_regression_runtime_image(
         return reference
     raise RuntimeError("the pinned namespace-regression runtime image is unavailable")
 
+
 SUBJECT = textwrap.dedent(
     """
     import json
@@ -646,6 +647,34 @@ class ObservationRunnerTests(unittest.TestCase):
         ):
             self.assertEqual(build, runner._rust_build(args))
 
+    def test_restricted_image_is_not_pulled_without_exact_candidate_source_access(
+        self,
+    ) -> None:
+        subject, _, _, build = self.rust_fixture()
+        image = RUST_RUNTIME_IMAGE.replace("rust-cargo@", "rust-cargo-restricted@")
+        with (
+            mock.patch.dict(
+                runner.APPROVED_RUST_RUNTIME_IMAGES,
+                {
+                    image: build["runtime_manifest_sha256"],
+                },
+            ),
+            mock.patch.object(runner, "_prepare_runtime_image") as pull,
+        ):
+            self.assertEqual(
+                1,
+                self.produce(
+                    subject_path=subject.relative_to(self.root).as_posix(),
+                    subject_sha256=self.digest(subject),
+                    subject_runtime="rust-cargo",
+                    runtime_image=image,
+                    rust_build_json=json.dumps(build),
+                ),
+            )
+        pull.assert_not_called()
+        self.container_mock.assert_not_called()
+        self.assertFalse((self.root / OUTPUT_PATH).exists())
+
     def test_rust_build_rejects_lexical_escape_wrong_binary_and_toolchain_env(
         self,
     ) -> None:
@@ -728,9 +757,7 @@ class ObservationRunnerTests(unittest.TestCase):
     def test_namespace_regression_uses_exact_digest_cache_then_fallback(self) -> None:
         mirror = "mirror.gcr.io/library/" + RUNTIME_IMAGE
         prepare = mock.Mock(return_value=RUNTIME_IMAGE.rsplit("@", 1)[1])
-        self.assertEqual(
-            mirror, namespace_regression_runtime_image("/docker", prepare)
-        )
+        self.assertEqual(mirror, namespace_regression_runtime_image("/docker", prepare))
         prepare.assert_called_once_with("/docker", mirror)
 
         prepare = mock.Mock(
