@@ -68,6 +68,8 @@ def _identity(value: object) -> tuple[str, str]:
 
 
 def locked_git_sources(lock: bytes) -> set[tuple[str, str]]:
+    if len(lock) > 8_388_608:
+        raise SourceAccessError("source-access Cargo.lock exceeds its bound")
     try:
         document = tomllib.loads(lock.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
@@ -75,8 +77,16 @@ def locked_git_sources(lock: bytes) -> set[tuple[str, str]]:
     packages = document.get("package")
     if not isinstance(packages, list) or not packages:
         raise SourceAccessError("source-access Cargo.lock has no packages")
+    patch = document.get("patch", {})
+    if not isinstance(patch, dict) or set(patch) - {"unused"}:
+        raise SourceAccessError("source-access Cargo.lock patch fields are invalid")
+    unused = patch.get("unused", [])
+    if not isinstance(unused, list):
+        raise SourceAccessError("source-access Cargo.lock unused patches are invalid")
     sources: set[tuple[str, str]] = set()
-    for package in packages:
+    # Include unused locked patches conservatively: source access must not be
+    # inferred from whether a given Cargo invocation happens to select a crate.
+    for package in [*packages, *unused]:
         if not isinstance(package, dict):
             raise SourceAccessError("source-access Cargo.lock package is invalid")
         source = package.get("source")

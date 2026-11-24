@@ -134,6 +134,26 @@ class SourceAccessTests(unittest.TestCase):
             access.locked_git_sources(lock),
         )
 
+    def test_unused_locked_patch_source_still_requires_admission(self) -> None:
+        lock = (
+            LOCK
+            + (
+                '\n[[patch.unused]]\nname="unused"\nversion="1.0.0"\n'
+                'source="git+https://github.com/ElevenID/other-private#'
+                + "e" * 40
+                + '"\n'
+            ).encode()
+        )
+        self.assertIn(
+            ("elevenid/other-private", "e" * 40), access.locked_git_sources(lock)
+        )
+        grant = dict(
+            self.grant, lock_sha256="sha256:" + hashlib.sha256(lock).hexdigest()
+        )
+        self.catalog([grant])
+        with self.assertRaisesRegex(access.SourceAccessError, "source closure"):
+            self.require(lock=lock)
+
     def test_unknown_registry_and_unsafe_git_sources_are_refused(self) -> None:
         sources = [
             "registry+https://unreviewed.invalid/index",
