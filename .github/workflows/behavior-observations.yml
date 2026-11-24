@@ -24,7 +24,7 @@ jobs:
       harness-path: .github/feature-regression/observation_harness.py
       harness-sha256: sha256:c7d740ffadc6156c3cc560e33b4708e96b1db0fe69965fa20ddf6cca718ce12a
       subject-path: .github/feature-regression/behavior_subject.py
-      subject-sha256: sha256:47d10d116c7cd307efe3c2da663882efd5e0c2023f2bfa39047d8059328eb507
+      subject-sha256: sha256:0f4a98d1ffeec7dbbacce9234ab68ef530951db413508357c9884420b7c4ddcf
       subject-runtime: python
       subject-args-json: '[]'
       subject-env-json: '{}'

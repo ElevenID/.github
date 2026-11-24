@@ -661,6 +661,41 @@ def probe_cases():
     case("reviewer.caller-selection", "reviewer-public-caller", lambda: caller_case(False))
     case("reviewer.caller-selection", "reviewer-restricted-caller", lambda: caller_case(True))
 
+    def operation_identity_case(kind):
+        evidence = ["artifact-observation:ElevenID/.github@123:fixture.public_status.before"]
+        comparison = {
+            "disposition": "preserved",
+            "before": {"value": "accepted", "evidence": evidence},
+            "after": {"value": "accepted", "evidence": evidence},
+        }
+        first = {
+            "id": "fixture.operation", "case_id": "fixture.first",
+            "name": "fixture operation", "public_status": comparison,
+            "public_message": comparison, "safe_server_diagnostic": comparison,
+        }
+        second = {**first, "case_id": "fixture.second"}
+        if kind == "duplicate-case":
+            second = {**second, "case_id": first["case_id"]}
+        elif kind == "name-id-conflict":
+            second = {**second, "id": "fixture.other"}
+        elif kind == "id-name-conflict":
+            second = {**second, "name": "other fixture operation"}
+        return reviewer._validate_operations(
+            [first, second], reviewer_login="fixture", repository="ElevenID/.github",
+            reviewed_base="a" * 40, allow_not_applicable=False,
+            authority_resolver=lambda login: {"permission": "maintain", "role_name": "maintain"},
+            decision_fetcher=lambda reference: b"{}",
+        )
+
+    for name, kind in (
+        ("reviewer-multicase-valid", "valid"),
+        ("reviewer-duplicate-case-id", "duplicate-case"),
+        ("reviewer-name-id-conflict", "name-id-conflict"),
+        ("reviewer-id-name-conflict", "id-name-conflict"),
+    ):
+        case("reviewer.operation-identity", name,
+             lambda kind=kind: operation_identity_case(kind))
+
     def restricted_reviewer_contract():
         build = reviewer.RustBuildContract(
             profile="rust-cargo-v1", manifest_path=".github/feature-regression/probe/Cargo.toml",

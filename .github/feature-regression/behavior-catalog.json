@@ -3,12 +3,12 @@
   "repository": "ElevenID/.github",
   "producer": {
     "workflow_path": ".github/workflows/behavior-observations.yml",
-    "workflow_sha256": "sha256:51a8e6f1020a7f642cb794d726bc46bdaba2db381cee2e30521f84824aae63e7",
+    "workflow_sha256": "sha256:6cac7082aac97befc572854134f91514a83b4bc420e523ebcddb7a8a4d9566da",
     "central_workflow_sha": "41ce275e615b9ca9be11fde292e6d3b84c8b8ef5",
     "harness_path": ".github/feature-regression/observation_harness.py",
     "harness_sha256": "sha256:c7d740ffadc6156c3cc560e33b4708e96b1db0fe69965fa20ddf6cca718ce12a",
     "subject_path": ".github/feature-regression/behavior_subject.py",
-    "subject_sha256": "sha256:47d10d116c7cd307efe3c2da663882efd5e0c2023f2bfa39047d8059328eb507",
+    "subject_sha256": "sha256:0f4a98d1ffeec7dbbacce9234ab68ef530951db413508357c9884420b7c4ddcf",
     "subject_runtime": "python",
     "subject_args": [],
     "subject_env": {},
@@ -935,6 +935,60 @@
           "id": "private-evidence-public-package",
           "components": [
             "scripts/rust_runtime_publication.py"
+          ],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reviewer.operation-identity",
+      "name": "reviewer operation and case identity",
+      "cases": [
+        {
+          "id": "reviewer-multicase-valid",
+          "components": [
+            "scripts/feature_regression_review.py",
+            "tests/test_feature_regression_review.py"
+          ],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        },
+        {
+          "id": "reviewer-duplicate-case-id",
+          "components": [
+            "scripts/feature_regression_review.py",
+            "tests/test_feature_regression_review.py"
+          ],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        },
+        {
+          "id": "reviewer-name-id-conflict",
+          "components": [
+            "scripts/feature_regression_review.py",
+            "tests/test_feature_regression_review.py"
+          ],
+          "invariants": [
+            "public_status",
+            "public_message",
+            "safe_server_diagnostic"
+          ]
+        },
+        {
+          "id": "reviewer-id-name-conflict",
+          "components": [
+            "scripts/feature_regression_review.py",
+            "tests/test_feature_regression_review.py"
           ],
           "invariants": [
             "public_status",
