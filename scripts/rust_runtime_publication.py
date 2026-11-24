@@ -401,7 +401,14 @@ def validate_publication_evidence(
         raise PublicationError("SPDX SBOM fields are invalid")
 
     labels = _mapping(_json(evidence_dir / "labels.json", "OCI labels"), "OCI labels")
-    for name, expected in _expected_labels(bundle).items():
+    expected_labels = _expected_labels(bundle)
+    if restricted:
+        expected_labels.pop("org.opencontainers.image.source")
+        if "org.opencontainers.image.source" in labels:
+            raise PublicationError(
+                "restricted image must not link package repository access"
+            )
+    for name, expected in expected_labels.items():
         if labels.get(name) != expected:
             raise PublicationError(f"OCI label {name} does not match")
 

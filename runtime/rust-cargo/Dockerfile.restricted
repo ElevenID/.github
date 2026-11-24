@@ -39,8 +39,7 @@ ARG SBOM_GENERATOR
 ARG SBOM_GENERATOR_LINUX_AMD64_DIGEST
 ARG PYTHON_BASE_IMAGE
 ARG PYTHON_BASE_LINUX_AMD64_DIGEST
-LABEL org.opencontainers.image.source="https://github.com/ElevenID/.github" \
-    io.elevenid.feature-regression.probe.repository="$PROBE_REPOSITORY" \
+LABEL io.elevenid.feature-regression.probe.repository="$PROBE_REPOSITORY" \
     io.elevenid.feature-regression.probe.revision="$PROBE_REVISION" \
     io.elevenid.feature-regression.probe.manifest="$PROBE_MANIFEST_PATH" \
     io.elevenid.feature-regression.probe.manifest-sha256="$PROBE_MANIFEST_SHA256" \

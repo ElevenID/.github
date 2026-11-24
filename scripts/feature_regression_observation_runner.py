@@ -856,6 +856,8 @@ def _atomic_write(output: pathlib.Path, content: bytes) -> None:
 
 def _produce(args: argparse.Namespace) -> None:
     registry_token = os.environ.pop("RUST_RUNTIME_PULL_TOKEN", "")
+    registry_username = os.environ.pop("RUST_RUNTIME_REGISTRY_USERNAME", "")
+    policy_token = os.environ.pop("GITHUB_TOKEN", "")
     harness = _safe_path(args.harness_path, "harness-path")
     subject = _safe_path(args.subject_path, "subject-path")
     output = _safe_path(args.output, "output")
@@ -872,7 +874,7 @@ def _produce(args: argparse.Namespace) -> None:
             )
         try:
             source_access_proof = source_access.admit_from_protected_main(
-                token=registry_token,
+                token=policy_token,
                 repository=args.repository,
                 revision=args.revision,
                 runtime_image=args.runtime_image,
@@ -892,7 +894,7 @@ def _produce(args: argparse.Namespace) -> None:
                 docker=_docker_binary(),
                 image=args.runtime_image,
                 token=registry_token,
-                actor=os.environ.get("GITHUB_ACTOR", ""),
+                actor=registry_username,
                 run_process=_run_process,
             ) as pull_environment:
                 resolved_image_digest = _prepare_runtime_image(
@@ -907,6 +909,7 @@ def _produce(args: argparse.Namespace) -> None:
             _docker_binary(), args.runtime_image
         )
     registry_token = ""
+    policy_token = ""
     runtime_manifest = (
         _runtime_manifest(args, rust_build) if rust_build is not None else None
     )

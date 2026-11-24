@@ -34,8 +34,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def require_private_package(token: str) -> dict[str, str]:
     """Publisher/admin metadata check; the REST endpoint requires a classic PAT.
 
-    A workflow job token is used only for the consumer's registry pull below.
-    Do not silently substitute it for this independently qualified admin proof.
+    Registry pulls use a separate read-only classic PAT; job tokens must not
+    gain package access through the public publisher or consumer repository.
     """
     if re.fullmatch(r"[A-Za-z0-9_.\-]{8,512}", token) is None:
         raise RegistryAccessError(
@@ -75,11 +75,12 @@ def require_private_package(token: str) -> dict[str, str]:
         or document.get("name") != PACKAGE
         or document.get("package_type") != "container"
         or document.get("visibility") != "private"
+        or document.get("repository") is not None
         or not isinstance(document.get("owner"), dict)
         or str(document["owner"].get("login", "")).casefold() != "elevenid"
     ):
         raise RegistryAccessError(
-            "restricted runtime package must already exist and be private"
+            "restricted runtime package must already exist, be private and unlinked"
         )
     return {
         "name": PACKAGE,
@@ -235,6 +236,7 @@ def private_pull_environment(
         environment = os.environ.copy()
         for name in (
             "RUST_RUNTIME_PULL_TOKEN",
+            "RUST_RUNTIME_REGISTRY_USERNAME",
             "PRIVATE_FORKS_READ_TOKEN",
             "GITHUB_TOKEN",
             "GH_TOKEN",

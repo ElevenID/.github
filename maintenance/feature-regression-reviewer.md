@@ -577,22 +577,39 @@ No credentials, registry configuration or Docker socket may be passed to the
 candidate or harness containers. Review raw failures and any source-bearing
 publication evidence privately; only reviewed sanitized results may be public.
 
-The restricted producer requests `packages: read`; its exact caller template is
-selected only for restricted Rust images. Before pulling, the host requires an
-internal human-authored exact-head PR or current-main baseline and rejects
-forks, Dependabot, wrong refs and mismatched revisions. The job token is removed
-from the process environment, supplied to Docker login through standard input
-in a private temporary host configuration, and discarded with that configuration
-before any candidate or harness container starts. Anonymous registry
-authorization must be explicitly denied both before and after a successful
-authenticated pull of the exact digest; a network failure is not denial
-evidence. No registry configuration is mounted into a container.
+The restricted producer and its exact caller request no `packages` permission.
+GitHub warns that granting a public repository Actions access to a private
+package may also expose it to forks. Do not grant the public publisher or
+consumer repository package access, link this package to either repository,
+or add the `org.opencontainers.image.source` label to restricted images.
+Keep the package unlinked with no repository Actions-access grants; confirm
+these settings before dispatch and after publication. Private visibility and
+anonymous denial alone do not prove that repository job tokens lack access.
+See [GitHub's package access-control documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+Registry access instead uses a dedicated classic PAT with `read:packages` and
+package-read access, supplied as `RUST_RUNTIME_PACKAGE_READ_TOKEN`, with the
+PAT owner's username in `RUST_RUNTIME_PACKAGE_USERNAME`. The caller maps only
+these two declared reusable-workflow secrets; `secrets: inherit` and job-token
+fallback are not permitted. Fork PRs do not receive these repository secrets.
+Before pulling, the host additionally requires an internal human-authored
+exact-head PR or current-main baseline and rejects forks, Dependabot, wrong
+refs and mismatched revisions. These execution gates supplement the package
+access boundary; they cannot repair an overbroad package grant.
+
+The host removes both the registry credential and the separate contents-read
+job token from its environment. Only the job token reads the protected-main
+source-grant catalog. Only the package-read PAT is supplied to Docker login
+through standard input in a private temporary host configuration, which is
+discarded before any candidate or harness container starts. Anonymous registry
+authorization must be explicitly denied before and after a successful pull
+of the exact digest; network failure is not denial evidence. No credentials,
+registry configuration or Docker socket enter candidate or harness containers.
 
 The [package REST metadata endpoint](https://docs.github.com/en/rest/packages/packages#get-a-package-for-an-organization)
-documents classic-PAT authentication. The consumer does not assume its job token
-supports that endpoint. Publisher/admin private-visibility proof remains a
-separate qualified operation. [Actions package access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
-must be explicitly limited to the intended consumer repository.
+uses a separate qualified classic metadata-read PAT. It must confirm the fixed
+private package is unlinked. It does not enumerate Actions-access grants, so
+the explicit settings inspection above remains required.
 
 ### Restricted runtime publication sequence
 
@@ -604,8 +621,15 @@ Python import namespace. No other central workflow gains source-reader access.
 Changes to this closure require independent review before admission.
 
 Before dispatch, an operator must precreate the fixed restricted package using
-source-free content, confirm private visibility, authorize the central publisher
-for package write, and provide the separate classic metadata-read credential.
+source-free content, confirm private visibility and no repository link or Actions
+access grants, and provide the separate classic metadata-read credential.
+Publication uses a dedicated classic `write:packages` PAT whose account has
+write access only to the intended package, stored as
+`RUST_RUNTIME_PACKAGE_WRITE_TOKEN`, with its owner username in
+`RUST_RUNTIME_PACKAGE_USERNAME`. Do not reuse a broad human repository token
+or the dependency source-reader credential. Do not provision credentials or
+publish source-bearing images until this access boundary has been independently
+reviewed and qualified. No registry credential is supplied to a build container.
 The publisher requires successful private-package metadata checks before any
 source-bearing push, after runtime publication, and after evidence publication.
 Missing packages, unavailable metadata, wrong owners/types and public visibility

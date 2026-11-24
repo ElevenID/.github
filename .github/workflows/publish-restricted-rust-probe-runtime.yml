@@ -31,7 +31,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -96,7 +95,8 @@ jobs:
           LOCK_SHA256: ${{ steps.bundle.outputs.lock_sha256 }}
           SUBJECT_PATH: ${{ steps.bundle.outputs.subject_path }}
           SUBJECT_SHA256: ${{ steps.bundle.outputs.subject_sha256 }}
-          GHCR_TOKEN: ${{ github.token }}
+          GHCR_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/rust-runtime-private-evidence"
@@ -157,7 +157,7 @@ jobs:
             --format '{{json .Manifest}}' > "$artifact_dir/rust-base-index.json"
           docker buildx imagetools inspect "$RUST_PYTHON_BASE_IMAGE" \
             --format '{{json .Manifest}}' > "$artifact_dir/python-base-index.json"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
           docker buildx build --pull --push --provenance=mode=max,version=v1 \
             --sbom="generator=$RUST_SBOM_GENERATOR" \
             --platform linux/amd64 \
@@ -222,7 +222,8 @@ jobs:
         id: evidence
         shell: bash
         env:
-          GHCR_TOKEN: ${{ github.token }}
+          GHCR_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
         run: |
@@ -249,7 +250,7 @@ jobs:
           buildx_verified=1
           export DOCKER_CONFIG="$auth_config"
           docker buildx create --name "$builder_name" --driver docker-container --driver-opt "image=$RUST_BUILDKIT_IMAGE" --use >/dev/null
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
           docker buildx build --push --provenance=false --sbom=false --platform linux/amd64 \
             --file runtime/rust-cargo/Dockerfile.evidence \
             --metadata-file "$RUNNER_TEMP/rust-evidence-image.json" \

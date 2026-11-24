@@ -113,15 +113,15 @@ NATIVE_FLUTTER_INPUTS = {
 # recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
-    '.github/workflows/publish-restricted-rust-probe-runtime.yml': '89a022c8b83acba7674d00dc355b5b2c9f3055f2d6dcaa5ec7de71698e95bb94',
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': '260c2bbd28f721234828eed92f37a0f9d3b2bd59d51856a50d64380723875628',
     'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
-    'scripts/feature_regression_observation_runner.py': '28ecb298d4195f901277b8de30d5f2b6ab06f18fb70fdfdd752e600ff0c38fbe',
+    'scripts/feature_regression_observation_runner.py': '6f9a1ae03df671b46b33a78dd0528a36170aed7600ba60039c886f23f3d29e34',
     'scripts/rust_runtime_source_access.py': '7d87c3f9fc06e472666d59d0a582782ca8087563566bf2f421d8c49a27712969',
-    'scripts/rust_runtime_registry.py': '12a7f56004ca4bba81da36aab6eae4e373327c069414c57a4133847ca6c25336',
-    'scripts/rust_runtime_publication.py': '01ee4880f6739016b7497a7d3b8b0f4bc7b489260d82a214148f77f1f1b21edf',
+    'scripts/rust_runtime_registry.py': '64f5b79413fcce7cafb651364324925530f4e6eb688e63ba6dd6e7d23b2390f9',
+    'scripts/rust_runtime_publication.py': '0fdfc05f972df4611ab045cc6cb49024b0be30b38922a7127100eba0a7f6e0e4',
     'runtime/rust-cargo/bundles.json': '95cdb9f5004fd723e0a51afcc6ac3ed19af07b6d6ed10b5dafab1946a4b5180a',
-    'runtime/rust-cargo/Dockerfile.restricted': '91c5fb1cae6f58351fcfa203a36729e0ea03865309821b4b3ab58c3edc28d996',
+    'runtime/rust-cargo/Dockerfile.restricted': '8642bbeadc4163ec15e3c02e16ceb0e604e2550979c498fc3ea97177b46a7de9',
     'runtime/rust-cargo/Dockerfile.restricted.dockerignore': 'aa8ab9f5dc030bd71ecfd108dcb2215a51292356bb49562a31daf3c29aa528a5',
     'runtime/rust-cargo/Dockerfile.evidence': 'd0a02b08c8c65d16e0710a798970adba09ddd3c7c48c2786b70c927eef0e042d',
     'runtime/rust-cargo/run-rust-probe': '8c7f2863e811cab5d41ab047c33205b87edbda2bf98aa17130383439cd8df96b',

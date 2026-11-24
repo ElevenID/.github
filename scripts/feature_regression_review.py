@@ -1170,7 +1170,13 @@ def _expected_producer_workflow(producer: ProducerContract) -> bytes:
         + ("-restricted" if restricted else "")
         + ".yml"
     )
-    packages_permission = "  packages: read\n" if restricted else ""
+    registry_secrets = (
+        "    secrets:\n"
+        "      RUST_RUNTIME_PACKAGE_READ_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_READ_TOKEN }}\n"
+        "      RUST_RUNTIME_PACKAGE_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}\n"
+        if restricted
+        else ""
+    )
     if producer.rust_build is not None:
         rust_build_json = json.dumps(
             producer.rust_build.document(), sort_keys=True, separators=(",", ":")
@@ -1190,11 +1196,11 @@ on:
 permissions:
   actions: read
   contents: read
-{packages_permission}
+
 jobs:
   behavior-observations:
     uses: ElevenID/.github/.github/workflows/{producer_filename}@{producer.central_workflow_sha}
-    with:
+{registry_secrets}    with:
       policy-ref: {producer.central_workflow_sha}
       target-ref: ${{{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}}}
       phase: ${{{{ github.event_name == 'pull_request' && 'after' || 'before' }}}}

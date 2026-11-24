@@ -698,6 +698,9 @@ class ObservationRunnerTests(unittest.TestCase):
         def host_process(command, environment, **options):
             commands.append(command)
             self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", environment)
+            self.assertNotIn("GITHUB_TOKEN", environment)
+            if command[1] == "login":
+                self.assertEqual("package-reader", command[4])
             self.assertNotIn("fixture-runtime-credential", " ".join(command))
             return b"", b""
 
@@ -706,11 +709,15 @@ class ObservationRunnerTests(unittest.TestCase):
             config_paths.append(pathlib.Path(pull_environment["DOCKER_CONFIG"]))
             self.assertTrue(config_paths[-1].is_dir())
             self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", os.environ)
+            self.assertNotIn("RUST_RUNTIME_REGISTRY_USERNAME", os.environ)
+            self.assertNotIn("GITHUB_TOKEN", os.environ)
             return selected.rsplit("@", 1)[1]
 
         def before_candidate(*_):
             self.assertFalse(config_paths[-1].exists())
             self.assertNotIn("RUST_RUNTIME_PULL_TOKEN", os.environ)
+            self.assertNotIn("RUST_RUNTIME_REGISTRY_USERNAME", os.environ)
+            self.assertNotIn("GITHUB_TOKEN", os.environ)
             raise RuntimeError("unit-test stop before candidate execution")
 
         with (
@@ -722,10 +729,14 @@ class ObservationRunnerTests(unittest.TestCase):
                 os.environ,
                 {
                     "RUST_RUNTIME_PULL_TOKEN": "fixture-runtime-credential",
+                    "RUST_RUNTIME_REGISTRY_USERNAME": "package-reader",
+                    "GITHUB_TOKEN": "fixture-policy-token",
                     "GITHUB_ACTOR": "author",
                 },
             ),
-            mock.patch.object(runner.source_access, "admit_from_protected_main"),
+            mock.patch.object(
+                runner.source_access, "admit_from_protected_main"
+            ) as admit,
             mock.patch.object(runner.runtime_registry, "require_execution_context"),
             mock.patch.object(runner.runtime_registry, "require_anonymous_pull_denied"),
             mock.patch.object(runner, "_run_process", side_effect=host_process),
@@ -743,6 +754,7 @@ class ObservationRunnerTests(unittest.TestCase):
                     rust_build_json=json.dumps(build),
                 )
         self.assertEqual(["login", "logout"], [command[1] for command in commands])
+        self.assertEqual("fixture-policy-token", admit.call_args.kwargs["token"])
         self.container_mock.assert_not_called()
 
     def test_rust_build_rejects_lexical_escape_wrong_binary_and_toolchain_env(
@@ -788,7 +800,7 @@ class ObservationRunnerTests(unittest.TestCase):
             "path/with\ttab",
             "path/with\0nul",
             "path/with\x7fdelete",
-            "path/unicodé",
+            "path/unicodÃ©",
             r"path\ambiguous",
             "a" * 513,
         ):

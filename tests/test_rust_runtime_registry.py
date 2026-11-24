@@ -93,7 +93,7 @@ class RegistryTests(unittest.TestCase):
                 },
             )
 
-    def test_only_restricted_caller_requests_package_read_and_host_token_step(
+    def test_restricted_caller_maps_explicit_package_secrets_without_job_token_access(
         self,
     ) -> None:
         fields = dict(
@@ -121,7 +121,18 @@ class RegistryTests(unittest.TestCase):
             )
         )
         self.assertNotIn("packages", public["permissions"])
-        self.assertEqual("read", private["permissions"]["packages"])
+        self.assertNotIn("packages", private["permissions"])
+        self.assertNotIn("secrets", public["jobs"]["behavior-observations"])
+        self.assertEqual(
+            {
+                name: "${{ secrets." + name + " }}"
+                for name in (
+                    "RUST_RUNTIME_PACKAGE_READ_TOKEN",
+                    "RUST_RUNTIME_PACKAGE_USERNAME",
+                )
+            },
+            private["jobs"]["behavior-observations"]["secrets"],
+        )
         self.assertIn(
             "feature-regression-observation-producer-restricted.yml@",
             private["jobs"]["behavior-observations"]["uses"],
@@ -133,7 +144,11 @@ class RegistryTests(unittest.TestCase):
                 / ".github/workflows/feature-regression-observation-producer-restricted.yml"
             ).read_text(encoding="utf-8")
         )
-        self.assertEqual("read", workflow["permissions"]["packages"])
+        self.assertNotIn("packages", workflow["permissions"])
+        self.assertEqual(
+            {"RUST_RUNTIME_PACKAGE_READ_TOKEN", "RUST_RUNTIME_PACKAGE_USERNAME"},
+            set(workflow.get("on", workflow.get(True))["workflow_call"]["secrets"]),
+        )
         jobs = workflow["jobs"]
         self.assertEqual({"generate"}, set(jobs))
         token_steps = [
@@ -143,9 +158,51 @@ class RegistryTests(unittest.TestCase):
         ]
         self.assertEqual(1, len(token_steps))
         self.assertEqual(
-            "${{ github.token }}", token_steps[0]["env"]["RUST_RUNTIME_PULL_TOKEN"]
+            "${{ secrets.RUST_RUNTIME_PACKAGE_READ_TOKEN }}",
+            token_steps[0]["env"]["RUST_RUNTIME_PULL_TOKEN"],
         )
         self.assertIn("feature_regression_observation_runner.py", token_steps[0]["run"])
+
+    def test_restricted_publisher_uses_dedicated_write_credentials(self) -> None:
+        root = pathlib.Path(__file__).parents[1]
+        workflow = yaml.safe_load(
+            (
+                root / ".github/workflows/publish-restricted-rust-probe-runtime.yml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("packages", workflow["permissions"])
+        job = workflow["jobs"]["publish"]
+        self.assertNotIn("packages", job["permissions"])
+        steps = [step for step in job["steps"] if "GHCR_TOKEN" in step.get("env", {})]
+        self.assertEqual(2, len(steps))
+        for step in steps:
+            self.assertEqual(
+                "${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}",
+                step["env"]["GHCR_TOKEN"],
+            )
+            self.assertEqual(
+                "${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}",
+                step["env"]["GHCR_USERNAME"],
+            )
+            self.assertIn('--username "$GHCR_USERNAME" --password-stdin', step["run"])
+        self.assertNotIn(
+            "org.opencontainers.image.source",
+            (root / "runtime/rust-cargo/Dockerfile.restricted").read_text(),
+        )
+
+    def test_missing_package_credential_has_no_job_token_fallback(self) -> None:
+        run = mock.Mock()
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": TOKEN}):
+            with self.assertRaises(registry.RegistryAccessError):
+                with registry.private_pull_environment(
+                    docker="docker",
+                    image=IMAGE,
+                    token="",
+                    actor="package-reader",
+                    run_process=run,
+                ):
+                    self.fail("missing package PAT was accepted")
+        run.assert_not_called()
 
     def test_forks_bots_wrong_event_revision_or_ref_are_refused(self) -> None:
         mutations = [
@@ -219,6 +276,7 @@ class RegistryTests(unittest.TestCase):
             {"name": "other"},
             {"owner": {"login": "other"}},
             {"package_type": "npm"},
+            {"repository": {"full_name": "ElevenID/public"}},
         ):
             with mock.patch.object(
                 registry.urllib.request,

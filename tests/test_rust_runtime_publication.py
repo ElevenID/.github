@@ -253,6 +253,9 @@ class RustRuntimePublicationTests(unittest.TestCase):
 
     def private_evidence(self, root: pathlib.Path) -> pathlib.Path:
         self.evidence(root)
+        labels = json.loads((root / "labels.json").read_text(encoding="utf-8"))
+        labels.pop("org.opencontainers.image.source")
+        write_json(root / "labels.json", labels)
         for name in ("package-before.json", "package-after.json"):
             write_json(
                 root / name,
@@ -299,6 +302,17 @@ class RustRuntimePublicationTests(unittest.TestCase):
                 publication.bind_private_evidence(
                     result, evidence_image, root / "package-after.json"
                 )
+
+    def test_restricted_image_refuses_repository_linking_label(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.private_evidence(pathlib.Path(temporary))
+            labels = json.loads((root / "labels.json").read_text(encoding="utf-8"))
+            labels["org.opencontainers.image.source"] = (
+                "https://github.com/ElevenID/.github"
+            )
+            write_json(root / "labels.json", labels)
+            with self.assertRaisesRegex(publication.PublicationError, "must not link"):
+                self.validate_private(root)
 
     def test_private_publication_refuses_missing_or_public_package_proof(self) -> None:
         for name in ("package-before.json", "package-after.json"):

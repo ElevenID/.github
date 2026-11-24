@@ -54,10 +54,15 @@ on:
         type: string
         required: true
 
+    secrets:
+      RUST_RUNTIME_PACKAGE_READ_TOKEN:
+        required: true
+      RUST_RUNTIME_PACKAGE_USERNAME:
+        required: true
+
 permissions:
   actions: read
   contents: read
-  packages: read
 
 jobs:
   generate:
@@ -94,7 +99,9 @@ jobs:
           PHASE: ${{ inputs.phase }}
           POLICY_REF: ${{ inputs.policy-ref }}
           RUNTIME_IMAGE: ${{ inputs.runtime-image }}
-          RUST_RUNTIME_PULL_TOKEN: ${{ github.token }}
+          RUST_RUNTIME_PULL_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_READ_TOKEN }}
+          RUST_RUNTIME_REGISTRY_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}
+          GITHUB_TOKEN: ${{ github.token }}
           RUST_BUILD_JSON: ${{ inputs.rust-build-json }}
           SUBJECT_ARGS_JSON: ${{ inputs.subject-args-json }}
           SUBJECT_ENV_JSON: ${{ inputs.subject-env-json }}
