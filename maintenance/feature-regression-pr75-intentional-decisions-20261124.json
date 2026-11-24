@@ -1,0 +1,1389 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "policy.restricted-producer-source.restricted-producer-permission-tamper.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "restricted producer workflow source and permissions",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted observation producer differs from reviewed public source",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:3fa8e5d76ab7360f89768b44b3d85892f779a661440f8dbbbcec39517c119702",
+      "compatibility_impact": "A reusable producer definition and its bounded permissions become available; existing public services keep their behavior.",
+      "replacement_behavior": "A restricted producer workflow with modified permissions is rejected before it can be trusted.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-producer-source.restricted-producer-permission-tamper.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "restricted producer workflow source and permissions",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A reusable producer definition and its bounded permissions become available; existing public services keep their behavior.",
+      "replacement_behavior": "A restricted producer workflow with modified permissions is rejected before it can be trusted.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-producer-source.restricted-producer-permission-tamper.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "restricted producer workflow source and permissions",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "ValueError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:c66f1f5960a9fbd1f9cfcc1daf9d1339dffd2ed83b88a6ca09997cb44373c34b",
+      "compatibility_impact": "A reusable producer definition and its bounded permissions become available; existing public services keep their behavior.",
+      "replacement_behavior": "A restricted producer workflow with modified permissions is rejected before it can be trusted.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-producer-source.restricted-producer-valid.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "restricted producer workflow source and permissions",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A reusable producer definition and its bounded permissions become available; existing public services keep their behavior.",
+      "replacement_behavior": "The reusable restricted producer accepts only its fixed caller inputs, read permissions and dedicated package secrets.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-producer-source.restricted-producer-valid.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "restricted producer workflow source and permissions",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "permissions": {
+            "actions": "read",
+            "contents": "read"
+          },
+          "private_secret_names": [
+            "RUST_RUNTIME_PACKAGE_READ_TOKEN",
+            "RUST_RUNTIME_PACKAGE_USERNAME"
+          ],
+          "sha256": "9482f2e9ba9696de7ae671b5be038600b80bc67d91c1587c08a2e645c91c2f19"
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:be8d6cda37e6a161b321c8298a0edcf0544ce104ea746dcb09387686a68015d8",
+      "compatibility_impact": "A reusable producer definition and its bounded permissions become available; existing public services keep their behavior.",
+      "replacement_behavior": "The reusable restricted producer accepts only its fixed caller inputs, read permissions and dedicated package secrets.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-publisher.restricted-publisher-tampered-input.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact publisher workflow and source closure",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": [
+        "unreviewed restricted publisher input"
+      ],
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:c426e2b7cec930b1e688cb6bc8a6c367abbf28acbf744c1d9ed85b414e9b9c84",
+      "compatibility_impact": "The main-only private runtime publisher becomes available under an exact source closure; no publisher existed in the baseline.",
+      "replacement_behavior": "A changed publisher input is rejected before credential-bearing helpers can run.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-publisher.restricted-publisher-tampered-input.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact publisher workflow and source closure",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "The main-only private runtime publisher becomes available under an exact source closure; no publisher existed in the baseline.",
+      "replacement_behavior": "A changed publisher input is rejected before credential-bearing helpers can run.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-publisher.restricted-publisher-tampered-input.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact publisher workflow and source closure",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": [
+          "unreviewed restricted publisher input"
+        ]
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:1ece0a7480fe788b824398f1614b47e38f90b6365b4da7d3f294f202792ed071",
+      "compatibility_impact": "The main-only private runtime publisher becomes available under an exact source closure; no publisher existed in the baseline.",
+      "replacement_behavior": "A changed publisher input is rejected before credential-bearing helpers can run.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-publisher.restricted-publisher-valid.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact publisher workflow and source closure",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "The main-only private runtime publisher becomes available under an exact source closure; no publisher existed in the baseline.",
+      "replacement_behavior": "The main-only publisher is admitted only when its exact workflow and transitive source closure match reviewed digests.",
+      "breaking_loss": false
+    },
+    {
+      "id": "policy.restricted-publisher.restricted-publisher-valid.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact publisher workflow and source closure",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": []
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:19d91fc46063d511a45361da1e629f00764d895b9400bbe3145e53aa387c7b12",
+      "compatibility_impact": "The main-only private runtime publisher becomes available under an exact source closure; no publisher existed in the baseline.",
+      "replacement_behavior": "The main-only publisher is admitted only when its exact workflow and transitive source closure match reviewed digests.",
+      "breaking_loss": false
+    },
+    {
+      "id": "producer.admission-order.producer-denied-before-pull.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "source admission before private image pull",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Restricted source admission now precedes a private image pull; a denied candidate cannot reach the registry.",
+      "replacement_behavior": "A denied protected-source candidate stops before any private registry artifact is fetched.",
+      "breaking_loss": false
+    },
+    {
+      "id": "producer.admission-order.producer-denied-before-pull.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "source admission before private image pull",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "events": [
+            "source-admission"
+          ],
+          "pull_before_admission": false
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:311a876e9ed5a7318af6f575fdbf0814c491cd72deeaeb664aab59fdecabed77",
+      "compatibility_impact": "Restricted source admission now precedes a private image pull; a denied candidate cannot reach the registry.",
+      "replacement_behavior": "A denied protected-source candidate stops before any private registry artifact is fetched.",
+      "breaking_loss": false
+    },
+    {
+      "id": "producer.pull-isolation.producer-isolated-runtime-pull.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "credential-scoped runtime image pull",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Private image pulls now use isolated host credentials that are removed before candidate execution.",
+      "replacement_behavior": "The private image pull uses host-only credentials and removes them before the candidate runtime executes.",
+      "breaking_loss": false
+    },
+    {
+      "id": "producer.pull-isolation.producer-isolated-runtime-pull.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "credential-scoped runtime image pull",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "inspection_excluded_private_config": true,
+          "pull_used_private_config": true,
+          "resolved_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:f4ea9ffc6dd0e02f5af448f0c0b67aac3dcc7463a34b46c8225d9eb1ef8df4ae",
+      "compatibility_impact": "Private image pulls now use isolated host credentials that are removed before candidate execution.",
+      "replacement_behavior": "The private image pull uses host-only credentials and removes them before the candidate runtime executes.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-invalid-credential.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted runtime package credential is missing or invalid",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:91ba58fe134457372eacdeeadd5d105269d67b45edf8ba2cfaddb38c3378bf7a",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "An invalid private registry credential is rejected before package access.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-invalid-credential.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "An invalid private registry credential is rejected before package access.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-invalid-credential.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "RegistryAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:7e2629f2dc98bd1e54696f97d058f72c4c1adbade66740345d140746ff78400c",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "An invalid private registry credential is rejected before package access.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-login-failure-cleanup.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A failed registry login still retires temporary credential state and does not execute candidate code.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-login-failure-cleanup.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "anonymous_denials": 1,
+          "events": [
+            "login",
+            "logout"
+          ],
+          "temporary_config_retired": true
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:4f7875b8991c64f18bc9f83cadaf0d0e3efd13f447cf950959234201d5d14ca9",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A failed registry login still retires temporary credential state and does not execute candidate code.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-pull-cleanup.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A completed private package pull retires its temporary registry credentials and configuration.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-pull-cleanup.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "anonymous_denials": 2,
+          "events": [
+            "login",
+            "logout"
+          ],
+          "temporary_config_retired": true
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:5eca68c491eb7e7108575ca95c8c06f57756344d6ad3db3cbea861a00b392bf0",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A completed private package pull retires its temporary registry credentials and configuration.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-untrusted-context.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted runtime execution context is not authorized",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:69302158e75580eebf56b45869408568c4b6ab83052ed01bb232133a665e315e",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A registry request outside the reviewed trust context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-untrusted-context.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A registry request outside the reviewed trust context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.registry-boundary.registry-untrusted-context.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private package and publisher context admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "RegistryAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:7e2629f2dc98bd1e54696f97d058f72c4c1adbade66740345d140746ff78400c",
+      "compatibility_impact": "Private package credentials gain explicit trust-context, host, and cleanup checks; invalid contexts are rejected.",
+      "replacement_behavior": "A registry request outside the reviewed trust context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-checked-in-catalog.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "The checked-in grant catalog is parsed and bound to its exact digest; its presence alone does not grant a candidate.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-checked-in-catalog.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "grant_count": 0,
+          "sha256": "f851b95194774095a821c5132aa3b8e3e276dce0e2b59e0e1f05fd8208fcbf6d"
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:07b73c97258d5b0b1850810e99a59ddd755e64f8280390a1af10dfad7a1ce42b",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "The checked-in grant catalog is parsed and bound to its exact digest; its presence alone does not grant a candidate.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-duplicate-catalog-key.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "source-access catalog contains duplicate fields",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:ffb8ff9ee923424701d1bdf081673ace23947d032b27333315f6daf1deb171d7",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A grant catalog with duplicate keys is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-duplicate-catalog-key.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A grant catalog with duplicate keys is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-duplicate-catalog-key.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "SourceAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:981a43e19318fb0d7fbf853722968712e51b74d7d66efd147c037ee323db81e2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A grant catalog with duplicate keys is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-empty-grants.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "An empty grant catalog is valid configuration but authorizes no restricted source.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-empty-grants.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": []
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:19d91fc46063d511a45361da1e629f00764d895b9400bbe3145e53aa387c7b12",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "An empty grant catalog is valid configuration but authorizes no restricted source.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-invalid-catalog.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "source-access catalog fields are invalid",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:545ba79d3eb740b12cf73e8b5cb80684151305a28024e1e02661fcc7b34cb1d1",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "Malformed or schema-invalid checked-in grant data is rejected; valid protected-main grant changes remain possible.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-invalid-catalog.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "Malformed or schema-invalid checked-in grant data is rejected; valid protected-main grant changes remain possible.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-invalid-catalog.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "SourceAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:981a43e19318fb0d7fbf853722968712e51b74d7d66efd147c037ee323db81e2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "Malformed or schema-invalid checked-in grant data is rejected; valid protected-main grant changes remain possible.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-local-lock.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A local, pinned lock may be parsed as a candidate input; parsing alone does not grant source access.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-local-lock.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": []
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:19d91fc46063d511a45361da1e629f00764d895b9400bbe3145e53aa387c7b12",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A local, pinned lock may be parsed as a candidate input; parsing alone does not grant source access.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-positive-grant.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "An exact protected-main grant admits only its matching candidate and source closure.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-positive-grant.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": "sha256:7e640a9bea62761ba9f0352ccf5b73cc4785b43c86052ff37b60f8304578c4b4"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:c72701d4389e75a53a026c4fce42aa36853e34e6ed631e4bd7c8a96503dac664",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "An exact protected-main grant admits only its matching candidate and source closure.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-protected-current.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A current protected-main source grant proves the admitted candidate and lock.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-protected-current.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": null
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:c07b729c1335365ca4b460b5e58c93a1404333fe3df7dd063d21a011759ea5a2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A current protected-main source grant proves the admitted candidate and lock.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-protected-revoked.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted Rust source access is not admitted for this exact candidate",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:552b80d45572a6cb6365827a6ac4d6bed253694c3db677215f783874326168c1",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A revoked protected-main source grant fails verification.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-protected-revoked.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A revoked protected-main source grant fails verification.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-protected-revoked.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "SourceAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:981a43e19318fb0d7fbf853722968712e51b74d7d66efd147c037ee323db81e2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A revoked protected-main source grant fails verification.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unadmitted-candidate.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted Rust source access is not admitted for this exact candidate",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:552b80d45572a6cb6365827a6ac4d6bed253694c3db677215f783874326168c1",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A candidate absent from protected-main grants is denied source admission.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unadmitted-candidate.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A candidate absent from protected-main grants is denied source admission.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unadmitted-candidate.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "SourceAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:981a43e19318fb0d7fbf853722968712e51b74d7d66efd147c037ee323db81e2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A candidate absent from protected-main grants is denied source admission.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unpinned-git.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "source-access Git source must use exact HTTPS GitHub identity",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:db6f7088226401938a240d76a8460232bdeaea39889517e17a9e73b25e0f09ed",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A dependency without an exact reviewed Git revision is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unpinned-git.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A dependency without an exact reviewed Git revision is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-admission.source-unpinned-git.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "exact source closure admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "SourceAccessError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:981a43e19318fb0d7fbf853722968712e51b74d7d66efd147c037ee323db81e2",
+      "compatibility_impact": "A protected-main source grant catalog and exact lock admission now govern restricted source use.",
+      "replacement_behavior": "A dependency without an exact reviewed Git revision is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-missing-private-credential.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted runtime source credential is missing or invalid",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:e7b730fc04c5720455c0c09154ea1ad320a688bab73fe550a78fa655bfd35943",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching without its dedicated credential is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-missing-private-credential.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching without its dedicated credential is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-missing-private-credential.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "FetchError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:a767a543129cd4b0877e0daf87eec43a93a7222fca9e16f43fd63e507779e78e",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching without its dedicated credential is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-untrusted-context.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "restricted runtime source fetch requires protected main publisher dispatch",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:8176861708ae10088daef204b8062ba968aafe276553e12862dda5ff1a655b0c",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching outside the reviewed publisher context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-untrusted-context.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching outside the reviewed publisher context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-untrusted-context.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "FetchError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:a767a543129cd4b0877e0daf87eec43a93a7222fca9e16f43fd63e507779e78e",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "Private source fetching outside the reviewed publisher context is rejected.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-wrong-credential-host.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "A credential cannot be sent to an unapproved host; the reviewed host constraint is enforced.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted.source-fetch.fetch-wrong-credential-host.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "protected publisher and private source fetch boundary",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": ""
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:307d2ab5e6e231807dfecc3a9dbe4ebfe4b2149e0e4fa91e90bcfadbdab38116",
+      "compatibility_impact": "Private dependency fetching now requires the reviewed publisher context and constrained credential host.",
+      "replacement_behavior": "A credential cannot be sent to an unapproved host; the reviewed host constraint is enforced.",
+      "breaking_loss": false
+    },
+    {
+      "id": "reviewer.caller-selection.reviewer-restricted-caller.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer public or restricted caller selection",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "returned": {
+          "bytes": 1923,
+          "sha256": "174bb67db1f6d21e7be2eddf50591c645ffbf9279e654eb4cdefda49ee01bd78"
+        }
+      },
+      "after_value": {
+        "returned": {
+          "bytes": 2115,
+          "sha256": "cc7d5a74e0102ed67e26753740346cc2774adb1799a4ba43c92e76915c7c30a5"
+        }
+      },
+      "before_sha256": "sha256:132fcb12f94c287489e918f37195c23c755ebb076e0647824a7310e979038aef",
+      "after_sha256": "sha256:912bde116c9cc7bb0f2c33e77c8eb89e0f803832cf928a2d25b2d385ab81ef46",
+      "compatibility_impact": "The restricted reviewer caller now selects the bounded runtime producer; the caller digest changes.",
+      "replacement_behavior": "The reviewer selects the exact restricted producer caller digest and fixed Rust build contract.",
+      "breaking_loss": false
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-denied-before-artifact.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "Protected-source denial prevents the reviewer from fetching or accepting an artifact.",
+      "breaking_loss": false
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-denied-before-artifact.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "artifact_fetched": false,
+          "events": [
+            "public-lock",
+            "source-admission"
+          ]
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:4623039696614a849b866efeb101c5efa622aa891171d44a8e1913fcd4a8a7d4",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "Protected-source denial prevents the reviewer from fetching or accepting an artifact.",
+      "breaking_loss": false
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-missing-source-receipt.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "public fixture observation runtime_receipt fields do not match the schema; missing=['source_access'], extra=[]",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:43d642b0b6b87072f953dbd4e3eedce293d0a048e9656327f3df301c96bc03dd",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "A restricted artifact lacking a protected-source receipt is rejected; its producer must supply a current verified receipt.",
+      "breaking_loss": true
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-missing-source-receipt.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "accepted",
+      "after_value": "rejected",
+      "before_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "A restricted artifact lacking a protected-source receipt is rejected; its producer must supply a current verified receipt.",
+      "breaking_loss": true
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-missing-source-receipt.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "returned": {
+          "case_id": "fixture",
+          "dimension": "public_status",
+          "id": "fixture.public_status.before",
+          "operation_id": "fixture.validation",
+          "producer_test": "test:ElevenID/.github@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries",
+          "value": "accepted"
+        }
+      },
+      "after_value": {
+        "exception": "EvidenceError"
+      },
+      "before_sha256": "sha256:11aef01fab4f54a3f18c95fda103aba4e31c1c76233863e547b5c9197f45a43c",
+      "after_sha256": "sha256:51aa3f3511f5e1dcb035f52e3ef4d5a2d5e4e37ec63da6abd5dcee6bd961e433",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "A restricted artifact lacking a protected-source receipt is rejected; its producer must supply a current verified receipt.",
+      "breaking_loss": true
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-revoked-late-proof.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "A receipt whose protected-source proof was revoked is rejected after artifact download and before acceptance.",
+      "breaking_loss": false
+    },
+    {
+      "id": "reviewer.restricted-admission.reviewer-revoked-late-proof.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "reviewer protected source and restricted receipt admission",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "events": [
+            "public-lock",
+            "source-admission",
+            "run",
+            "jobs",
+            "artifacts",
+            "download",
+            "public-lock",
+            "source-proof"
+          ],
+          "late_proof_rejected": true
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:77c925fb65baf041e1df3e8b04a1ae4379852783e76acb724e3178d776e60f9b",
+      "compatibility_impact": "The reviewer now checks protected source admission and receipt revocation before accepting restricted artifacts.",
+      "replacement_behavior": "A receipt whose protected-source proof was revoked is rejected after artifact download and before acceptance.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.private-publication.private-evidence-bound.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private image evidence binding",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "accepted",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d288c584af270151f7b7cd7977b94160ce1d7b501dee2d6308f2ac84ebaacc99",
+      "compatibility_impact": "Private package publication now binds image, digest, source and evidence; public package substitutions are rejected.",
+      "replacement_behavior": "Private publication evidence binds the exact runtime image, source and digest.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.private-publication.private-evidence-bound.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private image evidence binding",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "returned": {
+          "distribution": "restricted",
+          "image": "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "private_evidence_bound": true,
+          "private_evidence_image": "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "private_evidence_package_after_sha256": "sha256:f3de39c1e72ea6b0cdc5f7b21584454990bc544849b0a22547bd9edf246f87a7",
+          "schema": "elevenid.rust-cargo-publication/v2"
+        }
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:422d99ea56344499abd118436ded243c87b636999d5b653cf67a78878ed6d8c4",
+      "compatibility_impact": "Private package publication now binds image, digest, source and evidence; public package substitutions are rejected.",
+      "replacement_behavior": "Private publication evidence binds the exact runtime image, source and digest.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.private-publication.private-evidence-public-package.public_message",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private image evidence binding",
+        "dimension": "public_message"
+      },
+      "approved_by": "burdettadam",
+      "before_value": null,
+      "after_value": "private evidence package visibility was not proven",
+      "before_sha256": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "after_sha256": "sha256:a072d000f95671ca3fd2963f085e0d955a8372afab7a5efcf40ac604e79b4f7e",
+      "compatibility_impact": "Private package publication now binds image, digest, source and evidence; public package substitutions are rejected.",
+      "replacement_behavior": "A public package cannot substitute for the required private publication evidence.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.private-publication.private-evidence-public-package.public_status",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private image evidence binding",
+        "dimension": "public_status"
+      },
+      "approved_by": "burdettadam",
+      "before_value": "not_present",
+      "after_value": "rejected",
+      "before_sha256": "sha256:ba1b28630784a8928d3a1460d68c2f4b8e342527da0bd84b553a07dc2c967e5a",
+      "after_sha256": "sha256:d5a7606c75f86f5046e5c8312a9819e4778be8ab33a7e8950d62f7ba620684fe",
+      "compatibility_impact": "Private package publication now binds image, digest, source and evidence; public package substitutions are rejected.",
+      "replacement_behavior": "A public package cannot substitute for the required private publication evidence.",
+      "breaking_loss": false
+    },
+    {
+      "id": "runtime.private-publication.private-evidence-public-package.safe_server_diagnostic",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "operation_dimension",
+        "operation": "private image evidence binding",
+        "dimension": "safe_server_diagnostic"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "availability": "absent"
+      },
+      "after_value": {
+        "exception": "PublicationError"
+      },
+      "before_sha256": "sha256:db7b28a2b54d567d41b3ea9bd0d4640cb4c781ce15fb25e7d93bd77fe0f0643f",
+      "after_sha256": "sha256:e30bcde7581cce373f2c5ac044a436d59025d87f1bd7597b48b2b11c1179a961",
+      "compatibility_impact": "Private package publication now binds image, digest, source and evidence; public package substitutions are rejected.",
+      "replacement_behavior": "A public package cannot substitute for the required private publication evidence.",
+      "breaking_loss": false
+    }
+  ]
+}
