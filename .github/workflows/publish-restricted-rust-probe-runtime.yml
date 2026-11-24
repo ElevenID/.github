@@ -122,6 +122,7 @@ jobs:
           buildx_path="$auth_config/cli-plugins/docker-buildx"
           builder_name="rust-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted:${BUNDLE_ID}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          build_log="$RUNNER_TEMP/restricted-runtime-build.log"
           buildx_verified=0
           image_digest=""
           cleanup() {
@@ -133,6 +134,7 @@ jobs:
               docker image rm --force "$image_digest" >/dev/null 2>&1 || true
             fi
             docker image rm --force "$image" >/dev/null 2>&1 || true
+            rm -f -- "$build_log"
             rm -rf -- "$auth_config" "$anonymous_config"
           }
           trap cleanup EXIT
@@ -175,7 +177,9 @@ jobs:
           docker buildx imagetools inspect "$RUST_PYTHON_BASE_IMAGE" \
             --format '{{json .Manifest}}' > "$artifact_dir/python-base-index.json"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
-          docker buildx build --pull --push --provenance=mode=max,version=v1 \
+          # Build scripts and compiler diagnostics may contain private vendor bytes.
+          # Keep the entire build stream off public Actions logs, including failure.
+          if ! docker buildx build --pull --push --provenance=mode=max,version=v1 \
             --sbom="generator=$RUST_SBOM_GENERATOR" \
             --platform linux/amd64 \
             --file runtime/rust-cargo/Dockerfile.restricted \
@@ -195,7 +199,11 @@ jobs:
             --build-arg "PYTHON_BASE_IMAGE=$RUST_PYTHON_BASE_IMAGE" \
             --build-arg "PYTHON_BASE_LINUX_AMD64_DIGEST=$RUST_PYTHON_BASE_LINUX_AMD64_DIGEST" \
             --metadata-file "$artifact_dir/build-metadata.json" \
-            --tag "$image" .
+            --tag "$image" . > "$build_log" 2>&1; then
+            printf '%s\n' 'Restricted runtime build failed; private diagnostics were not published.' >&2
+            exit 1
+          fi
+          rm -f -- "$build_log"
           digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
             "$artifact_dir/build-metadata.json")"
           image_digest="ghcr.io/elevenid/feature-regression-rust-cargo-restricted@${digest}"

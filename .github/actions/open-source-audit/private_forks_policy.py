@@ -113,7 +113,7 @@ NATIVE_FLUTTER_INPUTS = {
 # recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
-    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'b216f281f46fd9f3a8ba5675943c6dcd5e4fe5cbc47aa662cf8ecd363851f1cf',
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'd7896f7e50027a2c4c4f6d59102a62ad333acce4150cd88440f149615ac03b5f',
     'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
     'scripts/feature_regression_observation_runner.py': '6f9a1ae03df671b46b33a78dd0528a36170aed7600ba60039c886f23f3d29e34',
