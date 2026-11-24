@@ -208,7 +208,8 @@ def probe_cases():
                          ("target-wrong-binary", "binary")]:
         case("runtime.bundle-target", name, target_case(change))
 
-    case("runtime.bundle-output", "github-output-valid", lambda: bundle.github_output_bytes(record).decode("ascii"))
+    case("runtime.bundle-output", "github-output-valid",
+         lambda: bundle.github_output_bytes(record).decode("ascii").splitlines())
     case("runtime.bundle-output", "github-output-control-character",
          lambda: bundle.github_output_bytes({**record, "id": "public\nunsafe"}))
 
@@ -221,7 +222,8 @@ def probe_cases():
                 if change == "symlink":
                     output.symlink_to(Path(directory) / "private-target")
                 runner._atomic_write(output, b"public observation\n")
-                return output.read_bytes().decode("ascii")
+                content = output.read_bytes()
+                return {"sha256": hashlib.sha256(content).hexdigest(), "bytes": len(content)}
         return run
 
     for name, change in [("atomic-new", None), ("atomic-existing", "existing"),

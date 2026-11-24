@@ -44,6 +44,17 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(b"", result.stderr)
         document = json.loads(result.stdout)
         self.assertEqual("elevenid.behavior-subject-output/v2", document["schema"])
+        def require_sanitized(value):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    require_sanitized(key)
+                    require_sanitized(child)
+            elif isinstance(value, list):
+                for child in value:
+                    require_sanitized(child)
+            elif isinstance(value, str):
+                self.assertTrue(all(ord(character) >= 32 and ord(character) != 127 for character in value), repr(value))
+        require_sanitized(document)
         identities = [(item["operation_id"], item["case_id"], item["dimension"]) for item in document["observations"]]
         self.assertEqual(len(identities), len(set(identities)))
         return {item["case_id"]: item["value"] for item in document["observations"] if item["dimension"] == "public_status"}
