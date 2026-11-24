@@ -31,12 +31,17 @@ conversation resolution, linear history and the protected merge queue remain
 in force. The reviewer must record that this is a bounded bootstrap exception,
 not ordinary passing applicable evidence.
 
-After a protected merge, the new main push must produce its real before
-artifact. A separately reviewed activation change may set
+After a protected merge, a separately reviewed activation change may set
 `maintenance/feature-regression-approved-revisions.json` to the exact merged
 reviewer implementation revision while keeping `enabled_repositories` empty.
-That activation requires its own exact-source review and normal protected
-checks; no guessed pre-merge SHA or broad revision allowance is authorized.
+The same bounded activation must pin the behavior caller's reusable workflow
+`uses` and `policy-ref`, and the catalog's `central_workflow_sha`, to that
+same approved revision, then refresh the caller digest in the catalog. The
+subject and harness bytes must remain unchanged. The activation requires
+its own exact-source review and normal protected checks; no guessed
+pre-merge SHA or broad revision allowance is authorized. After this
+protected activation merge, obtain the real before artifact from its exact
+main push with these aligned producer inputs.
 
 PR #75 must then rebase onto that enrolled and activated base, produce a fresh
 after artifact with byte-identical producer inputs, and satisfy ordinary
