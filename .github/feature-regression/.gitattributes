@@ -1,2 +1,4 @@
 # Preserve the upstream bytes that the immutable subject verifies before import.
+*.py text eol=lf
+*.json text eol=lf
 vendor/** -text

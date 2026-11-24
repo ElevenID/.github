@@ -22,7 +22,7 @@ import types  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 VENDOR = Path(__file__).resolve().parent / "vendor"
-DEPENDENCY_MANIFEST_SHA256 = "97ad23048e430f54d7ae239d17ba0d57ed3195d8f5a982adb90baca527e3cdd9"
+DEPENDENCY_MANIFEST_SHA256 = "23ac0f2baf1cf33ba59deb277414b9db0bec82365c3009b26ea9bae7d12b6acb"
 SCRIPT_NAMES = {
     "dependency_health.py", "feature_regression_observation_runner.py",
     "feature_regression_review.py", "prune_local_evidence.py",
@@ -62,7 +62,7 @@ def verified_dependencies():
         raise ValueError("production script import namespace changed")
     action = ROOT / ".github/actions/open-source-audit"
     if action.is_symlink() or any(
-        path.name not in {"action.yml", "audit.py", "private_forks_policy.py"}
+        path.name not in {"README.md", "action.yml", "audit.py", "private_forks_policy.py"}
         or path.is_symlink() or not path.is_file() for path in action.iterdir()
     ):
         raise ValueError("source policy import namespace changed")
