@@ -12,9 +12,12 @@ sys.path[:] = [path for path in sys.path if path and path.startswith(sys.base_pr
 sys.dont_write_bytecode = True
 
 import argparse  # noqa: E402
+import base64  # noqa: E402
 import hashlib  # noqa: E402
 import importlib.util  # noqa: E402
+import io  # noqa: E402
 import json  # noqa: E402
+import os  # noqa: E402
 from pathlib import Path  # noqa: E402
 import tempfile  # noqa: E402
 import types  # noqa: E402
@@ -291,6 +294,96 @@ def probe_cases():
                          ("observation-missing", "missing"), ("observation-wrong-phase", "phase")]:
         case("producer.observation-binding", name, observation_case(change))
 
+    def pull_environment_case():
+        if "pull_environment" not in runner._prepare_runtime_image.__code__.co_varnames:
+            raise ProductionOwnerAbsent("isolated runtime pull argument is absent at this revision")
+        original = runner._run_process
+        seen = []
+        image = "node:24.15.0-bookworm@sha256:" + "a" * 64
+
+        def public_process(command, environment, **arguments):
+            seen.append((command[1], environment.get("DOCKER_CONFIG")))
+            if command[1] == "pull":
+                return b"", b""
+            if command[1] == "image":
+                return json.dumps([image]).encode(), b""
+            raise ValueError("runtime pull fixture received an unexpected command")
+
+        runner._run_process = public_process
+        try:
+            digest = runner._prepare_runtime_image(
+                "docker", image, pull_environment={"DOCKER_CONFIG": "public-fixture-config"},
+            )
+        finally:
+            runner._run_process = original
+        if digest != "sha256:" + "a" * 64 or seen != [
+            ("pull", "public-fixture-config"), ("image", None),
+        ]:
+            raise ValueError("runtime pull fixture crossed its credential boundary")
+        return {"resolved_digest": digest, "pull_used_private_config": True,
+                "inspection_excluded_private_config": True}
+
+    case("producer.pull-isolation", "producer-isolated-runtime-pull", pull_environment_case)
+
+    def admission_order_case():
+        if not hasattr(runner, "source_access"):
+            raise ProductionOwnerAbsent("restricted producer admission is absent at this revision")
+        saved = (runner._verify_file, runner._rust_build, runner._docker_binary,
+                 runner._prepare_runtime_image, runner.source_access.admit_from_protected_main)
+        events = []
+
+        def deny_admission(**arguments):
+            events.append("source-admission")
+            if arguments.get("token") != "publicfixture123" or "GITHUB_TOKEN" in os.environ:
+                raise ValueError("producer credential fixture was not consumed safely")
+            raise runner.source_access.SourceAccessError("public fixture denied")
+
+        def forbidden_pull(*arguments, **keywords):
+            events.append("pull-before-admission")
+            raise ValueError("runtime pull preceded source admission")
+
+        environment = {name: os.environ.get(name) for name in (
+            "RUST_RUNTIME_PULL_TOKEN", "RUST_RUNTIME_REGISTRY_USERNAME", "GITHUB_TOKEN",
+        )}
+        for name in environment:
+            os.environ[name] = "publicfixture123"
+        runner._verify_file = lambda *arguments: None
+        runner._rust_build = lambda arguments: {"lock_path": "runtime/rust-cargo/bundles.json",
+                                                 "runtime_manifest_sha256": "sha256:" + "a" * 64}
+        runner._docker_binary = forbidden_pull
+        runner._prepare_runtime_image = forbidden_pull
+        runner.source_access.admit_from_protected_main = deny_admission
+        try:
+            arguments = argparse.Namespace(
+                harness_path=".github/feature-regression/observation_harness.py",
+                subject_path=".github/feature-regression/behavior_subject.py",
+                output="public-fixture-observations.json",
+                runtime_image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "b" * 64,
+                repository="ElevenID/example", revision="a" * 40, event_name="pull_request",
+                harness_sha256="sha256:" + "a" * 64,
+                subject_sha256="sha256:" + "a" * 64,
+            )
+            try:
+                runner._produce(arguments)
+            except runner.RunnerError as error:
+                if str(error) != "public fixture denied":
+                    raise
+            else:
+                raise ValueError("source admission denial was ignored")
+            if events != ["source-admission"]:
+                raise ValueError("producer attempted a pull before source admission")
+            return {"events": events, "pull_before_admission": False}
+        finally:
+            (runner._verify_file, runner._rust_build, runner._docker_binary,
+             runner._prepare_runtime_image, runner.source_access.admit_from_protected_main) = saved
+            for name, value in environment.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+    case("producer.admission-order", "producer-denied-before-pull", admission_order_case)
+
     registry = optional_production_module("scripts.rust_runtime_registry", "scripts/rust_runtime_registry.py")
     access = optional_production_module("scripts.rust_runtime_source_access", "scripts/rust_runtime_source_access.py")
     fetch = optional_production_module("scripts.rust_runtime_source_fetch", "scripts/rust_runtime_source_fetch.py")
@@ -302,6 +395,70 @@ def probe_cases():
              repository="ElevenID/.github", revision="a" * 40,
              event_name="workflow_dispatch", environment={},
          )))
+
+    def registry_pull_case(fail_login=False):
+        def invoke(module):
+            original_opener = module.urllib.request.build_opener
+            original_environment = {name: os.environ.get(name) for name in (
+                "RUST_RUNTIME_PULL_TOKEN", "PRIVATE_FORKS_READ_TOKEN", "GITHUB_TOKEN",
+            )}
+            events = []
+            configs = []
+            denials = []
+
+            class DeniedOpener:
+                def open(self, request, timeout):
+                    denials.append(request.full_url.split("?", 1)[0])
+                    raise module.urllib.error.HTTPError(
+                        request.full_url, 401, "denied", {},
+                        io.BytesIO(b'{"errors":[{"code":"DENIED"}]}'),
+                    )
+
+            def public_process(command, environment, **arguments):
+                action = command[1]
+                events.append(action)
+                configs.append(Path(environment["DOCKER_CONFIG"]))
+                if action == "login":
+                    if arguments.get("stdin_data") != b"publicfixture123":
+                        raise ValueError("registry fixture stdin was not bound")
+                    if fail_login:
+                        raise RuntimeError("controlled registry login failure")
+                return b"", b""
+
+            module.urllib.request.build_opener = lambda *args: DeniedOpener()
+            for name in original_environment:
+                os.environ[name] = "publicfixture123"
+            try:
+                try:
+                    with module.private_pull_environment(
+                        docker="docker", image=(
+                            "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "a" * 64
+                        ), token="publicfixture123", actor="public-actor",
+                        run_process=public_process,
+                    ) as environment:
+                        if fail_login or any(name in environment for name in original_environment):
+                            raise ValueError("registry fixture environment was not scoped")
+                        if not Path(environment["DOCKER_CONFIG"]).is_dir():
+                            raise ValueError("registry fixture config was not temporary")
+                except RuntimeError:
+                    if not fail_login:
+                        raise
+                if (events != ["login", "logout"] or any(path.exists() for path in configs)
+                        or len(denials) != (1 if fail_login else 2)):
+                    raise ValueError("registry fixture cleanup or anonymous refusal changed")
+                return {"events": events, "anonymous_denials": len(denials),
+                        "temporary_config_retired": True}
+            finally:
+                module.urllib.request.build_opener = original_opener
+                for name, value in original_environment.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
+        return present_call(registry, invoke)
+
+    case("restricted.registry-boundary", "registry-pull-cleanup", registry_pull_case())
+    case("restricted.registry-boundary", "registry-login-failure-cleanup", registry_pull_case(True))
 
     local_lock = b'[[package]]\nname = "public-fixture"\nversion = "0.1.0"\n'
     unpinned_lock = local_lock + b'source = "git+https://github.com/ElevenID/example"\n'
@@ -322,6 +479,79 @@ def probe_cases():
              runtime_manifest_sha256="sha256:" + "c" * 64,
              lock=local_lock, grants=[],
          )))
+
+    candidate = {
+        "repository": "ElevenID/example", "revision": "a" * 40,
+        "runtime_image": "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "b" * 64,
+        "runtime_manifest_sha256": "sha256:" + "c" * 64,
+        "lock": local_lock,
+    }
+    grant = {
+        "repository": candidate["repository"], "revision": candidate["revision"],
+        "runtime_image": candidate["runtime_image"],
+        "runtime_manifest_sha256": candidate["runtime_manifest_sha256"],
+        "lock_sha256": "sha256:" + hashlib.sha256(local_lock).hexdigest(),
+        "git_sources": [],
+    }
+
+    def grant_catalog(grants):
+        return json.dumps({"schema": "elevenid.rust-runtime-source-access/v1", "grants": grants},
+                          sort_keys=True, separators=(",", ":")).encode()
+
+    case("restricted.source-admission", "source-positive-grant",
+         present_call(access, lambda module: module.require_access(
+             **candidate, grants=module.parse_grants(grant_catalog([grant])),
+         )))
+
+    def protected_case(revoked):
+        def invoke(module):
+            original = module._policy_api
+            old = grant_catalog([grant])
+            current = grant_catalog([]) if revoked else old
+            old_revision, current_revision = "d" * 40, "e" * 40
+            current_ref = current_revision if revoked else old_revision
+
+            def catalog_response(raw):
+                return {
+                    "type": "file", "path": "runtime/rust-cargo/source-access.json",
+                    "encoding": "base64", "content": base64.b64encode(raw).decode("ascii"),
+                    "size": len(raw), "sha": hashlib.sha1(
+                        b"blob " + str(len(raw)).encode() + b"\0" + raw,
+                        usedforsecurity=False,
+                    ).hexdigest(),
+                }
+
+            def public_fixture(path, token):
+                if token:
+                    raise ValueError("source-free fixture received a credential")
+                if path == "git/ref/heads/main":
+                    return {"ref": "refs/heads/main", "object": {"type": "commit", "sha": current_ref}}
+                if path == "contents/runtime/rust-cargo/source-access.json?ref=" + old_revision:
+                    return catalog_response(old)
+                if path == "contents/runtime/rust-cargo/source-access.json?ref=" + current_revision:
+                    return catalog_response(current)
+                if path == "compare/" + old_revision + "..." + current_revision:
+                    return {"status": "ahead"}
+                raise ValueError("source-free fixture received an unexpected request")
+
+            proof = {
+                "policy_repository": "ElevenID/.github", "policy_revision": old_revision,
+                "catalog_sha256": "sha256:" + hashlib.sha256(old).hexdigest(),
+                "grant_sha256": module.require_access(
+                    **candidate, grants=module.parse_grants(old),
+                ),
+            }
+            module._policy_api = public_fixture
+            try:
+                return module.verify_protected_admission(proof, token="", **candidate)
+            finally:
+                module._policy_api = original
+                module._REMOTE_CATALOGS.pop(old_revision, None)
+                module._REMOTE_CATALOGS.pop(current_revision, None)
+        return present_call(access, invoke)
+
+    case("restricted.source-admission", "source-protected-current", protected_case(False))
+    case("restricted.source-admission", "source-protected-revoked", protected_case(True))
 
     case("restricted.source-fetch", "fetch-untrusted-context",
          present_call(fetch, lambda module: module.require_context({}, {})))
@@ -408,7 +638,7 @@ def observe():
             # A policy findings list is itself the production diagnostic and
             # rejection decision, not a successful admission merely because the
             # Python function returned normally.
-            rejected = operation == "policy.source-reader" and bool(result)
+            rejected = operation.startswith("policy.") and bool(result)
             values = {"public_status": "rejected" if rejected else "accepted",
                       "public_message": result if rejected else None,
                       "safe_server_diagnostic": {"returned": result}}

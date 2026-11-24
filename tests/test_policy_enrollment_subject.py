@@ -105,7 +105,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(162, len(document["observations"]))
+        self.assertEqual(183, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -122,15 +122,17 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(54, len(statuses))
+        self.assertEqual(61, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
                              "target-valid", "github-output-valid", "atomic-new", "observation-valid",
                              "reviewer-public-caller", "reviewer-restricted-caller"}
         restricted = {
             "registry-invalid-credential", "registry-untrusted-context",
+            "registry-pull-cleanup", "registry-login-failure-cleanup",
             "source-local-lock", "source-unpinned-git", "source-empty-grants",
             "source-duplicate-catalog-key", "source-unadmitted-candidate",
+            "source-positive-grant", "source-protected-current", "source-protected-revoked",
             "fetch-untrusted-context", "fetch-wrong-credential-host",
             "fetch-missing-private-credential",
         }
@@ -143,14 +145,23 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(1, len(set(available)), "restricted source modules must arrive together")
         if available[0]:
             self.assertEqual(set(), {name for name, status in statuses.items() if status == "not_present"})
-            self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"},
+            self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
+                              "source-positive-grant", "source-protected-current",
+                              "registry-pull-cleanup", "registry-login-failure-cleanup"},
                              {name for name in restricted if statuses[name] == "accepted"})
+            self.assertEqual("accepted", statuses["source-positive-grant"])
+            self.assertEqual("accepted", statuses["source-protected-current"])
+            self.assertEqual("rejected", statuses["source-protected-revoked"])
             self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
-                                                   "private-evidence-bound", "restricted-publisher-valid"}, accepted)
+                                                   "source-positive-grant", "source-protected-current",
+                                                   "registry-pull-cleanup", "registry-login-failure-cleanup",
+                                                   "private-evidence-bound", "restricted-publisher-valid",
+                                                   "producer-isolated-runtime-pull", "producer-denied-before-pull"}, accepted)
             self.assertEqual("rejected", statuses["restricted-publisher-tampered-input"])
         else:
             self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package",
-                                           "restricted-publisher-valid", "restricted-publisher-tampered-input"},
+                                           "restricted-publisher-valid", "restricted-publisher-tampered-input",
+                                           "producer-isolated-runtime-pull", "producer-denied-before-pull"},
                              {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
