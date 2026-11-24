@@ -157,7 +157,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
             self.assertEqual("accepted", statuses["source-positive-grant"])
             self.assertEqual("accepted", statuses["source-protected-current"])
             self.assertEqual("rejected", statuses["source-protected-revoked"])
-            self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
+            self.assertEqual((baseline_accepted - {"reviewer-missing-source-receipt"}) | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
                                                    "source-positive-grant", "source-protected-current",
                                                    "registry-pull-cleanup", "registry-login-failure-cleanup",
                                                    "private-evidence-bound", "restricted-publisher-valid",
