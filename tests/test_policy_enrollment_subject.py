@@ -25,7 +25,9 @@ class EnrollmentSubjectTests(unittest.TestCase):
         shutil.copytree(ROOT / ".github/feature-regression", root / ".github/feature-regression")
         for relative in [
             "scripts/feature_regression_observation_runner.py",
+            "scripts/feature_regression_review.py",
             "scripts/rust_runtime_bundle.py",
+            "scripts/rust_runtime_publication.py",
             ".github/actions/open-source-audit/private_forks_policy.py",
         ]:
             target = root / relative
@@ -88,7 +90,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
         self.assertEqual(0, emitted.returncode, emitted.stderr.decode(errors="replace"))
         document = json.loads(emitted.stdout)
         self.assertEqual("elevenid.behavior-observations-runtime/v2", document["schema"])
-        self.assertEqual(138, len(document["observations"]))
+        self.assertEqual(156, len(document["observations"]))
         self.assertTrue(all(item["producer_test"].endswith(
             ":tests/test_policy_enrollment_subject.py::test_real_policy_runner_and_bundle_boundaries"
         ) for item in document["observations"]))
@@ -105,10 +107,11 @@ class EnrollmentSubjectTests(unittest.TestCase):
     def test_real_policy_runner_and_bundle_boundaries(self):
         result = self.run_subject(self.fixture())
         statuses = self.statuses(result)
-        self.assertEqual(46, len(statuses))
+        self.assertEqual(52, len(statuses))
         accepted = {name for name, status in statuses.items() if status == "accepted"}
         baseline_accepted = {"public-workflow", "python-inputs", "python-no-rust-build", "subject-output", "bundle-valid",
-                             "target-valid", "github-output-valid", "atomic-new", "observation-valid"}
+                             "target-valid", "github-output-valid", "atomic-new", "observation-valid",
+                             "reviewer-public-caller", "reviewer-restricted-caller"}
         restricted = {
             "registry-invalid-credential", "registry-untrusted-context",
             "source-local-lock", "source-unpinned-git", "source-empty-grants",
@@ -127,9 +130,11 @@ class EnrollmentSubjectTests(unittest.TestCase):
             self.assertEqual(set(), {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual({"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"},
                              {name for name in restricted if statuses[name] == "accepted"})
-            self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host"}, accepted)
+            self.assertEqual(baseline_accepted | {"source-local-lock", "source-empty-grants", "fetch-wrong-credential-host",
+                                                   "private-evidence-bound"}, accepted)
         else:
-            self.assertEqual(restricted, {name for name, status in statuses.items() if status == "not_present"})
+            self.assertEqual(restricted | {"private-evidence-bound", "private-evidence-public-package"},
+                             {name for name, status in statuses.items() if status == "not_present"})
             self.assertEqual(baseline_accepted, accepted)
         self.assertTrue(all(status in {"accepted", "rejected", "not_present"} for status in statuses.values()))
         self.assertNotIn(b"DIAGNOSTIC_SENTINEL_VALUE", result.stdout)

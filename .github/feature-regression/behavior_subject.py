@@ -102,6 +102,14 @@ def present_call(module, function):
     return run
 
 
+def available_function(module, name, function):
+    def run():
+        if not hasattr(module, name):
+            raise ProductionOwnerAbsent("production function is absent at this revision")
+        return function(getattr(module, name))
+    return run
+
+
 def probe_cases():
     verified_dependencies()
     policy = production_module("enrollment_source_policy", ".github/actions/open-source-audit/private_forks_policy.py")
@@ -296,6 +304,69 @@ def probe_cases():
          present_call(fetch, lambda module: module.credential_response(
              "get", "protocol=https\nhost=github.com\npath=ElevenID/ssi-elevenid\n", {},
          )))
+
+    reviewer = production_module("scripts.feature_regression_review", "scripts/feature_regression_review.py")
+    publication = production_module("scripts.rust_runtime_publication", "scripts/rust_runtime_publication.py")
+
+    def caller_case(restricted):
+        contract = reviewer.ProducerContract(
+            workflow_path=".github/workflows/behavior-observations.yml",
+            workflow_sha256="sha256:" + "a" * 64,
+            central_workflow_sha="b" * 40,
+            harness_path=".github/feature-regression/observation_harness.py",
+            harness_sha256="sha256:" + "c" * 64,
+            subject_path=".github/feature-regression/behavior_subject.py",
+            subject_sha256="sha256:" + "d" * 64,
+            subject_runtime="rust-cargo" if restricted else "python",
+            subject_args=(), subject_env={},
+            runtime_image=(
+                "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "e" * 64
+                if restricted else "node:24.15.0-bookworm@sha256:" + "f" * 64
+            ),
+            rust_build=None,
+            job_name="behavior-observations / Behavior observation producer",
+            produce_step_name="Produce trusted runtime observations atomically",
+            upload_step_name="Upload runtime observations",
+            artifact_name_prefix="feature-regression-observations",
+            observation_path="feature-regression-observations.json",
+        )
+        content = reviewer._expected_producer_workflow(contract)
+        return {"sha256": hashlib.sha256(content).hexdigest(), "bytes": len(content)}
+
+    case("reviewer.caller-selection", "reviewer-public-caller", lambda: caller_case(False))
+    case("reviewer.caller-selection", "reviewer-restricted-caller", lambda: caller_case(True))
+
+    public_image = "ghcr.io/elevenid/feature-regression-rust-cargo@sha256:" + "a" * 64
+    case("runtime.publication-validation", "publication-wrong-image",
+         lambda: publication.validate_publication_evidence(
+             Path("unused-public-fixture"), {}, image="ghcr.io/unapproved/image@sha256:" + "a" * 64,
+             publisher_revision="b" * 40,
+         ))
+    case("runtime.publication-validation", "publication-wrong-revision",
+         lambda: publication.validate_publication_evidence(
+             Path("unused-public-fixture"), {}, image=public_image,
+             publisher_revision="not-a-commit",
+         ))
+
+    def binding_case(valid):
+        def invoke(function):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "package-after.json"
+                path.write_bytes(json.dumps({
+                    "name": "feature-regression-rust-cargo-restricted", "owner": "ElevenID",
+                    "package_type": "container", "visibility": "private" if valid else "public",
+                }, sort_keys=True, separators=(",", ":")).encode())
+                return function(
+                    {"schema": "elevenid.rust-cargo-publication/v2",
+                     "distribution": "restricted", "private_evidence_bound": False,
+                     "image": "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "a" * 64},
+                    "ghcr.io/elevenid/feature-regression-rust-cargo-restricted@sha256:" + "b" * 64,
+                    path,
+                )
+        return available_function(publication, "bind_private_evidence", invoke)
+
+    case("runtime.private-publication", "private-evidence-bound", binding_case(True))
+    case("runtime.private-publication", "private-evidence-public-package", binding_case(False))
 
     return cases
 
