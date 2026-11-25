@@ -1,0 +1,53 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "restricted-publisher-evidence-and-pull-log-confinement",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "behavior",
+        "behavior": "Restricted publisher evidence build and private image pull output in public Actions logs"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "evidence_build": "docker buildx build stdout and stderr are forwarded to the public Actions step log while the context contains raw private evidence",
+        "runtime_image_pull": "docker pull stdout and stderr are forwarded to the public Actions step log for the private runtime image",
+        "evidence_image_pull": "docker pull stdout and stderr are forwarded to the public Actions step log for the private evidence image"
+      },
+      "after_value": {
+        "evidence_build": "stdout and stderr are captured in a runner-local file, removed on success and step exit; failure prints a fixed category",
+        "runtime_image_pull": "stdout and stderr are captured in a runner-local file, removed on success and step exit; failure prints a fixed category",
+        "evidence_image_pull": "stdout and stderr are captured in a runner-local file, removed on success and step exit; failure prints a fixed category"
+      },
+      "before_sha256": "sha256:2de120478ab1026a87e2a2b1b92a2a7364564f8ab2550d1eed363686b3ef90e7",
+      "after_sha256": "sha256:45fa9a3a6d0c394eb8ebe83f343c0faeb07ae134d380e620cd06b8b303365582",
+      "compatibility_impact": "Public workflow viewers lose raw evidence Buildx and private-image pull progress or diagnostics. On failure they receive fixed categories; job success/failure remains visible. Private proof capture and package publication checks remain unchanged.",
+      "replacement_behavior": "Capture both streams of the evidence Buildx command and private runtime/evidence pulls in ephemeral runner-local files; remove files on success and step exit; print fixed failure messages.",
+      "breaking_loss": false
+    },
+    {
+      "id": "restricted-publication-validation-error-redaction",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "behavior",
+        "behavior": "Restricted publication validation errors in public Actions logs"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "restricted_expected_error": "OSError, BundleError and PublicationError details are printed to public Actions logs, including duplicate JSON keys from private proof data",
+        "restricted_unexpected_error": "unexpected Exception traceback can be printed to public Actions logs",
+        "public_mode": "existing detailed error messages remain available"
+      },
+      "after_value": {
+        "restricted_expected_error": "one fixed public message: ERROR: restricted runtime publication validation failed",
+        "restricted_unexpected_error": "the same fixed public message for any Exception",
+        "public_mode": "existing detailed error messages remain available"
+      },
+      "before_sha256": "sha256:f7b148682d1a5bf8ee5b4c2c3e34924d008c17dbb70a12807b1cea98345c875a",
+      "after_sha256": "sha256:0476397c0bb9402b1c3b7e17a9c853120d9e41b2b424f23edd353394efd36859",
+      "compatibility_impact": "Public workflow viewers lose raw validation exception details from restricted private-proof parsing and see one fixed failure category. Nonrestricted publication diagnostics remain unchanged.",
+      "replacement_behavior": "For --restricted only, catch expected and unexpected Exception failures and print the fixed restricted publication validation error without exception text.",
+      "breaking_loss": false
+    }
+  ]
+}
