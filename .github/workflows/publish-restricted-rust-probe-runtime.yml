@@ -1,12 +1,17 @@
 name: Publish restricted Rust probe runtime
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       bundle-id:
         description: Reviewed entry in runtime/rust-cargo/bundles.json
         required: true
         type: string
+    secrets:
+      PRIVATE_FORKS_READ_TOKEN:
+        required: true
+      RUST_RUNTIME_PACKAGE_METADATA_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -27,14 +32,17 @@ env:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main' && vars.PRIVATE_FORKS_ENABLED == 'true'
+    if: github.repository == 'ElevenID/feature-regression-private-publisher' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.PRIVATE_FORKS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           persist-credentials: false
       - name: Reject Python import caches before running repository helpers
         shell: bash
@@ -87,11 +95,17 @@ jobs:
         shell: bash
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
+          PUBLISHER_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          PUBLISHER_WORKFLOW_REF: ${{ job.workflow_ref }}
+          PUBLISHER_WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: python scripts/rust_runtime_source_fetch.py check --bundle-id "$BUNDLE_ID"
       - name: Fetch locked private dependencies without compiling target code
         shell: bash
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
+          PUBLISHER_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          PUBLISHER_WORKFLOW_REF: ${{ job.workflow_ref }}
+          PUBLISHER_WORKFLOW_SHA: ${{ job.workflow_sha }}
           PRIVATE_FORKS_READ_TOKEN: ${{ secrets.PRIVATE_FORKS_READ_TOKEN }}
         run: |
           set -euo pipefail
@@ -112,8 +126,9 @@ jobs:
           LOCK_SHA256: ${{ steps.bundle.outputs.lock_sha256 }}
           SUBJECT_PATH: ${{ steps.bundle.outputs.subject_path }}
           SUBJECT_SHA256: ${{ steps.bundle.outputs.subject_sha256 }}
-          GHCR_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}
-          GHCR_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}
+          PUBLISHER_REVISION: ${{ job.workflow_sha }}
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/rust-runtime-private-evidence"
@@ -121,7 +136,7 @@ jobs:
           anonymous_config="$(mktemp -d "$RUNNER_TEMP/rust-runtime-anonymous.XXXXXX")"
           buildx_path="$auth_config/cli-plugins/docker-buildx"
           builder_name="rust-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted:${BUNDLE_ID}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted:${BUNDLE_ID}-${PUBLISHER_REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           build_log="$RUNNER_TEMP/restricted-runtime-build.log"
           pull_log="$RUNNER_TEMP/restricted-runtime-pull.log"
           buildx_verified=0
@@ -243,18 +258,20 @@ jobs:
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
+          PUBLISHER_REVISION: ${{ job.workflow_sha }}
         run: >-
           python scripts/rust_runtime_publication.py --restricted
           --catalog runtime/rust-cargo/bundles.json --bundle-id "$BUNDLE_ID"
           --evidence-dir "$RUNNER_TEMP/rust-runtime-private-evidence"
-          --image "$RUNTIME_IMAGE" --publisher-revision "$GITHUB_SHA"
+          --image "$RUNTIME_IMAGE" --publisher-revision "$PUBLISHER_REVISION"
           --output "$RUNNER_TEMP/restricted-runtime-prepublication.json"
       - name: Store raw publication evidence only in the private package
         id: evidence
         shell: bash
         env:
-          GHCR_TOKEN: ${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}
-          GHCR_USERNAME: ${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+          PUBLISHER_REVISION: ${{ job.workflow_sha }}
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
         run: |
@@ -287,7 +304,7 @@ jobs:
           if ! docker buildx build --push --provenance=false --sbom=false --platform linux/amd64 \
             --file runtime/rust-cargo/Dockerfile.evidence \
             --metadata-file "$RUNNER_TEMP/rust-evidence-image.json" \
-            --tag "ghcr.io/elevenid/feature-regression-rust-cargo-restricted:evidence-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --tag "ghcr.io/elevenid/feature-regression-rust-cargo-restricted:evidence-${PUBLISHER_REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             "$RUNNER_TEMP/rust-runtime-private-evidence" > "$evidence_log" 2>&1; then
             printf '%s\n' 'Restricted evidence build failed; private diagnostics were not published.' >&2
             exit 1
@@ -307,7 +324,7 @@ jobs:
           python scripts/rust_runtime_publication.py --restricted \
             --catalog runtime/rust-cargo/bundles.json --bundle-id "$BUNDLE_ID" \
             --evidence-dir "$RUNNER_TEMP/rust-runtime-evidence-replay/evidence" \
-            --image "$RUNTIME_IMAGE" --publisher-revision "$GITHUB_SHA" \
+            --image "$RUNTIME_IMAGE" --publisher-revision "$PUBLISHER_REVISION" \
             --output "$RUNNER_TEMP/restricted-runtime-replayed.json"
           cmp "$RUNNER_TEMP/restricted-runtime-prepublication.json" "$RUNNER_TEMP/restricted-runtime-replayed.json"
           printf 'image=%s\n' "$evidence_image" >> "$GITHUB_OUTPUT"
@@ -322,11 +339,12 @@ jobs:
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
           EVIDENCE_IMAGE: ${{ steps.evidence.outputs.image }}
+          PUBLISHER_REVISION: ${{ job.workflow_sha }}
         run: >-
           python scripts/rust_runtime_publication.py --restricted
           --catalog runtime/rust-cargo/bundles.json --bundle-id "$BUNDLE_ID"
           --evidence-dir "$RUNNER_TEMP/rust-runtime-private-evidence"
-          --image "$RUNTIME_IMAGE" --publisher-revision "$GITHUB_SHA"
+          --image "$RUNTIME_IMAGE" --publisher-revision "$PUBLISHER_REVISION"
           --private-evidence-image "$EVIDENCE_IMAGE"
           --evidence-package-after "$RUNNER_TEMP/rust-runtime-public-receipt/package-evidence-after.json"
           --output "$RUNNER_TEMP/rust-runtime-public-receipt/publication.json"

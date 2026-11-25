@@ -113,8 +113,8 @@ NATIVE_FLUTTER_INPUTS = {
 # recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
-    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'dfa47b8968515e0cb64f477964f04dee17641dbbce0bf77a8a6d92557e64be51',
-    'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': '364bd95e63741529cf49e8cf6c27f2fce786b956116f07d05de2d868b214ef0c',
+    'scripts/rust_runtime_source_fetch.py': 'c53ca140daf96a837969626df973547a0961a6a9450c5a4ef40270a142f04ed4',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
     'scripts/feature_regression_observation_runner.py': '9cba6fe6e9103719f5a6ac24704549901372c99f6ebcdc0bddb410ee5215373d',
     'runtime/rust-cargo/restricted-public-observations.json': 'e852ea1dacd0c13cc2429d9d7c5d803232d1c5a95eddf9c425cf3f3bc61ff9d6',
@@ -293,7 +293,7 @@ def workflow_secret_findings(
         events = document.get("on", {})
         events = {events} if isinstance(events, str) else set(events or [])
         if repository == "ElevenID/.github" and workflow_path == RESTRICTED_PUBLISHER:
-            require(events == {"workflow_dispatch"}, "restricted publisher must only accept dispatch")
+            require(events == {"workflow_call"}, "restricted publisher must only accept the reviewed reusable call")
             require(bool(RESTRICTED_PUBLISHER_FILES), "restricted publisher has no reviewed closure")
             for relative, digest in RESTRICTED_PUBLISHER_FILES.items():
                 path = root / relative

@@ -163,7 +163,7 @@ class RegistryTests(unittest.TestCase):
         )
         self.assertIn("feature_regression_observation_runner.py", token_steps[0]["run"])
 
-    def test_restricted_publisher_uses_dedicated_write_credentials(self) -> None:
+    def test_restricted_publisher_uses_private_caller_job_token(self) -> None:
         root = pathlib.Path(__file__).parents[1]
         workflow = yaml.safe_load(
             (
@@ -172,19 +172,22 @@ class RegistryTests(unittest.TestCase):
         )
         self.assertNotIn("packages", workflow["permissions"])
         job = workflow["jobs"]["publish"]
-        self.assertNotIn("packages", job["permissions"])
+        self.assertEqual("write", job["permissions"]["packages"])
+        self.assertIn("feature-regression-private-publisher", job["if"])
+        self.assertIn("workflow_dispatch", job["if"])
         steps = [step for step in job["steps"] if "GHCR_TOKEN" in step.get("env", {})]
         self.assertEqual(2, len(steps))
         for step in steps:
             self.assertEqual(
-                "${{ secrets.RUST_RUNTIME_PACKAGE_WRITE_TOKEN }}",
+                "${{ github.token }}",
                 step["env"]["GHCR_TOKEN"],
             )
             self.assertEqual(
-                "${{ secrets.RUST_RUNTIME_PACKAGE_USERNAME }}",
+                "${{ github.actor }}",
                 step["env"]["GHCR_USERNAME"],
             )
             self.assertIn('--username "$GHCR_USERNAME" --password-stdin', step["run"])
+        self.assertNotIn("RUST_RUNTIME_PACKAGE_WRITE_TOKEN", str(workflow))
         self.assertNotIn(
             "org.opencontainers.image.source",
             (root / "runtime/rust-cargo/Dockerfile.restricted").read_text(),

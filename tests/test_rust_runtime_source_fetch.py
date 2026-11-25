@@ -18,23 +18,29 @@ class SourceFetchTests(unittest.TestCase):
     def context(self):
         return {
             "GITHUB_ACTIONS": "true",
-            "GITHUB_REPOSITORY": "ElevenID/.github",
+            "GITHUB_REPOSITORY": fetcher.CALLER_REPOSITORY,
             "GITHUB_REF": "refs/heads/main",
             "GITHUB_EVENT_NAME": "workflow_dispatch",
-            "GITHUB_WORKFLOW_REF": fetcher.WORKFLOW_REF,
+            "GITHUB_WORKFLOW_REF": fetcher.CALLER_WORKFLOW_REF,
+            "PUBLISHER_WORKFLOW_REPOSITORY": fetcher.WORKFLOW_REPOSITORY,
+            "PUBLISHER_WORKFLOW_REF": fetcher.WORKFLOW_REF,
+            "PUBLISHER_WORKFLOW_SHA": "b" * 40,
             "GITHUB_SHA": "a" * 40,
             "GITHUB_ACTOR": "operator",
         }
 
-    def test_only_main_dispatch_in_exact_publisher_can_fetch(self):
-        event = {"repository": {"full_name": "ElevenID/.github"}}
+    def test_only_private_main_dispatch_in_protected_callee_can_fetch(self):
+        event = {"repository": {"full_name": fetcher.CALLER_REPOSITORY}}
         fetcher.require_context(self.context(), event)
         for key, value in {
             "GITHUB_ACTIONS": "false",
             "GITHUB_REPOSITORY": "someone/.github",
             "GITHUB_REF": "refs/heads/feature",
             "GITHUB_EVENT_NAME": "pull_request_target",
-            "GITHUB_WORKFLOW_REF": fetcher.WORKFLOW_REF.replace("main", "feature"),
+            "GITHUB_WORKFLOW_REF": fetcher.CALLER_WORKFLOW_REF.replace("main", "feature"),
+            "PUBLISHER_WORKFLOW_REPOSITORY": "someone/.github",
+            "PUBLISHER_WORKFLOW_REF": fetcher.WORKFLOW_REF.replace("main", "feature"),
+            "PUBLISHER_WORKFLOW_SHA": "feature",
             "GITHUB_SHA": "main",
             "GITHUB_ACTOR": "",
             "GITHUB_TRIGGERING_ACTOR": "dependabot[bot]",
@@ -43,7 +49,7 @@ class SourceFetchTests(unittest.TestCase):
                 fetcher.require_context({**self.context(), key: value}, event)
         with self.assertRaises(fetcher.FetchError):
             fetcher.require_context(
-                self.context(), {"repository": {"full_name": "fork/.github"}}
+                self.context(), {"repository": {"full_name": "fork/private-publisher"}}
             )
 
     def test_credentials_are_scoped_to_only_three_https_git_paths(self):

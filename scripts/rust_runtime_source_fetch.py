@@ -28,7 +28,12 @@ PRIVATE_FORKS = {
     "elevenid/isomdl-elevenid",
     "elevenid/sd-jwt-rust",
 }
-WORKFLOW_REF = "ElevenID/.github/.github/workflows/publish-restricted-rust-probe-runtime.yml@refs/heads/main"
+CALLER_REPOSITORY = "ElevenID/feature-regression-private-publisher"
+CALLER_WORKFLOW_REF = (
+    CALLER_REPOSITORY + "/.github/workflows/publish-restricted-rust-probe-runtime.yml@refs/heads/main"
+)
+WORKFLOW_REPOSITORY = "ElevenID/.github"
+WORKFLOW_REF = WORKFLOW_REPOSITORY + "/.github/workflows/publish-restricted-rust-probe-runtime.yml@refs/heads/main"
 TARGET = ".rust-runtime-target"
 CACHE = ".rust-runtime-cargo-cache"
 
@@ -40,10 +45,13 @@ class FetchError(ValueError):
 def require_context(environment: dict[str, str], event: dict) -> None:
     if (
         environment.get("GITHUB_ACTIONS") != "true"
-        or environment.get("GITHUB_REPOSITORY") != "ElevenID/.github"
+        or environment.get("GITHUB_REPOSITORY") != CALLER_REPOSITORY
         or environment.get("GITHUB_REF") != "refs/heads/main"
         or environment.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
-        or environment.get("GITHUB_WORKFLOW_REF") != WORKFLOW_REF
+        or environment.get("GITHUB_WORKFLOW_REF") != CALLER_WORKFLOW_REF
+        or environment.get("PUBLISHER_WORKFLOW_REPOSITORY") != WORKFLOW_REPOSITORY
+        or environment.get("PUBLISHER_WORKFLOW_REF") != WORKFLOW_REF
+        or not re.fullmatch(r"[0-9a-f]{40}", environment.get("PUBLISHER_WORKFLOW_SHA", ""))
         or not re.fullmatch(r"[0-9a-f]{40}", environment.get("GITHUB_SHA", ""))
         or not environment.get("GITHUB_ACTOR")
         or "dependabot[bot]"
@@ -52,10 +60,10 @@ def require_context(environment: dict[str, str], event: dict) -> None:
             environment.get("GITHUB_TRIGGERING_ACTOR", "").casefold(),
         }
         or not isinstance(event.get("repository"), dict)
-        or event["repository"].get("full_name") != "ElevenID/.github"
+        or event["repository"].get("full_name") != CALLER_REPOSITORY
     ):
         raise FetchError(
-            "restricted runtime source fetch requires protected main publisher dispatch"
+            "restricted runtime source fetch requires the reviewed private caller and protected central publisher"
         )
 
 
@@ -171,7 +179,7 @@ def checked_bundle(root: pathlib.Path, bundle_id: str) -> dict[str, str]:
             .strip()
         )
 
-    if command(["-C", str(root), "rev-parse", "HEAD"]) != os.environ["GITHUB_SHA"]:
+    if command(["-C", str(root), "rev-parse", "HEAD"]) != os.environ["PUBLISHER_WORKFLOW_SHA"]:
         raise FetchError("publisher checkout differs from protected workflow revision")
     bundle = load_bundle(root / "runtime/rust-cargo/bundles.json", bundle_id)
     target = root / TARGET
