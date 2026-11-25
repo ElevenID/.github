@@ -576,9 +576,14 @@ def main(argv: list[str] | None = None) -> int:
             ).encode("utf-8")
         )
         return 0
-    except (OSError, BundleError, PublicationError) as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 1
+    except Exception as error:
+        if args.restricted:
+            print("ERROR: restricted runtime publication validation failed", file=sys.stderr)
+            return 1
+        if isinstance(error, (OSError, BundleError, PublicationError)):
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 1
+        raise
 
 
 if __name__ == "__main__":

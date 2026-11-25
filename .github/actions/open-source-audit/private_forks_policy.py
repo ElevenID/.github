@@ -113,14 +113,14 @@ NATIVE_FLUTTER_INPUTS = {
 # recipes and fixed bundle data. Text hashes normalize CRLF for Windows review.
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
-    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'd7896f7e50027a2c4c4f6d59102a62ad333acce4150cd88440f149615ac03b5f',
+    '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'dfa47b8968515e0cb64f477964f04dee17641dbbce0bf77a8a6d92557e64be51',
     'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
     'scripts/feature_regression_observation_runner.py': '9cba6fe6e9103719f5a6ac24704549901372c99f6ebcdc0bddb410ee5215373d',
     'runtime/rust-cargo/restricted-public-observations.json': 'e852ea1dacd0c13cc2429d9d7c5d803232d1c5a95eddf9c425cf3f3bc61ff9d6',
     'scripts/rust_runtime_source_access.py': '7d87c3f9fc06e472666d59d0a582782ca8087563566bf2f421d8c49a27712969',
     'scripts/rust_runtime_registry.py': '64f5b79413fcce7cafb651364324925530f4e6eb688e63ba6dd6e7d23b2390f9',
-    'scripts/rust_runtime_publication.py': '0fdfc05f972df4611ab045cc6cb49024b0be30b38922a7127100eba0a7f6e0e4',
+    'scripts/rust_runtime_publication.py': '3e65ba8d1ee3f04dca53fbd583db904ef03625fe6485e3934f1963c7f29db5ba',
     'runtime/rust-cargo/bundles.json': 'e7a4655865456eba2eb7bcf1a128828e61163779d691eabea8d48630e4755fb0',
     'runtime/rust-cargo/Dockerfile.restricted': '8642bbeadc4163ec15e3c02e16ceb0e604e2550979c498fc3ea97177b46a7de9',
     'runtime/rust-cargo/Dockerfile.restricted.dockerignore': 'aa8ab9f5dc030bd71ecfd108dcb2215a51292356bb49562a31daf3c29aa528a5',

@@ -70,6 +70,74 @@ class RestrictedPublisherPolicyTests(unittest.TestCase):
                     if exit_code:
                         self.assertIn("Restricted runtime build failed", result.stderr)
 
+    @unittest.skipIf(sys.platform == "win32", "Bash integration runs on hosted Linux")
+    def test_restricted_evidence_build_and_private_pulls_hide_diagnostics(self):
+        source = Path(__file__).resolve().parents[1]
+        document = policy.yaml.load(
+            (source / policy.RESTRICTED_PUBLISHER).read_text(encoding="utf-8"),
+            Loader=policy.WorkflowLoader,
+        )
+        steps = document["jobs"]["publish"]["steps"]
+        runtime = next(step["run"] for step in steps if step.get("id") == "publish")
+        evidence = next(step["run"] for step in steps if step.get("id") == "evidence")
+        snippets = {
+            "runtime-pull": (
+                runtime[runtime.index('if ! docker pull "$image_digest"'):runtime.index('runtime_manifest=')],
+                "Restricted runtime pull failed",
+            ),
+            "evidence-build": (
+                evidence[evidence.index("if ! docker buildx build --push"):evidence.index('digest="$(jq')],
+                "Restricted evidence build failed",
+            ),
+            "evidence-pull": (
+                evidence[evidence.index('if ! docker pull "$evidence_image"'):evidence.index('docker image inspect', evidence.index('if ! docker pull "$evidence_image"'))],
+                "Restricted evidence pull failed",
+            ),
+        }
+        self.assertIn('rm -f -- "$pull_log"', runtime)
+        self.assertIn('rm -f -- "$evidence_log"', evidence)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = root / "docker"
+            fake.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' \"$PRIVATE_SENTINEL\"\n"
+                "printf '%s\\n' \"$PRIVATE_SENTINEL\" >&2\n"
+                "exit \"$FAKE_EXIT\"\n", encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            for name, (snippet, fixed_message) in snippets.items():
+                for exit_code in (0, 17):
+                    with self.subTest(name=name, exit_code=exit_code):
+                        log = root / f"{name}.log"
+                        script = (
+                            "set -eo pipefail\n"
+                            f"pull_log={shlex.quote(str(log))}\n"
+                            f"evidence_log={shlex.quote(str(log))}\n"
+                            'image_digest=private-image\n'
+                            'evidence_image=private-evidence\n'
+                            'trap \'rm -f -- "$pull_log" "$evidence_log"\' EXIT\n'
+                            + snippet
+                        )
+                        environment = os.environ.copy()
+                        environment.update(
+                            PATH=str(root) + os.pathsep + environment.get("PATH", ""),
+                            PRIVATE_SENTINEL="PRIVATE-EVIDENCE-SOURCE-SENTINEL",
+                            FAKE_EXIT=str(exit_code), RUNNER_TEMP=str(root),
+                            GITHUB_SHA="a" * 40, GITHUB_RUN_ID="1", GITHUB_RUN_ATTEMPT="1",
+                        )
+                        result = subprocess.run(
+                            [shutil.which("bash") or "bash", "-c", script],
+                            cwd=root, env=environment, capture_output=True,
+                            text=True, timeout=10,
+                        )
+                        self.assertEqual(0 if exit_code == 0 else 1, result.returncode)
+                        self.assertNotIn("PRIVATE-EVIDENCE-SOURCE-SENTINEL", result.stdout)
+                        self.assertNotIn("PRIVATE-EVIDENCE-SOURCE-SENTINEL", result.stderr)
+                        self.assertFalse(log.exists())
+                        if exit_code:
+                            self.assertIn(fixed_message, result.stderr)
+
     def test_exact_publisher_and_transitive_closure_are_required(self):
         source = Path(__file__).resolve().parents[1]
         content = (source / policy.RESTRICTED_PUBLISHER).read_text(encoding="utf-8")
