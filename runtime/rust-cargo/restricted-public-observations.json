@@ -1,0 +1,1190 @@
+{
+  "observations": [
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "authenticated": false,
+            "user_fields": []
+          },
+          "cache_control": "no-store, max-age=0",
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-after-logout",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        200
+      ],
+      "case_id": "auth-http-after-logout",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-after-logout",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "authenticated": false,
+            "user_fields": []
+          },
+          "cache_control": "no-store, max-age=0",
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-anonymous",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        200
+      ],
+      "case_id": "auth-http-anonymous",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-anonymous",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "authenticated": true,
+            "user_fields": [
+              "email",
+              "organization_context_unavailable",
+              "organizations",
+              "roles",
+              "user_id",
+              "user_type"
+            ]
+          },
+          "cache_control": "no-store, max-age=0",
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-authenticated",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        200
+      ],
+      "case_id": "auth-http-authenticated",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-authenticated",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "Authentication service unavailable"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-authorization-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "auth-http-authorization-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-authorization-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-callback-replay",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-callback-replay",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_state_invalid"
+        ]
+      ],
+      "case_id": "auth-http-callback-replay",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/console/profile",
+          "session_cookie_attributes": [
+            "HttpOnly;Max-Age=3600;Path=/;SameSite=Lax;Secure"
+          ]
+        }
+      ],
+      "case_id": "auth-http-callback-success",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-callback-success",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-callback-success",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-exchange-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-exchange-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_code_exchange_failed"
+        ]
+      ],
+      "case_id": "auth-http-exchange-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-expired-state",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-expired-state",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_state_expired"
+        ]
+      ],
+      "case_id": "auth-http-expired-state",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "Supply ui_locales or the legacy kc_locale alias, not both"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-invalid-locale",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        400
+      ],
+      "case_id": "auth-http-invalid-locale",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-invalid-locale",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "picture must be an image data URL or https URL"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-invalid-picture",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        400
+      ],
+      "case_id": "auth-http-invalid-picture",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-invalid-picture",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://identity.probe.invalid/authorize",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-login",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-login",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-login",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-login-event-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-login-event-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_login_event_publish_failed"
+        ]
+      ],
+      "case_id": "auth-http-login-event-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://identity.probe.invalid/logout",
+          "session_cookie_attributes": [
+            "Max-Age=0;Path=/;SameSite=Lax;Secure"
+          ]
+        }
+      ],
+      "case_id": "auth-http-logout",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-logout",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-logout",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-missing-access",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-missing-access",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_access_token_missing"
+        ]
+      ],
+      "case_id": "auth-http-missing-access",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-missing-id",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-missing-id",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_id_token_missing"
+        ]
+      ],
+      "case_id": "auth-http-missing-id",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-missing-nonce",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-missing-nonce",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_nonce_missing"
+        ]
+      ],
+      "case_id": "auth-http-missing-nonce",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Missing+authentication+parameters",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-missing-parameters",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-missing-parameters",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-missing-parameters",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "Session store unavailable"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-profile-save-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "auth-http-profile-save-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-profile-save-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-provision-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-provision-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_user_provisioning_failed"
+        ]
+      ],
+      "case_id": "auth-http-provision-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "code": "oidc_registration_unsupported",
+            "detail": "Registration is managed by your identity provider"
+          },
+          "cache_control": "no-store, max-age=0",
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-registration-disabled",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        409
+      ],
+      "case_id": "auth-http-registration-disabled",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-registration-disabled",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-session-event-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-session-event-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_session_event_publish_failed"
+        ]
+      ],
+      "case_id": "auth-http-session-event-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "Session store unavailable"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-session-get-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "auth-http-session-get-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-session-get-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-session-save-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-session-save-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_session_save_failed"
+        ]
+      ],
+      "case_id": "auth-http-session-save-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-state-consume-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-state-consume-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_state_consume_failed"
+        ]
+      ],
+      "case_id": "auth-http-state-consume-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": {
+            "detail": "Authentication service unavailable"
+          },
+          "cache_control": null,
+          "location": null,
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-state-save-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "auth-http-state-save-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        []
+      ],
+      "case_id": "auth-http-state-save-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-token-validation-failure",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-token-validation-failure",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_token_validation_failed"
+        ]
+      ],
+      "case_id": "auth-http-token-validation-failure",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        {
+          "body": null,
+          "cache_control": null,
+          "location": "https://console.probe.invalid/?auth_error=Session+expired.+Please+try+again.",
+          "session_cookie_attributes": []
+        }
+      ],
+      "case_id": "auth-http-unknown-state",
+      "dimension": "public_message",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        302
+      ],
+      "case_id": "auth-http-unknown-state",
+      "dimension": "public_status",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        [
+          "auth_oidc_state_invalid"
+        ]
+      ],
+      "case_id": "auth-http-unknown-state",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.http-session"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-invalid-provider",
+      "dimension": "public_message",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-invalid-provider",
+      "dimension": "public_status",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "AUTH.CONFIGURATION: OIDC_PROVIDER_MODE must be keycloak or external",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "auth-invalid-provider",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        "X-API-Key header is missing"
+      ],
+      "case_id": "auth-missing",
+      "dimension": "public_message",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        401
+      ],
+      "case_id": "auth-missing",
+      "dimension": "public_status",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        ""
+      ],
+      "case_id": "auth-missing",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-missing-realm",
+      "dimension": "public_message",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-missing-realm",
+      "dimension": "public_status",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "AUTH.CONFIGURATION: KEYCLOAK_REALM is required",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "auth-missing-realm",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.oidc-configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-pkce-s256",
+      "dimension": "public_message",
+      "operation_id": "auth.pkce"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "auth-pkce-s256",
+      "dimension": "public_status",
+      "operation_id": "auth.pkce"
+    },
+    {
+      "allowed_values": [
+        {
+          "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        }
+      ],
+      "case_id": "auth-pkce-s256",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "auth.pkce"
+    },
+    {
+      "allowed_values": [
+        "Ada_['Lovelace']"
+      ],
+      "case_id": "create-success",
+      "dimension": "public_message",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        200
+      ],
+      "case_id": "create-success",
+      "dimension": "public_status",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        ""
+      ],
+      "case_id": "create-success",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-invalid-redis-database",
+      "dimension": "public_message",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-invalid-redis-database",
+      "dimension": "public_status",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "FLOW.CONFIGURATION: REDIS_DB_FLOW is invalid",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "flow-invalid-redis-database",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-missing-database",
+      "dimension": "public_message",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-missing-database",
+      "dimension": "public_status",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "FLOW.CONFIGURATION: DATABASE_URL is required",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "flow-missing-database",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-missing-redis",
+      "dimension": "public_message",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-missing-redis",
+      "dimension": "public_status",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "FLOW.CONFIGURATION: REDIS_URL is required",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "flow-missing-redis",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-pool-two",
+      "dimension": "public_message",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-pool-two",
+      "dimension": "public_status",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "database_max_connections": 2,
+          "redis_database": 3,
+          "result": "accepted"
+        }
+      ],
+      "case_id": "flow-pool-two",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-pool-zero",
+      "dimension": "public_message",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "not_exposed"
+      ],
+      "case_id": "flow-pool-zero",
+      "dimension": "public_status",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        {
+          "error": "FLOW.CONFIGURATION: FLOW_DATABASE_MAX_CONNECTIONS is invalid",
+          "result": "rejected"
+        }
+      ],
+      "case_id": "flow-pool-zero",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "flow.configuration"
+    },
+    {
+      "allowed_values": [
+        "Issuer signing context is unavailable."
+      ],
+      "case_id": "issuer-context-unavailable",
+      "dimension": "public_message",
+      "operation_id": "internal-application.approve"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "issuer-context-unavailable",
+      "dimension": "public_status",
+      "operation_id": "internal-application.approve"
+    },
+    {
+      "allowed_values": [
+        "event=internal_application_failure;stage=ordinary_issuer_context;category=dependency_unavailable;application_correlation_sha256=b5ccfc2fc885903c0727f561fa4586490b661d9d53ec0fd19904ec6a85cfb192;check_correlation_sha256=;resource_correlation_sha256="
+      ],
+      "case_id": "issuer-context-unavailable",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "internal-application.approve"
+    },
+    {
+      "allowed_values": [
+        "Application repository is unavailable"
+      ],
+      "case_id": "repository-unavailable",
+      "dimension": "public_message",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        503
+      ],
+      "case_id": "repository-unavailable",
+      "dimension": "public_status",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        ""
+      ],
+      "case_id": "repository-unavailable",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        "Application template not found"
+      ],
+      "case_id": "template-missing",
+      "dimension": "public_message",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        404
+      ],
+      "case_id": "template-missing",
+      "dimension": "public_status",
+      "operation_id": "internal-application.create"
+    },
+    {
+      "allowed_values": [
+        ""
+      ],
+      "case_id": "template-missing",
+      "dimension": "safe_server_diagnostic",
+      "operation_id": "internal-application.create"
+    }
+  ],
+  "producer_test_suffix": "tests/test_feature_regression_rust_probe.py::assert_expected_probe_output",
+  "repository": "ElevenID/marty-ui",
+  "revision": "7a636da20f86e519e37b1ab0f79ddec5dfe7e2c9",
+  "schema": "elevenid.restricted-public-observations/v1",
+  "stdout_sha256": "sha256:cec08602f9785a945669d3ce5a55c57e97c9918bb6dc3cf831474157d13c79aa",
+  "subject_sha256": "sha256:5116385ef1d9c8600646e1ee33721913207fc963ddeada28ed2a209e6a445d31"
+}

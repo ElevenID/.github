@@ -136,6 +136,7 @@
             "scripts/rust_runtime_source_access.py",
             "scripts/rust_runtime_registry.py",
             "scripts/feature_regression_observation_runner.py",
+            "runtime/rust-cargo/restricted-public-observations.json",
             "scripts/rust_runtime_publication.py"
           ],
           "invariants": [
@@ -156,6 +157,7 @@
             "scripts/rust_runtime_source_access.py",
             "scripts/rust_runtime_registry.py",
             "scripts/feature_regression_observation_runner.py",
+            "runtime/rust-cargo/restricted-public-observations.json",
             "scripts/rust_runtime_publication.py"
           ],
           "invariants": [
