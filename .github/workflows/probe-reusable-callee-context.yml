@@ -1,0 +1,31 @@
+name: Probe reusable callee context
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.repository == 'ElevenID/feature-regression-private-publisher' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Verify documented caller and callee identities
+        shell: bash
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          expected_callee='ElevenID/.github/.github/workflows/probe-reusable-callee-context.yml@refs/heads/main'
+          expected_caller='ElevenID/feature-regression-private-publisher/.github/workflows/probe-reusable-callee-context.yml@refs/heads/main'
+          test "$(jq -er '.workflow_repository' <<<"$JOB_CONTEXT")" = 'ElevenID/.github'
+          test "$(jq -er '.workflow_ref' <<<"$JOB_CONTEXT")" = "$expected_callee"
+          test "$CALLER_WORKFLOW_REF" = "$expected_caller"
+          callee_sha="$(jq -er '.workflow_sha' <<<"$JOB_CONTEXT")"
+          [[ "$callee_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf '%s\n' 'Reusable callee identity is available and bound to the protected workflow.'
