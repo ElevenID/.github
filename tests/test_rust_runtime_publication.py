@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from unittest import mock
 
 import yaml
 
@@ -113,6 +116,42 @@ def provenance_document(
 
 
 class RustRuntimePublicationTests(unittest.TestCase):
+    def test_restricted_cli_masks_private_proof_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            proof = root / "proof.json"
+            proof.write_text('{"PRIVATE-SOURCE-SENTINEL":1,"PRIVATE-SOURCE-SENTINEL":2}', encoding="utf-8")
+            arguments = [
+                "--catalog", str(root / "catalog.json"), "--bundle-id", "marty-ui",
+                "--evidence-dir", str(root), "--image", IMAGE,
+                "--publisher-revision", PUBLISHER_REVISION,
+                "--output", str(root / "public.json"),
+            ]
+            with mock.patch.object(publication, "load_bundle", return_value=BUNDLE):
+                with mock.patch.object(
+                    publication, "validate_publication_evidence",
+                    side_effect=lambda *_args, **_kwargs: publication._json(proof, "private proof"),
+                ):
+                    restricted_error = io.StringIO()
+                    with redirect_stderr(restricted_error):
+                        self.assertEqual(1, publication.main([*arguments, "--restricted"]))
+                    self.assertEqual(
+                        "ERROR: restricted runtime publication validation failed\n",
+                        restricted_error.getvalue(),
+                    )
+                    public_error = io.StringIO()
+                    with redirect_stderr(public_error):
+                        self.assertEqual(1, publication.main(arguments))
+                    self.assertIn("PRIVATE-SOURCE-SENTINEL", public_error.getvalue())
+                with mock.patch.object(
+                    publication, "validate_publication_evidence",
+                    side_effect=RuntimeError("PRIVATE-SOURCE-SENTINEL"),
+                ):
+                    unexpected_error = io.StringIO()
+                    with redirect_stderr(unexpected_error):
+                        self.assertEqual(1, publication.main([*arguments, "--restricted"]))
+                    self.assertEqual(restricted_error.getvalue(), unexpected_error.getvalue())
+
     def evidence(self, root: pathlib.Path) -> pathlib.Path:
         write_json(
             root / "build-metadata.json", {"containerimage.digest": IMAGE_DIGEST}

@@ -123,6 +123,7 @@ jobs:
           builder_name="rust-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted:${BUNDLE_ID}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           build_log="$RUNNER_TEMP/restricted-runtime-build.log"
+          pull_log="$RUNNER_TEMP/restricted-runtime-pull.log"
           buildx_verified=0
           image_digest=""
           cleanup() {
@@ -135,6 +136,7 @@ jobs:
             fi
             docker image rm --force "$image" >/dev/null 2>&1 || true
             rm -f -- "$build_log"
+            rm -f -- "$pull_log"
             rm -rf -- "$auth_config" "$anonymous_config"
           }
           trap cleanup EXIT
@@ -213,7 +215,11 @@ jobs:
             > "$artifact_dir/provenance.json"
           docker buildx imagetools inspect "$image_digest" --format '{{json .SBOM}}' \
             > "$artifact_dir/sbom.json"
-          docker pull "$image_digest"
+          if ! docker pull "$image_digest" > "$pull_log" 2>&1; then
+            printf '%s\n' 'Restricted runtime pull failed; private diagnostics were not published.' >&2
+            exit 1
+          fi
+          rm -f -- "$pull_log"
           runtime_manifest="$(docker run --rm --pull=never --network=none --read-only \
             --cap-drop=ALL --security-opt=no-new-privileges --ipc=none \
             --pids-limit=32 --memory=64m --memory-swap=64m --cpus=.25 \
@@ -258,6 +264,7 @@ jobs:
           buildx_verified=0
           evidence_container="rust-evidence-check-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           evidence_image=""
+          evidence_log="$RUNNER_TEMP/restricted-evidence-build-and-pull.log"
           cleanup() {
             docker rm --force "$evidence_container" >/dev/null 2>&1 || true
             if [[ "$buildx_verified" = 1 ]]; then
@@ -265,6 +272,7 @@ jobs:
             fi
             if [[ -n "$evidence_image" ]]; then docker image rm "$evidence_image" >/dev/null 2>&1 || true; fi
             DOCKER_CONFIG="$auth_config" docker logout ghcr.io >/dev/null 2>&1 || true
+            rm -f -- "$evidence_log"
             rm -rf -- "$auth_config"
           }
           trap cleanup EXIT
@@ -276,14 +284,22 @@ jobs:
           export DOCKER_CONFIG="$auth_config"
           docker buildx create --name "$builder_name" --driver docker-container --driver-opt "image=$RUST_BUILDKIT_IMAGE" --use >/dev/null
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
-          docker buildx build --push --provenance=false --sbom=false --platform linux/amd64 \
+          if ! docker buildx build --push --provenance=false --sbom=false --platform linux/amd64 \
             --file runtime/rust-cargo/Dockerfile.evidence \
             --metadata-file "$RUNNER_TEMP/rust-evidence-image.json" \
             --tag "ghcr.io/elevenid/feature-regression-rust-cargo-restricted:evidence-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            "$RUNNER_TEMP/rust-runtime-private-evidence"
+            "$RUNNER_TEMP/rust-runtime-private-evidence" > "$evidence_log" 2>&1; then
+            printf '%s\n' 'Restricted evidence build failed; private diagnostics were not published.' >&2
+            exit 1
+          fi
+          rm -f -- "$evidence_log"
           digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/rust-evidence-image.json")"
           evidence_image="ghcr.io/elevenid/feature-regression-rust-cargo-restricted@${digest}"
-          docker pull "$evidence_image"
+          if ! docker pull "$evidence_image" > "$evidence_log" 2>&1; then
+            printf '%s\n' 'Restricted evidence pull failed; private diagnostics were not published.' >&2
+            exit 1
+          fi
+          rm -f -- "$evidence_log"
           docker image inspect --format '{{json .RepoDigests}}' "$evidence_image" | jq -e --arg image "$evidence_image" 'index($image) != null' >/dev/null
           docker create --name "$evidence_container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$evidence_image" /never-execute >/dev/null
           mkdir "$RUNNER_TEMP/rust-runtime-evidence-replay"
