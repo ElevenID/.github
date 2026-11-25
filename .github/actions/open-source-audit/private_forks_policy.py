@@ -114,7 +114,7 @@ NATIVE_FLUTTER_INPUTS = {
 RESTRICTED_PUBLISHER = ".github/workflows/publish-restricted-rust-probe-runtime.yml"
 RESTRICTED_PUBLISHER_FILES = {
     '.github/workflows/publish-restricted-rust-probe-runtime.yml': '364bd95e63741529cf49e8cf6c27f2fce786b956116f07d05de2d868b214ef0c',
-    'scripts/rust_runtime_source_fetch.py': 'c53ca140daf96a837969626df973547a0961a6a9450c5a4ef40270a142f04ed4',
+    'scripts/rust_runtime_source_fetch.py': '691dada7dc0b49270b0a68aec441e59411fe51b563c59e44ca2c655d4bfab79a',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
     'scripts/feature_regression_observation_runner.py': '9cba6fe6e9103719f5a6ac24704549901372c99f6ebcdc0bddb410ee5215373d',
     'runtime/rust-cargo/restricted-public-observations.json': 'e852ea1dacd0c13cc2429d9d7c5d803232d1c5a95eddf9c425cf3f3bc61ff9d6',

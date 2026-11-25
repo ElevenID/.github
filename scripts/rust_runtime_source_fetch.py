@@ -63,7 +63,7 @@ def require_context(environment: dict[str, str], event: dict) -> None:
         or event["repository"].get("full_name") != CALLER_REPOSITORY
     ):
         raise FetchError(
-            "restricted runtime source fetch requires the reviewed private caller and protected central publisher"
+            "restricted runtime source fetch requires protected main publisher dispatch"
         )
 
 
