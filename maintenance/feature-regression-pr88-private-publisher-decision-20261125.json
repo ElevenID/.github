@@ -1,0 +1,31 @@
+{
+  "schema": "elevenid.intentional-change-decisions/v1",
+  "decisions": [
+    {
+      "id": "restricted-publisher-private-workflow-identity",
+      "repository": "ElevenID/.github",
+      "scope": {
+        "kind": "behavior",
+        "behavior": "Restricted runtime publisher dispatch and package-writer identity"
+      },
+      "approved_by": "burdettadam",
+      "before_value": {
+        "entry_point": "Manual workflow_dispatch on protected ElevenID/.github main",
+        "writer": "Required dedicated classic write:packages PAT from a package-only account; never provisioned",
+        "package_actions_access": "No repository Actions grant",
+        "context_probe": "No source-free reusable callee identity probe"
+      },
+      "after_value": {
+        "entry_point": "Manual main dispatch in private ElevenID/feature-regression-private-publisher calls the protected central reusable workflow",
+        "writer": "Private caller GITHUB_TOKEN with job packages:write",
+        "package_actions_access": "Only the private publisher repository receives Manage Actions write for the existing unlinked private package",
+        "context_probe": "probe-only dispatch checks callee identity in a read-only job before source access or package publication"
+      },
+      "before_sha256": "sha256:c6cbb07df99e6362048995ef6cbad62c473edf7e440d78274a439577631e60f8",
+      "after_sha256": "sha256:a59882d510ca9bd833fffc66990524f276a48726651a546feb068abf0c3c8dd8",
+      "compatibility_impact": "The old direct central dispatch and planned personal writer token are retired. Operators must dispatch the private caller; existing application deployment and package consumers are unchanged. The old path never published a restricted runtime image.",
+      "replacement_behavior": "The private caller invokes the protected central workflow and uses its short-lived job token to publish after exact context, source, and package-visibility checks; the operator verifies $0 budgets and available storage before dispatch.",
+      "breaking_loss": false
+    }
+  ]
+}
