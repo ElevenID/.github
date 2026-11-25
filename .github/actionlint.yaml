@@ -1,7 +1,0 @@
-# GitHub.com documents these reusable-workflow callee identity properties.
-# Pinned actionlint v1.7.12 does not yet recognize them (upstream issue #757).
-# Limit the exception to this one reviewed publisher workflow and error text.
-paths:
-  .github/workflows/publish-restricted-rust-probe-runtime.yml:
-    ignore:
-      - '^property "workflow_(repository|ref|sha)" is not defined in object type '

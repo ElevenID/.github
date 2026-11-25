@@ -619,19 +619,22 @@ the explicit settings inspection above remains required.
 The separate `publish-restricted-rust-probe-runtime.yml` definition is a
 reusable workflow on protected central main. Only the private publisher
 repository's manual main workflow may call it, with private-fork mode enabled.
-The called job receives the caller repository's short-lived `GITHUB_TOKEN`,
-requests `contents: read` and `packages: write`, and checks out the central
-workflow's own `job.workflow_sha` for trusted helpers. The private package's
+The called publication job receives the caller repository's short-lived
+`GITHUB_TOKEN`, requests `contents: read` and `packages: write`, and checks out
+the central workflow at the identity verified by its source-free context job.
+That job reads the documented `job.workflow_repository`, `job.workflow_ref`,
+and `job.workflow_sha` fields, then exposes only their checked values to the
+publication job. The private package's
 Manage Actions write grant is specific to this repository; the job token's
 `packages: write` permission is not intrinsically limited to one package.
 The private repository has no enforced branch protection under GitHub Free;
 only organization owners with existing package administration rights may have
 write access. An independent review of this exact boundary is required before
-the package grant. First run the source-free private caller and central
-`probe-reusable-callee-context.yml` pair to establish that GitHub supplies
-the documented callee identity properties in the hosted runtime. The probe
-has a read-only caller job token but receives no private-fork source reader,
-metadata PAT, or package-write grant.
+the package grant. First dispatch the caller with `probe-only: true` to
+establish that GitHub supplies the documented callee identity properties in
+the hosted runtime. This runs only the context job with a read-only caller job
+token; it receives no private-fork source reader, metadata PAT, or package
+write grant.
 The source-reader policy admits the exact workflow and its transitive helper,
 recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
 Python import namespace. No other central workflow gains source-reader access.

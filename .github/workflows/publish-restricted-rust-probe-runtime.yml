@@ -7,11 +7,16 @@ on:
         description: Reviewed entry in runtime/rust-cargo/bundles.json
         required: true
         type: string
+      probe-only:
+        description: Verify reusable workflow identity without source or package access
+        required: false
+        type: boolean
+        default: false
     secrets:
       PRIVATE_FORKS_READ_TOKEN:
-        required: true
+        required: false
       RUST_RUNTIME_PACKAGE_METADATA_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -31,8 +36,41 @@ env:
   RUST_PYTHON_BASE_LINUX_AMD64_DIGEST: sha256:00f0ecbf74ff8f915020d5a40c4bc6a83f46cd7b83f47db51c7e204f0d8a3ec2
 
 jobs:
+  context:
+    if: github.repository == 'ElevenID/feature-regression-private-publisher' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      repository: ${{ steps.verify.outputs.repository }}
+      ref: ${{ steps.verify.outputs.ref }}
+      sha: ${{ steps.verify.outputs.sha }}
+    steps:
+      - name: Verify documented reusable workflow identity
+        id: verify
+        shell: bash
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+          PROBE_ONLY: ${{ inputs.probe-only }}
+        run: |
+          set -euo pipefail
+          expected_callee='ElevenID/.github/.github/workflows/publish-restricted-rust-probe-runtime.yml@refs/heads/main'
+          expected_caller='ElevenID/feature-regression-private-publisher/.github/workflows/publish-restricted-rust-probe-runtime.yml@refs/heads/main'
+          test "$CALLER_WORKFLOW_REF" = "$expected_caller"
+          test "$PROBE_ONLY" = 'true' || test "$PROBE_ONLY" = 'false'
+          repository="$(jq -er '.workflow_repository' <<<"$JOB_CONTEXT")"
+          workflow_ref="$(jq -er '.workflow_ref' <<<"$JOB_CONTEXT")"
+          workflow_sha="$(jq -er '.workflow_sha' <<<"$JOB_CONTEXT")"
+          test "$repository" = 'ElevenID/.github'
+          test "$workflow_ref" = "$expected_callee"
+          [[ "$workflow_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'repository=%s\nref=%s\nsha=%s\n' "$repository" "$workflow_ref" "$workflow_sha" >> "$GITHUB_OUTPUT"
+          printf '%s\n' 'Reusable callee identity is available and bound to the protected workflow.'
   publish:
-    if: github.repository == 'ElevenID/feature-regression-private-publisher' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.PRIVATE_FORKS_ENABLED == 'true'
+    needs: context
+    if: inputs.probe-only != true && vars.PRIVATE_FORKS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -41,8 +79,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
+          repository: ${{ needs.context.outputs.repository }}
+          ref: ${{ needs.context.outputs.sha }}
           persist-credentials: false
       - name: Reject Python import caches before running repository helpers
         shell: bash
@@ -95,17 +133,17 @@ jobs:
         shell: bash
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
-          PUBLISHER_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
-          PUBLISHER_WORKFLOW_REF: ${{ job.workflow_ref }}
-          PUBLISHER_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          PUBLISHER_WORKFLOW_REPOSITORY: ${{ needs.context.outputs.repository }}
+          PUBLISHER_WORKFLOW_REF: ${{ needs.context.outputs.ref }}
+          PUBLISHER_WORKFLOW_SHA: ${{ needs.context.outputs.sha }}
         run: python scripts/rust_runtime_source_fetch.py check --bundle-id "$BUNDLE_ID"
       - name: Fetch locked private dependencies without compiling target code
         shell: bash
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
-          PUBLISHER_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
-          PUBLISHER_WORKFLOW_REF: ${{ job.workflow_ref }}
-          PUBLISHER_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          PUBLISHER_WORKFLOW_REPOSITORY: ${{ needs.context.outputs.repository }}
+          PUBLISHER_WORKFLOW_REF: ${{ needs.context.outputs.ref }}
+          PUBLISHER_WORKFLOW_SHA: ${{ needs.context.outputs.sha }}
           PRIVATE_FORKS_READ_TOKEN: ${{ secrets.PRIVATE_FORKS_READ_TOKEN }}
         run: |
           set -euo pipefail
@@ -126,7 +164,7 @@ jobs:
           LOCK_SHA256: ${{ steps.bundle.outputs.lock_sha256 }}
           SUBJECT_PATH: ${{ steps.bundle.outputs.subject_path }}
           SUBJECT_SHA256: ${{ steps.bundle.outputs.subject_sha256 }}
-          PUBLISHER_REVISION: ${{ job.workflow_sha }}
+          PUBLISHER_REVISION: ${{ needs.context.outputs.sha }}
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
         run: |
@@ -258,7 +296,7 @@ jobs:
         env:
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
-          PUBLISHER_REVISION: ${{ job.workflow_sha }}
+          PUBLISHER_REVISION: ${{ needs.context.outputs.sha }}
         run: >-
           python scripts/rust_runtime_publication.py --restricted
           --catalog runtime/rust-cargo/bundles.json --bundle-id "$BUNDLE_ID"
@@ -271,7 +309,7 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
-          PUBLISHER_REVISION: ${{ job.workflow_sha }}
+          PUBLISHER_REVISION: ${{ needs.context.outputs.sha }}
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
         run: |
@@ -339,7 +377,7 @@ jobs:
           BUNDLE_ID: ${{ inputs.bundle-id }}
           RUNTIME_IMAGE: ${{ steps.publish.outputs.image }}
           EVIDENCE_IMAGE: ${{ steps.evidence.outputs.image }}
-          PUBLISHER_REVISION: ${{ job.workflow_sha }}
+          PUBLISHER_REVISION: ${{ needs.context.outputs.sha }}
         run: >-
           python scripts/rust_runtime_publication.py --restricted
           --catalog runtime/rust-cargo/bundles.json --bundle-id "$BUNDLE_ID"

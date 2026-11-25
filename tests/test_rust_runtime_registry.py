@@ -173,8 +173,12 @@ class RegistryTests(unittest.TestCase):
         self.assertNotIn("packages", workflow["permissions"])
         job = workflow["jobs"]["publish"]
         self.assertEqual("write", job["permissions"]["packages"])
-        self.assertIn("feature-regression-private-publisher", job["if"])
-        self.assertIn("workflow_dispatch", job["if"])
+        context = workflow["jobs"]["context"]
+        self.assertIn("feature-regression-private-publisher", context["if"])
+        self.assertIn("workflow_dispatch", context["if"])
+        self.assertNotIn("packages", context["permissions"])
+        self.assertEqual("context", job["needs"])
+        self.assertIn("inputs.probe-only != true", job["if"])
         steps = [step for step in job["steps"] if "GHCR_TOKEN" in step.get("env", {})]
         self.assertEqual(2, len(steps))
         for step in steps:
