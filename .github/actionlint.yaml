@@ -4,4 +4,4 @@
 paths:
   .github/workflows/publish-restricted-rust-probe-runtime.yml:
     ignore:
-      - '^property "workflow_(repository|ref|sha)" is not defined in object type .+ \[expression\]$'
+      - '^property "workflow_(repository|ref|sha)" is not defined in object type '
