@@ -93,7 +93,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise RunnerError("duplicate JSON key")
+            raise RunnerError(f"duplicate JSON key {key!r}")
         result[key] = value
     return result
 
@@ -109,8 +109,8 @@ def _parse_json(content: bytes, label: str) -> Any:
             object_pairs_hook=_unique_object,
             parse_constant=_reject_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise RunnerError(f"{label} is not strict JSON") from None
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RunnerError(f"{label} is not strict JSON: {error}") from error
 
 
 def _canonical(value: Any) -> bytes:
@@ -411,7 +411,7 @@ def _run_process(
     if exceeded.is_set():
         raise RunnerError(f"{label} output exceeded the configured bound")
     if return_code != 0:
-        raise RunnerError(f"{label} invocation exited unsuccessfully")
+        raise RunnerError(f"{label} invocation exited with status {return_code}")
     return bytes(stdout), bytes(stderr)
 
 

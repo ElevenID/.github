@@ -116,7 +116,7 @@ RESTRICTED_PUBLISHER_FILES = {
     '.github/workflows/publish-restricted-rust-probe-runtime.yml': 'd7896f7e50027a2c4c4f6d59102a62ad333acce4150cd88440f149615ac03b5f',
     'scripts/rust_runtime_source_fetch.py': '5c633edefb13669b779ec9de5c853f7e52d1344fa4d9cbf97dca551c519b4913',
     'scripts/rust_runtime_bundle.py': '13892d2cbaa7fc48a8ec196809e6eae474a30cc6a2841ef94939a84bc3c09cc6',
-    'scripts/feature_regression_observation_runner.py': '4098ce4a7f41ff7ff29974db70d144664169f43ec53edd85ce4106b5580f87ea',
+    'scripts/feature_regression_observation_runner.py': '9cba6fe6e9103719f5a6ac24704549901372c99f6ebcdc0bddb410ee5215373d',
     'runtime/rust-cargo/restricted-public-observations.json': 'e852ea1dacd0c13cc2429d9d7c5d803232d1c5a95eddf9c425cf3f3bc61ff9d6',
     'scripts/rust_runtime_source_access.py': '7d87c3f9fc06e472666d59d0a582782ca8087563566bf2f421d8c49a27712969',
     'scripts/rust_runtime_registry.py': '64f5b79413fcce7cafb651364324925530f4e6eb688e63ba6dd6e7d23b2390f9',

@@ -708,12 +708,6 @@ class ObservationRunnerTests(unittest.TestCase):
                 [{"producer_test": reference + "-private-source-sentinel"}], reference
             )
         self.assertNotIn("private-source-sentinel", str(error.exception))
-        for label in ("subject output", "runtime observation"):
-            with self.assertRaises(runner.RunnerError) as error:
-                runner._parse_json(
-                    b'{"private-source-sentinel":1,"private-source-sentinel":2}', label
-                )
-            self.assertNotIn("private-source-sentinel", str(error.exception))
         with self.assertRaises(runner.RunnerError) as error:
             runner._validate_subject_output({
                 "schema": "elevenid.behavior-subject-output/v2",
@@ -746,6 +740,27 @@ class ObservationRunnerTests(unittest.TestCase):
             "ERROR: restricted observation production failed\n",
             public_error.getvalue(),
         )
+        for label in ("subject output", "runtime observation"):
+            public_error = io.StringIO()
+            with (
+                mock.patch.object(
+                    runner,
+                    "_produce",
+                    side_effect=lambda _args: runner._parse_json(
+                        b'{"private-source-sentinel":1,"private-source-sentinel":2}',
+                        label,
+                    ),
+                ),
+                contextlib.redirect_stderr(public_error),
+            ):
+                self.assertEqual(
+                    1,
+                    runner.main(["produce", *self.contract(runtime_image=restricted)]),
+                )
+            self.assertEqual(
+                "ERROR: restricted observation production failed\n",
+                public_error.getvalue(),
+            )
 
     def test_restricted_image_is_not_pulled_without_exact_candidate_source_access(
         self,
