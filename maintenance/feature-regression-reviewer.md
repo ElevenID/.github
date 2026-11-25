@@ -577,14 +577,17 @@ No credentials, registry configuration or Docker socket may be passed to the
 candidate or harness containers. Review raw failures and any source-bearing
 publication evidence privately; only reviewed sanitized results may be public.
 
-The restricted producer and its exact caller request no `packages` permission.
-GitHub warns that granting a public repository Actions access to a private
-package may also expose it to forks. Do not grant the public publisher or
-consumer repository package access, link this package to either repository,
-or add the `org.opencontainers.image.source` label to restricted images.
-Keep the package unlinked with no repository Actions-access grants; confirm
-these settings before dispatch and after publication. Private visibility and
-anonymous denial alone do not prove that repository job tokens lack access.
+The restricted observation producer and its exact caller request no `packages`
+permission. GitHub warns that granting a public repository Actions access to
+a private package may also expose it to forks. Do not grant the public policy
+or consumer repositories package access, link this package to either
+repository, or add the `org.opencontainers.image.source` label to restricted
+images. Keep the package unlinked. Its only Actions-access grant may be
+**write** for the private `ElevenID/feature-regression-private-publisher`
+repository after the reviewed caller and central reusable workflow are
+integrated. Confirm the exact grant list before dispatch and after publication.
+Private visibility and anonymous denial alone do not prove repository job
+tokens lack access.
 See [GitHub's package access-control documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
 
 Registry access instead uses a dedicated classic PAT with `read:packages` and
@@ -613,8 +616,25 @@ the explicit settings inspection above remains required.
 
 ### Restricted runtime publication sequence
 
-The separate `publish-restricted-rust-probe-runtime.yml` definition accepts
-manual dispatch on protected central main only, with private-fork mode enabled.
+The separate `publish-restricted-rust-probe-runtime.yml` definition is a
+reusable workflow on protected central main. Only the private publisher
+repository's manual main workflow may call it, with private-fork mode enabled.
+The called publication job receives the caller repository's short-lived
+`GITHUB_TOKEN`, requests `contents: read` and `packages: write`, and checks out
+the central workflow at the identity verified by its source-free context job.
+That job reads the documented `job.workflow_repository`, `job.workflow_ref`,
+and `job.workflow_sha` fields, then exposes only their checked values to the
+publication job. The private package's
+Manage Actions write grant is specific to this repository; the job token's
+`packages: write` permission is not intrinsically limited to one package.
+The private repository has no enforced branch protection under GitHub Free;
+only organization owners with existing package administration rights may have
+write access. An independent review of this exact boundary is required before
+the package grant. First dispatch the caller with `probe-only: true` to
+establish that GitHub supplies the documented callee identity properties in
+the hosted runtime. This runs only the context job with a read-only caller job
+token; it receives no private-fork source reader, metadata PAT, or package
+write grant.
 The source-reader policy admits the exact workflow and its transitive helper,
 recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
 Python import namespace. No other central workflow gains source-reader access.
@@ -628,15 +648,14 @@ policy rejects the entire cache namespace rather than ignoring it. Disabling
 bytecode writes alone does not prevent imports from existing bytecode caches.
 
 Before dispatch, an operator must precreate the fixed restricted package using
-source-free content, confirm private visibility and no repository link or Actions
-access grants, and provide the separate classic metadata-read credential.
-Publication uses a dedicated classic `write:packages` PAT whose account has
-write access only to the intended package, stored as
-`RUST_RUNTIME_PACKAGE_WRITE_TOKEN`, with its owner username in
-`RUST_RUNTIME_PACKAGE_USERNAME`. Do not reuse a broad human repository token
-or the dependency source-reader credential. Do not provision credentials or
-publish source-bearing images until this access boundary has been independently
-reviewed and qualified. No registry credential is supplied to a build container.
+source-free content, confirm private visibility, no repository link, and the
+single private publisher Actions write grant, and provide the separate classic
+metadata-read credential. Publication uses only the private caller's
+`GITHUB_TOKEN` as its writer; no personal package-writer account or token is
+needed. The separate dependency source reader remains read-only. Do not grant
+package access or publish source-bearing images until this boundary has been
+independently reviewed and qualified. No registry credential is supplied to a
+build container.
 The publisher requires successful private-package metadata checks before any
 source-bearing push, after runtime publication, and after evidence publication.
 Missing packages, unavailable metadata, wrong owners/types and public visibility
@@ -745,8 +764,9 @@ provenance and the exact pinned Rust linux/amd64 base material, SPDX document,
 OCI labels, and canonical runtime manifest before emitting activation evidence.
 Local CI keeps
 registry resolution opt-in through `ELEVENID_LIVE_REGISTRY_TEST=1` because it
-must not depend on network access or credentials; the hosted main-only publisher
-and its credential-free pull are the authoritative integration proof. Unit and
+must not depend on network access or credentials; the protected central
+publisher called from the private main workflow and its credential-free pull
+are the authoritative integration proof. Unit and
 read-only registry tests validate policy and immutable inputs only; they do not
 claim that the unpublished GHCR runtime exists or is anonymously accessible.
 Any pull-request evidence must describe anonymous GHCR publication as the later
