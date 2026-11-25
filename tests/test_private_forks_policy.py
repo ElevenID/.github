@@ -6,9 +6,11 @@ import hashlib
 import io
 import importlib.util
 import json
+import os
 from pathlib import Path
 import py_compile
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,6 +30,46 @@ CODEQL_CASES = (
 
 
 class RestrictedPublisherPolicyTests(unittest.TestCase):
+    @unittest.skipIf(sys.platform == "win32", "Bash integration runs on hosted Linux")
+    def test_restricted_build_diagnostics_stay_out_of_public_log(self):
+        source = Path(__file__).resolve().parents[1]
+        workflow = source / policy.RESTRICTED_PUBLISHER
+        document = policy.yaml.load(workflow.read_text(encoding="utf-8"), Loader=policy.WorkflowLoader)
+        run = next(step["run"] for step in document["jobs"]["publish"]["steps"]
+                   if step.get("id") == "publish")
+        self.assertIn('rm -f -- "$build_log"', run)  # EXIT trap clears failed builds.
+        start = run.index("if ! docker buildx build")
+        end = run.index('digest="$(jq', start)
+        build = run[start:end]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = root / "docker"
+            fake.write_text("#!/usr/bin/env bash\n"
+                            "printf '%s\\n' \"$PRIVATE_SENTINEL\"\n"
+                            "printf '%s\\n' \"$PRIVATE_SENTINEL\" >&2\n"
+                            "exit \"$FAKE_BUILD_EXIT\"\n", encoding="utf-8")
+            fake.chmod(0o755)
+            sentinel = "PRIVATE-VENDOR-SOURCE-SENTINEL"
+            for exit_code in (0, 17):
+                with self.subTest(exit_code=exit_code):
+                    log = root / "private-build.log"
+                    script = ('set -eo pipefail\n'
+                              f'build_log={shlex.quote(str(log))}\n'
+                              'trap \'rm -f -- "$build_log"\' EXIT\n'
+                              + build)
+                    environment = os.environ.copy()
+                    environment.update(PATH=str(root) + os.pathsep + environment.get("PATH", ""),
+                                       PRIVATE_SENTINEL=sentinel, FAKE_BUILD_EXIT=str(exit_code))
+                    result = subprocess.run([shutil.which("bash") or "bash", "-c", script],
+                                            cwd=root, env=environment, capture_output=True,
+                                            text=True, timeout=10)
+                    self.assertEqual(0 if exit_code == 0 else 1, result.returncode)
+                    self.assertNotIn(sentinel, result.stdout)
+                    self.assertNotIn(sentinel, result.stderr)
+                    self.assertFalse(log.exists())
+                    if exit_code:
+                        self.assertIn("Restricted runtime build failed", result.stderr)
+
     def test_exact_publisher_and_transitive_closure_are_required(self):
         source = Path(__file__).resolve().parents[1]
         content = (source / policy.RESTRICTED_PUBLISHER).read_text(encoding="utf-8")
