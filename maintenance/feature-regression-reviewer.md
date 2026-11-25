@@ -630,7 +630,8 @@ write access. An independent review of this exact boundary is required before
 the package grant. First run the source-free private caller and central
 `probe-reusable-callee-context.yml` pair to establish that GitHub supplies
 the documented callee identity properties in the hosted runtime. The probe
-receives no source or package credential and grants no package access.
+has a read-only caller job token but receives no private-fork source reader,
+metadata PAT, or package-write grant.
 The source-reader policy admits the exact workflow and its transitive helper,
 recipe, wrapper and bundle-catalog text hashes. It also closes the sibling
 Python import namespace. No other central workflow gains source-reader access.
