@@ -13,6 +13,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from types import SimpleNamespace
 from typing import Callable
 from unittest import mock
 
@@ -647,6 +648,120 @@ class ObservationRunnerTests(unittest.TestCase):
         ):
             self.assertEqual(build, runner._rust_build(args))
 
+    def test_restricted_public_values_reject_unreviewed_subject_text(self) -> None:
+        catalog_path = (
+            pathlib.Path(runner.__file__).resolve().parent.parent
+            / "runtime/rust-cargo/restricted-public-observations.json"
+        )
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        args = SimpleNamespace(
+            repository=catalog["repository"],
+            revision=catalog["revision"],
+            subject_sha256=catalog["subject_sha256"],
+        )
+        observations = [
+            {**entry, "value": entry["allowed_values"][0]}
+            for entry in catalog["observations"]
+        ]
+        for observation in observations:
+            observation.pop("allowed_values")
+        stdout = b"fixed private subject output"
+        test_catalog = {
+            **catalog,
+            "stdout_sha256": f"sha256:{hashlib.sha256(stdout).hexdigest()}",
+        }
+        with mock.patch.object(runner, "_parse_json", return_value=test_catalog):
+            approved = runner._require_approved_restricted_bytes(args, stdout, b"")
+            reference = runner._require_approved_restricted_values(
+                args, observations, approved
+            )
+            self.assertIn("::assert_expected_probe_output", reference)
+            original = next(
+                item for item in observations if item["dimension"] == "public_message"
+            )
+            original_value = original["value"]
+            original["value"] = "private-source-sentinel"
+            with self.assertRaises(runner.RunnerError) as error:
+                runner._require_approved_restricted_values(args, observations, approved)
+            self.assertNotIn("private-source-sentinel", str(error.exception))
+            original["value"] = original_value
+            with self.assertRaisesRegex(runner.RunnerError, "output bytes"):
+                runner._require_approved_restricted_bytes(args, stdout, b"secret")
+            with self.assertRaises(runner.RunnerError) as error:
+                runner._require_approved_restricted_bytes(
+                    args,
+                    b'{"private-source-sentinel":1,"private-source-sentinel":2}',
+                    b"",
+                )
+            self.assertNotIn("private-source-sentinel", str(error.exception))
+            observations.remove(original)
+            with self.assertRaises(runner.RunnerError):
+                runner._require_approved_restricted_values(args, observations, approved)
+            args.revision = "0" * 40
+            with self.assertRaisesRegex(runner.RunnerError, "not pinned"):
+                runner._require_approved_restricted_bytes(args, stdout, b"")
+        runner._require_approved_restricted_reference(
+            [{"producer_test": reference}], reference
+        )
+        with self.assertRaises(runner.RunnerError) as error:
+            runner._require_approved_restricted_reference(
+                [{"producer_test": reference + "-private-source-sentinel"}], reference
+            )
+        self.assertNotIn("private-source-sentinel", str(error.exception))
+        with self.assertRaises(runner.RunnerError) as error:
+            runner._validate_subject_output({
+                "schema": "elevenid.behavior-subject-output/v2",
+                "observations": [{
+                    "id": "private-source-sentinel",
+                    "operation_id": "auth.http-session",
+                    "case_id": "auth-http-login",
+                    "dimension": "public_status",
+                    "value": 302,
+                }],
+            })
+        self.assertNotIn("private-source-sentinel", str(error.exception))
+        restricted = RUST_RUNTIME_IMAGE.replace(
+            "rust-cargo@", "rust-cargo-restricted@"
+        )
+        public_error = io.StringIO()
+        with (
+            mock.patch.object(
+                runner,
+                "_produce",
+                side_effect=runner.RunnerError("private-source-sentinel"),
+            ),
+            contextlib.redirect_stderr(public_error),
+        ):
+            self.assertEqual(
+                1,
+                runner.main(["produce", *self.contract(runtime_image=restricted)]),
+            )
+        self.assertEqual(
+            "ERROR: restricted observation production failed\n",
+            public_error.getvalue(),
+        )
+        for label in ("subject output", "runtime observation"):
+            public_error = io.StringIO()
+            with (
+                mock.patch.object(
+                    runner,
+                    "_produce",
+                    side_effect=lambda _args: runner._parse_json(
+                        b'{"private-source-sentinel":1,"private-source-sentinel":2}',
+                        label,
+                    ),
+                ),
+                contextlib.redirect_stderr(public_error),
+            ):
+                self.assertEqual(
+                    1,
+                    runner.main(["produce", *self.contract(runtime_image=restricted)]),
+                )
+            self.assertEqual(
+                "ERROR: restricted observation production failed\n",
+                public_error.getvalue(),
+            )
+
     def test_restricted_image_is_not_pulled_without_exact_candidate_source_access(
         self,
     ) -> None:
@@ -745,14 +860,19 @@ class ObservationRunnerTests(unittest.TestCase):
                 runner, "_runtime_manifest", side_effect=before_candidate
             ),
         ):
-            with self.assertRaisesRegex(RuntimeError, "stop before candidate"):
-                self.produce(
+            public_error = io.StringIO()
+            with contextlib.redirect_stderr(public_error):
+                self.assertEqual(1, self.produce(
                     subject_path=subject.relative_to(self.root).as_posix(),
                     subject_sha256=self.digest(subject),
                     subject_runtime="rust-cargo",
                     runtime_image=image,
                     rust_build_json=json.dumps(build),
-                )
+                ))
+            self.assertEqual(
+                "ERROR: restricted observation production failed\n",
+                public_error.getvalue(),
+            )
         self.assertEqual(["login", "logout"], [command[1] for command in commands])
         self.assertEqual("fixture-policy-token", admit.call_args.kwargs["token"])
         self.container_mock.assert_not_called()

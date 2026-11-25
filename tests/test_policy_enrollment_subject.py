@@ -52,6 +52,7 @@ class EnrollmentSubjectTests(unittest.TestCase):
                 ".github/workflows/publish-restricted-rust-probe-runtime.yml",
                 ".github/workflows/feature-regression-observation-producer-restricted.yml",
                 "runtime/rust-cargo/bundles.json",
+                "runtime/rust-cargo/restricted-public-observations.json",
                 "runtime/rust-cargo/source-access.json",
                 "runtime/rust-cargo/Dockerfile.restricted",
                 "runtime/rust-cargo/Dockerfile.restricted.dockerignore",

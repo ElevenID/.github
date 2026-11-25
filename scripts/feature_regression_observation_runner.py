@@ -635,7 +635,10 @@ def _validate_subject_output(document: Any) -> list[dict[str, Any]]:
         )
         if (
             not isinstance(observation_id, str)
-            or not observation_id
+            or not isinstance(identity[0], str)
+            or not isinstance(identity[1], str)
+            or not isinstance(identity[2], str)
+            or observation_id != f"{identity[1]}.{identity[2]}"
             or observation_id in ids
             or identity in identities
             or observation.get("dimension") not in DIMENSIONS
@@ -681,6 +684,94 @@ def _capture_document(
         "receipt": receipt,
         "observations": observations,
     }
+
+
+def _require_approved_restricted_bytes(
+    args: argparse.Namespace,
+    stdout: bytes,
+    stderr: bytes,
+) -> dict[str, Any]:
+    """Reject private subject output before any content-dependent parse error."""
+    catalog_path = (
+        pathlib.Path(__file__).resolve().parent.parent
+        / "runtime"
+        / "rust-cargo"
+        / "restricted-public-observations.json"
+    )
+    if catalog_path.is_symlink() or not catalog_path.is_file():
+        raise RunnerError("restricted public observation catalog is unavailable")
+    catalog = _parse_json(catalog_path.read_bytes(), "restricted public catalog")
+    if (
+        not isinstance(catalog, dict)
+        or set(catalog)
+        != {
+            "schema", "repository", "revision", "subject_sha256",
+            "stdout_sha256", "producer_test_suffix", "observations"
+        }
+        or catalog["schema"] != "elevenid.restricted-public-observations/v1"
+        or catalog["repository"] != args.repository
+        or catalog["revision"] != args.revision
+        or catalog["subject_sha256"] != args.subject_sha256
+        or DIGEST.fullmatch(str(catalog["stdout_sha256"])) is None
+        or catalog["producer_test_suffix"]
+        != "tests/test_feature_regression_rust_probe.py::assert_expected_probe_output"
+        or not isinstance(catalog["observations"], list)
+    ):
+        raise RunnerError("restricted public observation catalog is not pinned")
+    if stderr or f"sha256:{hashlib.sha256(stdout).hexdigest()}" != catalog["stdout_sha256"]:
+        raise RunnerError("restricted subject output bytes are outside approved public values")
+    return catalog
+
+
+def _require_approved_restricted_values(
+    args: argparse.Namespace,
+    observations: list[dict[str, Any]],
+    catalog: dict[str, Any],
+) -> str:
+    """Keep unreviewed private-source values out of public artifacts."""
+    approved: dict[tuple[str, str, str], set[bytes]] = {}
+    for entry in catalog["observations"]:
+        if not isinstance(entry, dict) or set(entry) != {
+            "operation_id", "case_id", "dimension", "allowed_values"
+        }:
+            raise RunnerError("restricted public observation catalog is invalid")
+        identity = (entry["operation_id"], entry["case_id"], entry["dimension"])
+        values = entry["allowed_values"]
+        if (
+            not all(isinstance(part, str) and part for part in identity)
+            or identity[2] not in DIMENSIONS
+            or identity in approved
+            or not isinstance(values, list)
+            or not values
+        ):
+            raise RunnerError("restricted public observation catalog is invalid")
+        canonical_values = {_canonical(value) for value in values}
+        if len(canonical_values) != len(values):
+            raise RunnerError("restricted public observation catalog is invalid")
+        approved[identity] = canonical_values
+    actual = {
+        (item["operation_id"], item["case_id"], item["dimension"]):
+        _canonical(item["value"])
+        for item in observations
+    }
+    if len(actual) != len(observations) or actual.keys() != approved.keys() or any(
+        value not in approved[identity] for identity, value in actual.items()
+    ):
+        raise RunnerError("restricted subject output is outside approved public values")
+    return (
+        f"test:{args.repository}@{args.revision}:"
+        f"{catalog['producer_test_suffix']}"
+    )
+
+
+def _require_approved_restricted_reference(
+    observations: list[dict[str, Any]], approved_reference: str
+) -> None:
+    if any(
+        observation["producer_test"] != approved_reference
+        for observation in observations
+    ):
+        raise RunnerError("restricted producer test reference is not approved")
 
 
 def _validate_observations(
@@ -946,12 +1037,23 @@ def _produce(args: argparse.Namespace) -> None:
             rust_build["lock_sha256"],
             "Rust lock",
         )
+    approved_catalog = None
+    if source_access_proof is not None:
+        approved_catalog = _require_approved_restricted_bytes(
+            args, stdout, stderr
+        )
     subject_document = _parse_json(stdout, "subject output")
     if stdout != _canonical(subject_document):
         raise RunnerError("subject output must be canonical JSON")
+    subject_observations = _validate_subject_output(subject_document)
+    approved_reference = None
+    if approved_catalog is not None:
+        approved_reference = _require_approved_restricted_values(
+            args, subject_observations, approved_catalog
+        )
     capture = _capture_document(
         args,
-        observations=_validate_subject_output(subject_document),
+        observations=subject_observations,
         arguments=arguments,
         environment=environment,
         stdout=stdout,
@@ -1013,6 +1115,10 @@ def _produce(args: argparse.Namespace) -> None:
         final=False,
         capture=capture,
     )
+    if approved_reference is not None:
+        _require_approved_restricted_reference(
+            runtime["observations"], approved_reference
+        )
 
     final = dict(runtime)
     final["schema"] = "elevenid.behavior-observations/v3"
@@ -1098,9 +1204,14 @@ def main(argv: list[str] | None = None) -> int:
         _validate_args(args)
         _produce(args)
         return 0
-    except (OSError, RunnerError) as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 1
+    except Exception as error:
+        if source_access.is_restricted_image(str(args.runtime_image)):
+            print("ERROR: restricted observation production failed", file=sys.stderr)
+            return 1
+        if isinstance(error, (OSError, RunnerError)):
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 1
+        raise
 
 
 if __name__ == "__main__":
