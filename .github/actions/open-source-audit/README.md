@@ -70,3 +70,14 @@ a new independent review. These approvals do not qualify a built image or releas
 The migration image also admits an exact provider-neutral recipe that removes
 only the retired seed build and binary copy. The retained vendor seed and
 credential-reader implementation are unchanged; image qualification is separate.
+
+The native development feature profile additionally admits one exact service
+recipe that copies three fixed release binaries: delegation approval, delegation
+commands, and feature identity bootstrap. Its builder, dependency fetch, secret
+mounts, offline compilation, cache controls, and final nonroot runtime remain
+unchanged. A separately bound migration context excludes only the new managed
+HTTPS provider and feature database acceptance sources. Independent comparison
+against the previous approved bytes precedes these two approvals. Tests retain
+both prior approvals and reject source/cache copies, secret-mount changes,
+broader contexts, and use of either digest at a different path. These approvals
+do not qualify the built images or native feature deployment.

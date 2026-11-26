@@ -68,6 +68,8 @@ DOCKER_FILE_ALTERNATES = {
     'services/Dockerfile': (
         '4274f3ef5c7661d11899aa0ed033d8c07b5daf6ca48164412aaca1eaaa1355dd',
         '1de631484400e92d58b87f93f57b5abbd3e902dfe7ed7c2f27d5a6dcee14e5bc',
+        # Independently reviewed native feature binaries; fetch boundary unchanged.
+        'dca5ba4106b4058d8c360fd87fa3c4a862989b3fbf4f9e27070cd0b7fda6833e',
     ),
     'rust/services/Dockerfile.ci': (
         '7321a858f3e09c472ccd22d91ccc82dbf189f382eb3cbe05fc3a4650b436e137',
@@ -81,6 +83,8 @@ DOCKER_FILE_ALTERNATES = {
         'a4657728c1cf90026a14268e8bf447e17c3caed8eb6d1406dc1ef4a359291e88',
         '0512510558ce407cf138d304a60a528d9bb0de70bea90706dbbf63cba2c3332d',
         '37017e7ed1fffdd49e4e83c6213fb1c471768ae0377ca1c53bfe7877b6a986e5',
+        # Two additional acceptance-only sources are excluded from the context.
+        '62ed72abfed63a091f115428e7dc1bd3cbcb621a9d13018b7f830cc476f42eba',
     ),
     'rust/services/Dockerfile.ci.dockerignore': (
         'd5e6ec358829182d6be892c41e87335e9b0dce5cde37b69d29f88adb1454d8cd',
