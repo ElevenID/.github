@@ -336,6 +336,70 @@ class PrivateForkPolicyTests(unittest.TestCase):
             self.reject("reviewed file changed: " + path)
             (self.root / path).write_bytes(candidate)
 
+    def test_native_feature_recipe_adds_only_three_fixed_release_binaries(self):
+        self.docker_fixture()
+        fixture = Path(__file__).parent / "fixtures/marty-ui-provider-neutral.Dockerfile"
+        original = fixture.read_bytes()
+        signing = b"COPY --from=rust-service-builder /build/rust/target/release/marty-signing-keys /usr/local/bin/marty-signing-keys\n"
+        delegated = signing.replace(b"marty-signing-keys", b"marty-delegated-use")
+        self.assertEqual(original.count(signing), 1)
+        previous = original.replace(signing, signing + delegated)
+        self.assertEqual(hashlib.sha256(previous).hexdigest(),
+                         "1de631484400e92d58b87f93f57b5abbd3e902dfe7ed7c2f27d5a6dcee14e5bc")
+        candidate = previous.replace(delegated, delegated
+            + delegated.replace(b"marty-delegated-use", b"marty-delegation-approval")
+            + delegated.replace(b"marty-delegated-use", b"marty-delegation-commands"))
+        bootstrap = signing.replace(b"marty-signing-keys", b"marty-passport-tls-bootstrap")
+        self.assertEqual(candidate.count(bootstrap), 1)
+        candidate = candidate.replace(bootstrap, bootstrap
+            + bootstrap.replace(b"marty-passport-tls-bootstrap", b"marty-feature-identity-bootstrap"))
+        self.assertEqual(hashlib.sha256(candidate).hexdigest(),
+                         "dca5ba4106b4058d8c360fd87fa3c4a862989b3fbf4f9e27070cd0b7fda6833e")
+        path = self.root / "services/Dockerfile"
+        for reviewed in (previous, candidate):
+            path.write_bytes(reviewed)
+            self.assertEqual([], self.findings())
+        for changed in (candidate + b"COPY . /app\n",
+                        candidate + b"COPY --from=rust-service-builder /opt/private-cargo /opt/private-cargo\n",
+                        candidate.replace(b"--mount=type=secret", b"--mount=type=bind")):
+            with self.subTest(digest=hashlib.sha256(changed).hexdigest()):
+                path.write_bytes(changed)
+                self.reject("reviewed file changed: services/Dockerfile")
+        path.write_bytes(candidate)
+        (self.root / "services/Dockerfile.migrations").write_bytes(candidate)
+        self.reject("reviewed file changed: services/Dockerfile.migrations")
+
+    def test_native_feature_context_excludes_only_two_acceptance_sources(self):
+        self.docker_fixture()
+        fixture = Path(__file__).parent / "fixtures/marty-ui-before-native-feature-migrations.dockerignore"
+        previous = fixture.read_bytes()
+        self.assertEqual(hashlib.sha256(previous).hexdigest(),
+                         "37017e7ed1fffdd49e4e83c6213fb1c471768ae0377ca1c53bfe7877b6a986e5")
+        candidate = previous
+        extra = (
+            (b"rust/crates/flow-acceptance/tests/support/flow_rendered_selection.rs\n",
+             b"rust/crates/flow-acceptance/tests/support/managed_http_provider_tls.rs\n"),
+            (b"rust/crates/selfhost-acceptance/tests/support/managed_postgres.rs\n",
+             b"rust/crates/selfhost-acceptance/tests/support/feature_profile_database.rs\n"),
+        )
+        for anchor, addition in extra:
+            self.assertEqual(candidate.count(anchor), 1)
+            candidate = candidate.replace(anchor, anchor + addition)
+        self.assertEqual(hashlib.sha256(candidate).hexdigest(),
+                         "62ed72abfed63a091f115428e7dc1bd3cbcb621a9d13018b7f830cc476f42eba")
+        path = self.root / "services/Dockerfile.migrations.dockerignore"
+        for reviewed in (previous, candidate):
+            path.write_bytes(reviewed)
+            self.assertEqual([], self.findings())
+        for changed in (candidate + b"!**/.cargo\n", candidate + b"!rust/**\n",
+                        candidate.replace(extra[0][1], b"")):
+            with self.subTest(digest=hashlib.sha256(changed).hexdigest()):
+                path.write_bytes(changed)
+                self.reject("reviewed file changed: services/Dockerfile.migrations.dockerignore")
+        path.write_bytes(candidate)
+        (self.root / "services/Dockerfile.dockerignore").write_bytes(candidate)
+        self.reject("reviewed file changed: services/Dockerfile.dockerignore")
+
     def test_reviewed_public_demo_context_is_accepted_without_replacing_old_context(self):
         self.docker_fixture()
         self.assertEqual([], self.findings())
